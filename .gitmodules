@@ -1,0 +1,3 @@
+[submodule "subconverter"]
+	path = subconverter
+	url = git@github.com:lonelam/subconverter.git
