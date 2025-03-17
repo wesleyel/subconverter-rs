@@ -1,5 +1,4 @@
-use crate::parser::proxy::{Proxy, ProxyType};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::models::{Proxy, ProxyType, SNELL_DEFAULT_GROUP};
 use std::collections::HashMap;
 use url::Url;
 
@@ -22,6 +21,9 @@ pub fn explode_snell(snell: &str, node: &mut Proxy) -> bool {
         None => return false,
     };
     let port = url.port().unwrap_or(8388);
+    if port == 0 {
+        return false; // Skip if port is 0
+    }
 
     // Extract password (username in URL)
     let password = url.username();
@@ -47,6 +49,13 @@ pub fn explode_snell(snell: &str, node: &mut Proxy) -> bool {
         .map(|s| s.parse::<u16>().unwrap_or(1))
         .unwrap_or(1);
 
+    // Extract UDP, TFO, and allow_insecure flags
+    let udp = params.get("udp").map(|s| s == "true" || s == "1");
+    let tfo = params.get("tfo").map(|s| s == "true" || s == "1");
+    let allow_insecure = params
+        .get("skip-cert-verify")
+        .map(|s| s == "true" || s == "1");
+
     // Extract remark from the fragment
     let remark = url.fragment().unwrap_or("");
     let formatted_remark = if remark.is_empty() {
@@ -57,7 +66,7 @@ pub fn explode_snell(snell: &str, node: &mut Proxy) -> bool {
 
     // Create the proxy object
     *node = Proxy::snell_construct(
-        "Snell".to_string(),
+        SNELL_DEFAULT_GROUP.to_string(),
         formatted_remark,
         host.to_string(),
         port,
@@ -65,9 +74,9 @@ pub fn explode_snell(snell: &str, node: &mut Proxy) -> bool {
         obfs.to_string(),
         host_param.to_string(),
         version,
-        None,
-        None,
-        None,
+        udp,
+        tfo,
+        allow_insecure,
         None,
     );
 
@@ -88,12 +97,21 @@ pub fn explode_snell_surge(surge: &str, node: &mut Proxy) -> bool {
     }
 
     // Extract server and port
-    let server_part = parts[0].replace("snell", "").trim().to_string();
-    let server = if server_part.starts_with('=') {
-        server_part[1..].trim().to_string()
-    } else {
+    let server_part = parts[0];
+    let server = if server_part.contains('=') {
         server_part
+            .split('=')
+            .nth(1)
+            .unwrap_or("")
+            .trim()
+            .to_string()
+    } else {
+        server_part.replace("snell", "").trim().to_string()
     };
+    if server.is_empty() {
+        return false;
+    }
+
     let port_str = parts[1];
     let port = match port_str.parse::<u16>() {
         Ok(p) => p,
@@ -142,7 +160,7 @@ pub fn explode_snell_surge(surge: &str, node: &mut Proxy) -> bool {
 
     // Create the proxy object
     *node = Proxy::snell_construct(
-        "Snell".to_string(),
+        SNELL_DEFAULT_GROUP.to_string(),
         remark,
         server,
         port,

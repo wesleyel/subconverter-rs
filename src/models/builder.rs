@@ -1,4 +1,4 @@
-use crate::parser::proxy::{Proxy, ProxyType};
+use crate::{Proxy, ProxyType};
 
 impl Proxy {
     pub fn common_construct(
@@ -177,7 +177,7 @@ impl Proxy {
         underlying_proxy: &str,
     ) -> Self {
         let mut proxy = Proxy::common_construct(
-            ProxyType::SOCKS5,
+            ProxyType::Socks5,
             group,
             remark,
             server,

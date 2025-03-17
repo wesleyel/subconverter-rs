@@ -1,8 +1,8 @@
 use crate::generator::config::subexport::{
     group_generate, process_remark, ExtraSettings, ProxyGroupConfigs,
 };
-use crate::parser::proxy::{Proxy, ProxyType};
 use crate::parser::ruleset::RulesetContent;
+use crate::{Proxy, ProxyType};
 use base64::{engine::general_purpose, Engine as _};
 use std::collections::HashMap;
 

@@ -1,6 +1,11 @@
+//! Proxy model definitions
+//!
+//! Contains the core data structures for proxy configurations.
+
 use std::collections::HashSet;
 
 /// Represents the type of a proxy.
+/// This is the canonical enum used for proxy type identification across the application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProxyType {
     Unknown,
@@ -11,7 +16,7 @@ pub enum ProxyType {
     Snell,
     HTTP,
     HTTPS,
-    SOCKS5,
+    Socks5,
     WireGuard,
     Hysteria,
     Hysteria2,
@@ -28,7 +33,7 @@ impl ProxyType {
             ProxyType::Snell => "Snell",
             ProxyType::HTTP => "HTTP",
             ProxyType::HTTPS => "HTTPS",
-            ProxyType::SOCKS5 => "SOCKS5",
+            ProxyType::Socks5 => "SOCKS5",
             ProxyType::WireGuard => "WireGuard",
             ProxyType::Hysteria => "Hysteria",
             ProxyType::Hysteria2 => "Hysteria2",
@@ -155,7 +160,7 @@ impl Default for Proxy {
             pre_shared_key: None,
             dns_servers: HashSet::new(),
             mtu: 0,
-            allowed_ips: String::new(),
+            allowed_ips: String::from("0.0.0.0/0, ::/0"),
             keep_alive: 0,
             test_url: None,
             client_id: None,

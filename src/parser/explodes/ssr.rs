@@ -1,57 +1,74 @@
-use crate::parser::proxy::{Proxy, ProxyType, SSR_DEFAULT_GROUP};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::models::{Proxy, ProxyType, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP};
+use crate::utils::base64::url_safe_base64_decode;
 use serde_json::Value;
 use std::collections::HashMap;
 use url::Url;
 
+use super::ss::SS_CIPHERS;
+
 /// Parse a ShadowsocksR link into a Proxy object
+/// Based on the C++ implementation in explodeSSR function
 pub fn explode_ssr(ssr: &str, node: &mut Proxy) -> bool {
     // Check if the link starts with ssr://
     if !ssr.starts_with("ssr://") {
         return false;
     }
 
-    // Extract the base64 part
+    // Extract the base64 part and decode it
     let encoded = &ssr[6..];
 
     // Decode base64
-    let decoded = match STANDARD.decode(encoded) {
-        Ok(decoded) => match String::from_utf8(decoded) {
-            Ok(s) => s,
-            Err(_) => return false,
-        },
-        Err(_) => return false,
-    };
+    let mut decoded = url_safe_base64_decode(encoded);
+    if decoded.is_empty() {
+        return false;
+    }
 
-    // Split the decoded string by ":"
+    // Replace \r with empty string
+    decoded = decoded.replace('\r', "");
+
+    // Extract query parameters if present
+    let mut strobfs = String::new();
+    let mut group = String::new();
+    let mut remarks = String::new();
+    let mut obfsparam = String::new();
+    let mut protoparam = String::new();
+
+    if let Some(query_pos) = decoded.find("/?") {
+        strobfs = decoded[query_pos + 2..].to_string();
+        decoded = decoded[..query_pos].to_string();
+
+        // Parse query parameters
+        let url_str = format!("http://localhost/?{}", strobfs);
+        if let Ok(url) = Url::parse(&url_str) {
+            for (key, value) in url.query_pairs() {
+                let decoded_value = url_safe_base64_decode(&value);
+
+                match key.as_ref() {
+                    "group" => group = decoded_value,
+                    "remarks" => remarks = decoded_value,
+                    "obfsparam" => obfsparam = decoded_value.replace(" ", ""),
+                    "protoparam" => protoparam = decoded_value.replace(" ", ""),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    // Parse the main part of the URL (server:port:protocol:method:obfs:password)
     let parts: Vec<&str> = decoded.split(':').collect();
     if parts.len() < 6 {
         return false;
     }
 
-    // Extract the main components
     let server = parts[0];
     let port_str = parts[1];
     let protocol = parts[2];
     let method = parts[3];
     let obfs = parts[4];
+    let password_encoded = parts[5];
 
-    // The remaining part may contain the password and parameters
-    let remaining = parts[5..].join(":");
-    let remaining_parts: Vec<&str> = remaining.split('/').collect();
-    if remaining_parts.is_empty() {
-        return false;
-    }
-
-    // Extract password (base64 encoded)
-    let password_encoded = remaining_parts[0];
-    let password = match STANDARD.decode(password_encoded) {
-        Ok(decoded) => match String::from_utf8(decoded) {
-            Ok(s) => s,
-            Err(_) => return false,
-        },
-        Err(_) => return false,
-    };
+    // Decode password (base64 encoded)
+    let password = url_safe_base64_decode(password_encoded);
 
     // Parse port
     let port = match port_str.parse::<u16>() {
@@ -59,51 +76,47 @@ pub fn explode_ssr(ssr: &str, node: &mut Proxy) -> bool {
         Err(_) => return false,
     };
 
-    // Default values for optional parameters
-    let mut obfs_param = String::new();
-    let mut protocol_param = String::new();
-    let mut remark = format!("{} ({})", server, port);
-
-    // Parse query parameters if present
-    if remaining_parts.len() > 1 && !remaining_parts[1].is_empty() {
-        let query = format!("?{}", remaining_parts[1]);
-        if let Ok(url) = Url::parse(&format!("http://localhost/{}", query)) {
-            for (key, value) in url.query_pairs() {
-                let value_decoded = match STANDARD.decode(value.as_bytes()) {
-                    Ok(decoded) => match String::from_utf8(decoded) {
-                        Ok(s) => s,
-                        Err(_) => continue,
-                    },
-                    Err(_) => continue,
-                };
-
-                match key.as_ref() {
-                    "obfsparam" => obfs_param = value_decoded,
-                    "protoparam" => protocol_param = value_decoded,
-                    "remarks" => remark = value_decoded,
-                    _ => {}
-                }
-            }
-        }
+    // Skip if port is 0
+    if port == 0 {
+        return false;
     }
 
-    // Create the proxy object
-    *node = Proxy::ssr_construct(
-        "SSR",
-        &remark,
-        server,
-        port,
-        protocol,
-        method,
-        obfs,
-        &password,
-        &obfs_param,
-        &protocol_param,
-        None,
-        None,
-        None,
-        "",
-    );
+    // Set default group and remarks if not provided
+    if group.is_empty() {
+        group = SSR_DEFAULT_GROUP.to_string();
+    }
+    if remarks.is_empty() {
+        remarks = format!("{} ({})", server, port);
+    }
+
+    // Check if this should be an SS or SSR proxy
+    if SS_CIPHERS.iter().any(|c| *c == method)
+        && (obfs.is_empty() || obfs == "plain")
+        && (protocol.is_empty() || protocol == "origin")
+    {
+        // Create SS proxy
+        *node = Proxy::ss_construct(
+            &group, &remarks, server, port, &password, method, "", "", None, None, None, None, "",
+        );
+    } else {
+        // Create SSR proxy
+        *node = Proxy::ssr_construct(
+            &group,
+            &remarks,
+            server,
+            port,
+            protocol,
+            method,
+            obfs,
+            &password,
+            &obfsparam,
+            &protoparam,
+            None,
+            None,
+            None,
+            "",
+        );
+    }
 
     true
 }

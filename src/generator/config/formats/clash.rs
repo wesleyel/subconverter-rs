@@ -1,7 +1,7 @@
 use crate::generator::config::subexport::{
     group_generate, process_remark, ExtraSettings, ProxyGroupConfigs,
 };
-use crate::parser::proxy::{Proxy, ProxyType};
+use crate::models::{Proxy, ProxyType};
 use crate::parser::ruleset::RulesetContent;
 use crate::utils::yaml::YamlNode;
 use serde_yaml::{self, Mapping, Value};
@@ -33,7 +33,14 @@ pub fn proxy_to_clash(
     };
 
     // Apply conversion to the YAML node
-    proxy_to_clash_yaml(nodes, &mut yaml_node, extra_proxy_group, clash_r, ext);
+    proxy_to_clash_yaml(
+        nodes,
+        &mut yaml_node,
+        ruleset_content_array,
+        extra_proxy_group,
+        clash_r,
+        ext,
+    );
 
     // Convert back to string
     match yaml_node.to_string() {
@@ -50,12 +57,14 @@ pub fn proxy_to_clash(
 /// # Arguments
 /// * `nodes` - List of proxy nodes to convert
 /// * `yaml_node` - YAML node to modify
+/// * `ruleset_content_array` - Array of ruleset contents to apply
 /// * `extra_proxy_group` - Extra proxy group configurations
 /// * `clash_r` - Whether to use ClashR format
 /// * `ext` - Extra settings for conversion
 pub fn proxy_to_clash_yaml(
     nodes: &mut Vec<Proxy>,
     yaml_node: &mut YamlNode,
+    ruleset_content_array: &Vec<RulesetContent>,
     extra_proxy_group: &ProxyGroupConfigs,
     clash_r: bool,
     ext: &mut ExtraSettings,
@@ -106,7 +115,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("server".to_string()),
-                    Value::String(node.server.clone()),
+                    Value::String(node.hostname.clone()),
                 );
                 proxy.insert(
                     Value::String("port".to_string()),
@@ -114,22 +123,22 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("cipher".to_string()),
-                    Value::String(node.cipher.clone()),
+                    Value::String(node.encrypt_method.as_deref().unwrap_or("").to_string()),
                 );
                 proxy.insert(
                     Value::String("password".to_string()),
-                    Value::String(node.password.clone()),
+                    Value::String(node.password.as_deref().unwrap_or("").to_string()),
                 );
 
                 // Add plugin if present
-                if !node.plugin.is_empty() {
+                if node.plugin.as_ref().map_or(false, |s| !s.is_empty()) {
                     proxy.insert(
                         Value::String("plugin".to_string()),
-                        Value::String(node.plugin.clone()),
+                        Value::String(node.plugin.as_deref().unwrap_or("").to_string()),
                     );
                     proxy.insert(
                         Value::String("plugin-opts".to_string()),
-                        Value::String(node.plugin_opts.clone()),
+                        Value::String(node.plugin_option.as_deref().unwrap_or("").to_string()),
                     );
                 }
             }
@@ -141,7 +150,7 @@ pub fn proxy_to_clash_yaml(
                     );
                     proxy.insert(
                         Value::String("server".to_string()),
-                        Value::String(node.server.clone()),
+                        Value::String(node.hostname.clone()),
                     );
                     proxy.insert(
                         Value::String("port".to_string()),
@@ -149,27 +158,27 @@ pub fn proxy_to_clash_yaml(
                     );
                     proxy.insert(
                         Value::String("cipher".to_string()),
-                        Value::String(node.cipher.clone()),
+                        Value::String(node.encrypt_method.as_deref().unwrap_or("").to_string()),
                     );
                     proxy.insert(
                         Value::String("password".to_string()),
-                        Value::String(node.password.clone()),
+                        Value::String(node.password.as_deref().unwrap_or("").to_string()),
                     );
                     proxy.insert(
                         Value::String("protocol".to_string()),
-                        Value::String(node.protocol.clone()),
+                        Value::String(node.protocol.as_deref().unwrap_or("").to_string()),
                     );
                     proxy.insert(
                         Value::String("protocolparam".to_string()),
-                        Value::String(node.protocol_param.clone()),
+                        Value::String(node.protocol_param.as_deref().unwrap_or("").to_string()),
                     );
                     proxy.insert(
                         Value::String("obfs".to_string()),
-                        Value::String(node.obfs.clone()),
+                        Value::String(node.obfs.as_deref().unwrap_or("").to_string()),
                     );
                     proxy.insert(
                         Value::String("obfsparam".to_string()),
-                        Value::String(node.obfs_param.clone()),
+                        Value::String(node.obfs_param.as_deref().unwrap_or("").to_string()),
                     );
                 } else {
                     // Skip SSR nodes if ClashR is not enabled
@@ -183,7 +192,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("server".to_string()),
-                    Value::String(node.server.clone()),
+                    Value::String(node.hostname.clone()),
                 );
                 proxy.insert(
                     Value::String("port".to_string()),
@@ -191,7 +200,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("uuid".to_string()),
-                    Value::String(node.uuid.clone()),
+                    Value::String(node.user_id.as_deref().unwrap_or("").to_string()),
                 );
                 proxy.insert(
                     Value::String("alterId".to_string()),
@@ -199,10 +208,14 @@ pub fn proxy_to_clash_yaml(
                 );
 
                 // Add cipher
-                if !node.cipher.is_empty() {
+                if node
+                    .encrypt_method
+                    .as_ref()
+                    .map_or(false, |s| !s.is_empty())
+                {
                     proxy.insert(
                         Value::String("cipher".to_string()),
-                        Value::String(node.cipher.clone()),
+                        Value::String(node.encrypt_method.as_deref().unwrap_or("").to_string()),
                     );
                 } else {
                     proxy.insert(
@@ -212,15 +225,19 @@ pub fn proxy_to_clash_yaml(
                 }
 
                 // Add network settings
-                if !node.network.is_empty() {
+                if node
+                    .transfer_protocol
+                    .as_ref()
+                    .map_or(false, |s| !s.is_empty())
+                {
                     proxy.insert(
                         Value::String("network".to_string()),
-                        Value::String(node.network.clone()),
+                        Value::String(node.transfer_protocol.as_deref().unwrap_or("").to_string()),
                     );
                 }
 
                 // Add TLS settings
-                if node.tls {
+                if node.tls_secure {
                     proxy.insert(Value::String("tls".to_string()), Value::Bool(true));
                     if let Some(sni) = &node.sni {
                         if !sni.is_empty() {
@@ -233,20 +250,20 @@ pub fn proxy_to_clash_yaml(
                 }
 
                 // Add network specific settings
-                match node.network.as_str() {
+                match node.transfer_protocol.as_deref().unwrap_or("") {
                     "ws" => {
                         let mut ws_opts = Mapping::new();
-                        if !node.path.is_empty() {
+                        if node.path.as_ref().map_or(false, |s| !s.is_empty()) {
                             ws_opts.insert(
                                 Value::String("path".to_string()),
-                                Value::String(node.path.clone()),
+                                Value::String(node.path.as_deref().unwrap_or("").to_string()),
                             );
                         }
-                        if !node.host.is_empty() {
+                        if node.host.as_ref().map_or(false, |s| !s.is_empty()) {
                             let mut headers = Mapping::new();
                             headers.insert(
                                 Value::String("Host".to_string()),
-                                Value::String(node.host.clone()),
+                                Value::String(node.host.as_deref().unwrap_or("").to_string()),
                             );
                             ws_opts.insert(
                                 Value::String("headers".to_string()),
@@ -304,7 +321,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("server".to_string()),
-                    Value::String(node.server.clone()),
+                    Value::String(node.hostname.clone()),
                 );
                 proxy.insert(
                     Value::String("port".to_string()),
@@ -312,7 +329,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("password".to_string()),
-                    Value::String(node.password.clone()),
+                    Value::String(node.password.as_deref().unwrap_or("").to_string()),
                 );
 
                 // Add SNI
@@ -323,27 +340,31 @@ pub fn proxy_to_clash_yaml(
                 }
 
                 // Add network settings
-                if !node.network.is_empty() && node.network != "tcp" {
+                if node
+                    .transfer_protocol
+                    .as_ref()
+                    .map_or(false, |s| !s.is_empty() && s != "tcp")
+                {
                     proxy.insert(
                         Value::String("network".to_string()),
-                        Value::String(node.network.clone()),
+                        Value::String(node.transfer_protocol.as_deref().unwrap_or("").to_string()),
                     );
 
                     // Add network specific settings
-                    match node.network.as_str() {
+                    match node.transfer_protocol.as_deref().unwrap_or("") {
                         "ws" => {
                             let mut ws_opts = Mapping::new();
-                            if !node.path.is_empty() {
+                            if node.path.as_ref().map_or(false, |s| !s.is_empty()) {
                                 ws_opts.insert(
                                     Value::String("path".to_string()),
-                                    Value::String(node.path.clone()),
+                                    Value::String(node.path.as_deref().unwrap_or("").to_string()),
                                 );
                             }
-                            if !node.host.is_empty() {
+                            if node.host.as_ref().map_or(false, |s| !s.is_empty()) {
                                 let mut headers = Mapping::new();
                                 headers.insert(
                                     Value::String("Host".to_string()),
-                                    Value::String(node.host.clone()),
+                                    Value::String(node.host.as_deref().unwrap_or("").to_string()),
                                 );
                                 ws_opts.insert(
                                     Value::String("headers".to_string()),
@@ -366,7 +387,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("server".to_string()),
-                    Value::String(node.server.clone()),
+                    Value::String(node.hostname.clone()),
                 );
                 proxy.insert(
                     Value::String("port".to_string()),
@@ -374,16 +395,16 @@ pub fn proxy_to_clash_yaml(
                 );
 
                 // Add username/password if present
-                if !node.username.is_empty() {
+                if node.username.as_ref().map_or(false, |s| !s.is_empty()) {
                     proxy.insert(
                         Value::String("username".to_string()),
-                        Value::String(node.username.clone()),
+                        Value::String(node.username.as_deref().unwrap_or("").to_string()),
                     );
                 }
-                if !node.password.is_empty() {
+                if node.password.as_ref().map_or(false, |s| !s.is_empty()) {
                     proxy.insert(
                         Value::String("password".to_string()),
-                        Value::String(node.password.clone()),
+                        Value::String(node.password.as_deref().unwrap_or("").to_string()),
                     );
                 }
 
@@ -399,7 +420,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("server".to_string()),
-                    Value::String(node.server.clone()),
+                    Value::String(node.hostname.clone()),
                 );
                 proxy.insert(
                     Value::String("port".to_string()),
@@ -407,16 +428,16 @@ pub fn proxy_to_clash_yaml(
                 );
 
                 // Add username/password if present
-                if !node.username.is_empty() {
+                if node.username.as_ref().map_or(false, |s| !s.is_empty()) {
                     proxy.insert(
                         Value::String("username".to_string()),
-                        Value::String(node.username.clone()),
+                        Value::String(node.username.as_deref().unwrap_or("").to_string()),
                     );
                 }
-                if !node.password.is_empty() {
+                if node.password.as_ref().map_or(false, |s| !s.is_empty()) {
                     proxy.insert(
                         Value::String("password".to_string()),
-                        Value::String(node.password.clone()),
+                        Value::String(node.password.as_deref().unwrap_or("").to_string()),
                     );
                 }
             }
@@ -427,7 +448,7 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("server".to_string()),
-                    Value::String(node.server.clone()),
+                    Value::String(node.hostname.clone()),
                 );
                 proxy.insert(
                     Value::String("port".to_string()),
@@ -435,27 +456,27 @@ pub fn proxy_to_clash_yaml(
                 );
                 proxy.insert(
                     Value::String("psk".to_string()),
-                    Value::String(node.password.clone()),
+                    Value::String(node.password.as_deref().unwrap_or("").to_string()),
                 );
 
                 // Add version if present
-                if node.version > 0 {
+                if node.snell_version > 0 {
                     proxy.insert(
                         Value::String("version".to_string()),
-                        Value::Number(node.version.into()),
+                        Value::Number(node.snell_version.into()),
                     );
                 }
 
                 // Add obfs settings
-                if !node.obfs.is_empty() {
+                if node.obfs.as_ref().map_or(false, |s| !s.is_empty()) {
                     proxy.insert(
                         Value::String("obfs".to_string()),
-                        Value::String(node.obfs.clone()),
+                        Value::String(node.obfs.as_deref().unwrap_or("").to_string()),
                     );
-                    if !node.host.is_empty() {
+                    if node.host.as_ref().map_or(false, |s| !s.is_empty()) {
                         proxy.insert(
                             Value::String("obfs-host".to_string()),
-                            Value::String(node.host.clone()),
+                            Value::String(node.host.as_deref().unwrap_or("").to_string()),
                         );
                     }
                 }
@@ -467,10 +488,10 @@ pub fn proxy_to_clash_yaml(
         if let Some(udp) = node.udp {
             proxy.insert(Value::String("udp".to_string()), Value::Bool(udp));
         }
-        if let Some(tfo) = node.tfo {
+        if let Some(tfo) = node.tcp_fast_open {
             proxy.insert(Value::String("tfo".to_string()), Value::Bool(tfo));
         }
-        if let Some(scv) = node.skip_cert_verify {
+        if let Some(scv) = node.allow_insecure {
             proxy.insert(
                 Value::String("skip-cert-verify".to_string()),
                 Value::Bool(scv),

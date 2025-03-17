@@ -1,4 +1,4 @@
-use crate::parser::proxy::{Proxy, ProxyType};
+use crate::{models::HYSTERIA2_DEFAULT_GROUP, Proxy, ProxyType};
 use std::collections::HashMap;
 use url::Url;
 
@@ -65,25 +65,22 @@ pub fn explode_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     let remark = url.fragment().unwrap_or("");
 
     // Create formatted strings
-    let group_str = "Hysteria2".to_string();
     let remark_str = if remark.is_empty() {
         format!("{} ({})", host, port)
     } else {
         remark.to_string()
     };
-    let host_str = host.to_string();
-    let password_str = password.to_string();
 
     // Create the proxy object
     *node = Proxy::hysteria2_construct(
-        group_str,
+        HYSTERIA2_DEFAULT_GROUP.to_string(),
         remark_str,
-        host_str,
+        host.to_string(),
         port,
         ports,
         up_speed,
         down_speed,
-        password_str,
+        password.to_string(),
         obfs,
         obfs_param,
         sni,
@@ -100,7 +97,7 @@ pub fn explode_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     true
 }
 
-/// Parse a standard Hysteria2 link into a Proxy object
+/// Parse a standard Hysteria2 link into a Proxy object (handles hy2:// scheme)
 pub fn explode_std_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     // Check if the link starts with hy2://
     if !hysteria2.starts_with("hy2://") {
@@ -169,25 +166,22 @@ pub fn explode_std_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     let remark = url.fragment().unwrap_or("");
 
     // Create formatted strings
-    let group_str = "Hysteria2".to_string();
     let remark_str = if remark.is_empty() {
         format!("{} ({})", host, port)
     } else {
         remark.to_string()
     };
-    let host_str = host.to_string();
-    let password_str = password.to_string();
 
     // Create the proxy object
     *node = Proxy::hysteria2_construct(
-        group_str,
+        HYSTERIA2_DEFAULT_GROUP.to_string(),
         remark_str,
-        host_str,
+        host.to_string(),
         port,
         ports,
         up_speed,
         down_speed,
-        password_str,
+        password.to_string(),
         obfs,
         obfs_param,
         sni,

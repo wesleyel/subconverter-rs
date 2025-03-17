@@ -1,5 +1,4 @@
 pub mod config;
-pub mod node_manip;
 
 // Re-export common types
 pub use config::subexport::{
@@ -19,7 +18,7 @@ pub use config::formats::ssd::proxy_to_ssd;
 pub use config::formats::surge::proxy_to_surge;
 
 // Re-export node manipulation functions
-pub use node_manip::{
-    add_emoji, add_nodes, check_ignore, explode, explode_conf, explode_conf_content, filter_nodes,
-    node_rename, preprocess_nodes, remove_emoji, ParseSettings,
-};
+// pub use node_manip::{
+//     add_emoji, add_nodes, check_ignore, explode, explode_conf, explode_conf_content, filter_nodes,
+//     node_rename, preprocess_nodes, remove_emoji, ParseSettings,
+// };

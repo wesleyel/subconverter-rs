@@ -1,10 +1,37 @@
-use crate::parser::proxy::{Proxy, ProxyType, SS_DEFAULT_GROUP};
+use crate::models::{Proxy, ProxyType, SS_DEFAULT_GROUP};
 use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
 use base64::Engine;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::borrow::Cow;
 use url::Url;
 use urlencoding;
+
+pub static SS_CIPHERS: &[&str] = &[
+    "rc4-md5",
+    "aes-128-gcm",
+    "aes-192-gcm",
+    "aes-256-gcm",
+    "aes-128-cfb",
+    "aes-192-cfb",
+    "aes-256-cfb",
+    "aes-128-ctr",
+    "aes-192-ctr",
+    "aes-256-ctr",
+    "camellia-128-cfb",
+    "camellia-192-cfb",
+    "camellia-256-cfb",
+    "bf-cfb",
+    "chacha20-ietf-poly1305",
+    "xchacha20-ietf-poly1305",
+    "salsa20",
+    "chacha20",
+    "chacha20-ietf",
+    "2022-blake3-aes-128-gcm",
+    "2022-blake3-aes-256-gcm",
+    "2022-blake3-chacha20-poly1305",
+    "2022-blake3-chacha12-poly1305",
+    "2022-blake3-chacha8-poly1305",
+];
 
 /// Parse a Shadowsocks link into a Proxy object
 /// Based on the C++ implementation in explodeSS function
@@ -15,242 +42,147 @@ pub fn explode_ss(ss: &str, node: &mut Proxy) -> bool {
     }
 
     // Extract the content part after ss://
-    let content = &ss[5..];
+    let mut ss_content = ss[5..].to_string();
+    // Replace "/?" with "?" like in C++ replaceAllDistinct
+    ss_content = ss_content.replace("/?", "?");
 
-    // Try to identify the format (SIP002 or legacy)
-    if content.contains('@') {
-        // SIP002 format (ss://method:password@server:port)
-        // Try to parse as URL first
-        match Url::parse(ss) {
-            Ok(url) => {
-                // Extract host and port
-                let server = match url.host_str() {
-                    Some(host) => host,
-                    None => return false,
-                };
+    // Extract fragment (remark) if present
+    let mut ps = String::new();
+    if let Some(hash_pos) = ss_content.find('#') {
+        ps = urlencoding::decode(&ss_content[hash_pos + 1..])
+            .unwrap_or(Cow::Borrowed(&ss_content[hash_pos + 1..]))
+            .to_string();
+        ss_content = ss_content[..hash_pos].to_string();
+    }
 
-                let port = match url.port() {
-                    Some(port) => port,
-                    None => return false,
-                };
+    // Extract plugin and other query parameters
+    let mut plugin = String::new();
+    let mut plugin_opts = String::new();
+    let mut group = SS_DEFAULT_GROUP.to_string();
 
-                // Extract userinfo and decode it
-                let userinfo = url.username();
-                let (method, password) = if let Some(pass) = url.password() {
-                    // If URL has password part, assume format: username=method, password=password
-                    (userinfo.to_string(), pass.to_string())
+    if let Some(query_pos) = ss_content.find('?') {
+        let addition = ss_content[query_pos + 1..].to_string();
+        ss_content = ss_content[..query_pos].to_string();
+
+        // Parse query parameters
+        for (key, value) in url::form_urlencoded::parse(addition.as_bytes()) {
+            if key == "plugin" {
+                let plugins = urlencoding::decode(&value)
+                    .unwrap_or(Cow::Borrowed(&value))
+                    .to_string();
+                if let Some(semicolon_pos) = plugins.find(';') {
+                    plugin = plugins[..semicolon_pos].to_string();
+                    plugin_opts = plugins[semicolon_pos + 1..].to_string();
                 } else {
-                    // SIP002 format: username is base64(method:password)
-                    // First URL-decode the username
-                    let url_decoded = match urlencoding::decode(userinfo) {
-                        Ok(decoded) => decoded.to_string(),
-                        Err(_) => userinfo.to_string(),
-                    };
-
-                    // Then base64 decode
-                    let decoded =
-                        match STANDARD.decode(url_decoded.replace('_', "/").replace('-', "+")) {
-                            Ok(bytes) => match String::from_utf8(bytes) {
-                                Ok(s) => s,
-                                Err(_) => return false,
-                            },
-                            Err(_) => return false,
-                        };
-
-                    // Split at first colon
-                    match decoded.find(':') {
-                        Some(pos) => (decoded[..pos].to_string(), decoded[pos + 1..].to_string()),
-                        None => return false,
-                    }
-                };
-
-                // Extract plugin and its options
-                let mut plugin = String::new();
-                let mut plugin_opts = String::new();
-
-                for (key, value) in url.query_pairs() {
-                    if key == "plugin" {
-                        let plugin_str = value.to_string();
-                        if let Some(pos) = plugin_str.find(';') {
-                            plugin = plugin_str[..pos].to_string();
-                            plugin_opts = plugin_str[pos + 1..].to_string();
-                        } else {
-                            plugin = plugin_str;
-                        }
-                        break;
-                    }
+                    plugin = plugins;
                 }
-
-                // Extract remark from fragment
-                let remark = url.fragment().unwrap_or("");
-                let remark = if remark.is_empty() {
-                    format!("{} ({})", server, port)
-                } else {
-                    // URL decode the fragment
-                    match urlencoding::decode(remark) {
-                        Ok(decoded) => decoded.to_string(),
-                        Err(_) => remark.to_string(),
-                    }
-                };
-
-                // Construct the proxy
-                *node = Proxy::ss_construct(
-                    SS_DEFAULT_GROUP,
-                    &remark,
-                    server,
-                    port,
-                    &password,
-                    &method,
-                    &plugin,
-                    &plugin_opts,
-                    None,
-                    None,
-                    None,
-                    None,
-                    "",
-                );
-
-                return true;
-            }
-            Err(e) => {
-                // If URL parsing fails, try legacy format manual parsing
-                if let Some(at_pos) = content.find('@') {
-                    let before_at = &content[..at_pos];
-                    let after_at = &content[at_pos + 1..];
-
-                    // Decode userinfo (may be base64 encoded)
-                    let user_pass =
-                        match STANDARD.decode(before_at.replace('_', "/").replace('-', "+")) {
-                            Ok(bytes) => match String::from_utf8(bytes) {
-                                Ok(s) => s,
-                                Err(_) => before_at.to_string(),
-                            },
-                            Err(_) => before_at.to_string(),
-                        };
-
-                    // Split method:password
-                    let user_pass_parts: Vec<&str> = user_pass.split(':').collect();
-                    if user_pass_parts.len() < 2 {
-                        return false;
-                    }
-
-                    let method = user_pass_parts[0];
-                    // Combine remaining parts in case password contains colons
-                    let password = user_pass_parts[1..].join(":");
-
-                    // Parse server:port
-                    let server_port: Vec<&str> = after_at.split(':').collect();
-                    if server_port.len() < 2 {
-                        return false;
-                    }
-
-                    let server = server_port[0];
-
-                    // Extract port and handle potential fragment/query
-                    let port_part = server_port[1];
-                    let port_end = port_part
-                        .find(|c| c == '/' || c == '#' || c == '?')
-                        .unwrap_or(port_part.len());
-                    let port = match port_part[..port_end].parse::<u16>() {
-                        Ok(p) => p,
-                        Err(_) => return false,
-                    };
-
-                    // Extract remark from fragment if any
-                    let remark = if let Some(hash_pos) = port_part.find('#') {
-                        &port_part[hash_pos + 1..]
-                    } else {
-                        ""
-                    };
-
-                    let remark = if remark.is_empty() {
-                        format!("{} ({})", server, port)
-                    } else {
-                        remark.to_string()
-                    };
-
-                    // Construct the proxy
-                    *node = Proxy::ss_construct(
-                        SS_DEFAULT_GROUP,
-                        &remark,
-                        server,
-                        port,
-                        &password,
-                        method,
-                        "",
-                        "",
-                        None,
-                        None,
-                        None,
-                        None,
-                        "",
-                    );
-
-                    return true;
+            } else if key == "group" {
+                if !value.is_empty() {
+                    group = crate::utils::base64::url_safe_base64_decode(&value);
                 }
             }
-        }
-    } else {
-        // Legacy format (ss://base64(method:password@server:port))
-        let decoded = match STANDARD.decode(content.replace('_', "/").replace('-', "+")) {
-            Ok(bytes) => match String::from_utf8(bytes) {
-                Ok(s) => s,
-                Err(_) => return false,
-            },
-            Err(_) => return false,
-        };
-
-        if let Some(at_pos) = decoded.find('@') {
-            let before_at = &decoded[..at_pos];
-            let after_at = &decoded[at_pos + 1..];
-
-            // Split method:password
-            let user_pass_parts: Vec<&str> = before_at.split(':').collect();
-            if user_pass_parts.len() < 2 {
-                return false;
-            }
-
-            let method = user_pass_parts[0];
-            // Combine remaining parts in case password contains colons
-            let password = user_pass_parts[1..].join(":");
-
-            // Parse server:port
-            let server_port: Vec<&str> = after_at.split(':').collect();
-            if server_port.len() < 2 {
-                return false;
-            }
-
-            let server = server_port[0];
-            let port = match server_port[1].parse::<u16>() {
-                Ok(p) => p,
-                Err(_) => return false,
-            };
-
-            // Create formatted remark
-            let remark = format!("{} ({})", server, port);
-
-            // Construct the proxy
-            *node = Proxy::ss_construct(
-                SS_DEFAULT_GROUP,
-                &remark,
-                server,
-                port,
-                &password,
-                method,
-                "",
-                "",
-                None,
-                None,
-                None,
-                None,
-                "",
-            );
-
-            return true;
         }
     }
 
-    false
+    // Parse the main part of the URL
+    let mut method = String::new();
+    let mut password = String::new();
+    let mut server = String::new();
+    let mut port = 0;
+
+    if ss_content.contains('@') {
+        // SIP002 format (method:password@server:port)
+        let parts: Vec<&str> = ss_content.split('@').collect();
+        if parts.len() < 2 {
+            return false;
+        }
+
+        let secret = parts[0];
+        let server_port = parts[1];
+
+        // Parse server and port
+        let server_port_parts: Vec<&str> = server_port.split(':').collect();
+        if server_port_parts.len() < 2 {
+            return false;
+        }
+        server = server_port_parts[0].to_string();
+        port = match server_port_parts[1].parse::<u16>() {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+
+        // Decode the secret part
+        let decoded_secret = crate::utils::base64::url_safe_base64_decode(secret);
+        let method_pass: Vec<&str> = decoded_secret.split(':').collect();
+        if method_pass.len() < 2 {
+            return false;
+        }
+        method = method_pass[0].to_string();
+        password = method_pass[1..].join(":"); // In case password contains colons
+    } else {
+        // Legacy format
+        let decoded = crate::utils::base64::url_safe_base64_decode(&ss_content);
+        if decoded.is_empty() {
+            return false;
+        }
+
+        // Parse method:password@server:port
+        let parts: Vec<&str> = decoded.split('@').collect();
+        if parts.len() < 2 {
+            return false;
+        }
+
+        let method_pass = parts[0];
+        let server_port = parts[1];
+
+        // Parse method and password
+        let method_pass_parts: Vec<&str> = method_pass.split(':').collect();
+        if method_pass_parts.len() < 2 {
+            return false;
+        }
+        method = method_pass_parts[0].to_string();
+        password = method_pass_parts[1..].join(":"); // In case password contains colons
+
+        // Parse server and port
+        let server_port_parts: Vec<&str> = server_port.split(':').collect();
+        if server_port_parts.len() < 2 {
+            return false;
+        }
+        server = server_port_parts[0].to_string();
+        port = match server_port_parts[1].parse::<u16>() {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+    }
+
+    // Skip if port is 0
+    if port == 0 {
+        return false;
+    }
+
+    // Use server:port as remark if none provided
+    if ps.is_empty() {
+        ps = format!("{} ({})", server, port);
+    }
+
+    // Create the proxy
+    *node = Proxy::ss_construct(
+        &group,
+        &ps,
+        &server,
+        port,
+        &password,
+        &method,
+        &plugin,
+        &plugin_opts,
+        None,
+        None,
+        None,
+        None,
+        "",
+    );
+
+    true
 }
 
 /// Parse a SSD (Shadowsocks subscription) link into a vector of Proxy objects

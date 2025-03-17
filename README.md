@@ -148,3 +148,26 @@ For questions or discussions, you can:
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Architecture
+
+The project is organized into several key modules:
+
+### `models` module
+- Contains core data structures used throughout the application
+- Defines `Proxy` and `ProxyType` as the canonical type definitions
+- Separates data models from processing logic for better maintainability
+
+### `parser` module
+- **`types`**: Defines configuration types like `ConfType`
+- **`explodes`**: Contains parsers for different proxy formats (VMess, Shadowsocks, etc.)
+- **`subparser`**: High-level parsing functionality
+
+### `generator` module
+- Handles conversion between different formats
+- Contains node manipulation functions like filtering and renaming
+
+### `utils` module
+- Common utilities used across the codebase
+
+This architecture separates concerns between data models, parsing logic, and output generation, making the codebase easier to maintain and extend.

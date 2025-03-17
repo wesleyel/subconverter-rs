@@ -1,4 +1,4 @@
-use crate::parser::proxy::{Proxy, ProxyType};
+use crate::{Proxy, ProxyType};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::collections::{HashMap, HashSet};
 use url::Url;

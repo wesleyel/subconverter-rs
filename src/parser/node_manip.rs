@@ -3,11 +3,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use crate::generator::config::proxy::{Proxy, ProxyType};
 use crate::generator::config::subexport::{
     apply_matcher, match_node, ExtraSettings, RegexMatchConfig,
 };
-use crate::utils::string::trim;
+use crate::{Proxy, ProxyType};
 
 /// Settings for parsing proxy configurations
 pub struct ParseSettings {

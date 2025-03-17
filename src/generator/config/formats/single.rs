@@ -1,5 +1,5 @@
 use crate::generator::config::subexport::{process_remark, ExtraSettings};
-use crate::parser::proxy::{Proxy, ProxyType};
+use crate::{Proxy, ProxyType};
 use base64::{engine::general_purpose, Engine as _};
 use serde_json::{self, json, Value};
 use std::collections::HashMap;

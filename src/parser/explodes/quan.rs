@@ -1,12 +1,11 @@
-use crate::parser::proxy::{
+use crate::models::{
     Proxy, ProxyType, HTTP_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
     TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP,
 };
-use base64;
 use std::collections::HashMap;
-use url::Url;
 
 /// Parse Quantumult configuration into a vector of Proxy objects
+/// Consistent with the C++ implementation in explodeQuan
 pub fn explode_quan(content: &str, nodes: &mut Vec<Proxy>) -> bool {
     // Split the content into lines
     let lines: Vec<&str> = content.lines().collect();
@@ -21,7 +20,8 @@ pub fn explode_quan(content: &str, nodes: &mut Vec<Proxy>) -> bool {
         }
 
         // Check if this is a proxy line
-        if let Some(mut node) = parse_quan_line(line) {
+        let mut node = Proxy::default();
+        if parse_quan_line(line, &mut node) {
             nodes.push(node);
             success = true;
         }
@@ -31,64 +31,51 @@ pub fn explode_quan(content: &str, nodes: &mut Vec<Proxy>) -> bool {
 }
 
 /// Parse a single line from Quantumult configuration
-fn parse_quan_line(line: &str) -> Option<Proxy> {
+/// Returns true if parsing was successful
+fn parse_quan_line(line: &str, node: &mut Proxy) -> bool {
     // Different formats for Quantumult configuration lines:
 
-    // 1. Shadowsocks: [name] = shadowsocks, [server], [port], [method], [password], [options]
-    if line.contains(" = shadowsocks") {
-        return parse_quan_ss(line);
-    }
-
-    // 2. ShadowsocksR: [name] = shadowsocksr, [server], [port], [method], [password], [protocol], [protocol_param], [obfs], [obfs_param], [options]
-    if line.contains(" = shadowsocksr") {
-        return parse_quan_ssr(line);
-    }
-
-    // 3. VMess: [name] = vmess, [server], [port], [method], [uuid], [options]
-    if line.contains(" = vmess") {
-        return parse_quan_vmess(line);
-    }
-
-    // 4. HTTP/HTTPS: [name] = http, [server], [port], [username], [password], [options]
-    if line.contains(" = http") {
-        return parse_quan_http(line);
-    }
-
-    // 5. Trojan: [name] = trojan, [server], [port], [password], [options]
-    if line.contains(" = trojan") {
-        return parse_quan_trojan(line);
-    }
-
-    None
-}
-
-/// Parse a Quantumult Shadowsocks line
-fn parse_quan_ss(line: &str) -> Option<Proxy> {
-    // Format: [name] = shadowsocks, [server], [port], [method], [password], [options]
+    // Format: [name] = [type], [params...]
     let parts: Vec<&str> = line.splitn(2, " = ").collect();
     if parts.len() != 2 {
-        return None;
+        return false;
     }
 
     let name = parts[0].trim();
     let config = parts[1].trim();
 
     let config_parts: Vec<&str> = config.split(',').map(|s| s.trim()).collect();
-    if config_parts.len() < 5 {
-        return None;
+    if config_parts.is_empty() {
+        return false;
     }
 
-    // Validate this is a Shadowsocks line
-    if config_parts[0] != "shadowsocks" {
-        return None;
+    // Determine the proxy type and parse accordingly
+    match config_parts[0] {
+        "vmess" => parse_quan_vmess(name, config_parts, node),
+        "shadowsocks" => parse_quan_ss(name, config_parts, node),
+        "shadowsocksr" => parse_quan_ssr(name, config_parts, node),
+        "http" => parse_quan_http(name, config_parts, node),
+        "trojan" => parse_quan_trojan(name, config_parts, node),
+        _ => false,
+    }
+}
+
+/// Parse a Quantumult Shadowsocks line
+fn parse_quan_ss(name: &str, config_parts: Vec<&str>, node: &mut Proxy) -> bool {
+    // Format: shadowsocks, [server], [port], [method], [password], [options]
+    if config_parts.len() < 5 {
+        return false;
     }
 
     // Extract basic parameters
     let server = config_parts[1];
     let port = match config_parts[2].parse::<u16>() {
         Ok(p) => p,
-        Err(_) => return None,
+        Err(_) => return false,
     };
+    if port == 0 {
+        return false; // Skip if port is 0
+    }
     let method = config_parts[3];
     let password = config_parts[4];
 
@@ -123,7 +110,7 @@ fn parse_quan_ss(line: &str) -> Option<Proxy> {
         }
     }
 
-    Some(Proxy::ss_construct(
+    *node = Proxy::ss_construct(
         SS_DEFAULT_GROUP,
         name,
         server,
@@ -137,36 +124,27 @@ fn parse_quan_ss(line: &str) -> Option<Proxy> {
         scv,
         None,
         "",
-    ))
+    );
+
+    true
 }
 
 /// Parse a Quantumult ShadowsocksR line
-fn parse_quan_ssr(line: &str) -> Option<Proxy> {
-    // Format: [name] = shadowsocksr, [server], [port], [method], [password], [protocol], [protocol_param], [obfs], [obfs_param], [options]
-    let parts: Vec<&str> = line.splitn(2, " = ").collect();
-    if parts.len() != 2 {
-        return None;
-    }
-
-    let name = parts[0].trim();
-    let config = parts[1].trim();
-
-    let config_parts: Vec<&str> = config.split(',').map(|s| s.trim()).collect();
+fn parse_quan_ssr(name: &str, config_parts: Vec<&str>, node: &mut Proxy) -> bool {
+    // Format: shadowsocksr, [server], [port], [method], [password], [protocol], [protocol_param], [obfs], [obfs_param], [options]
     if config_parts.len() < 9 {
-        return None;
-    }
-
-    // Validate this is a ShadowsocksR line
-    if config_parts[0] != "shadowsocksr" {
-        return None;
+        return false;
     }
 
     // Extract basic parameters
     let server = config_parts[1];
     let port = match config_parts[2].parse::<u16>() {
         Ok(p) => p,
-        Err(_) => return None,
+        Err(_) => return false,
     };
+    if port == 0 {
+        return false; // Skip if port is 0
+    }
     let method = config_parts[3];
     let password = config_parts[4];
     let protocol = config_parts[5];
@@ -190,7 +168,7 @@ fn parse_quan_ssr(line: &str) -> Option<Proxy> {
         }
     }
 
-    Some(Proxy::ssr_construct(
+    *node = Proxy::ssr_construct(
         SSR_DEFAULT_GROUP,
         name,
         server,
@@ -205,130 +183,133 @@ fn parse_quan_ssr(line: &str) -> Option<Proxy> {
         tfo,
         scv,
         "",
-    ))
+    );
+
+    true
 }
 
 /// Parse a Quantumult VMess line
-fn parse_quan_vmess(line: &str) -> Option<Proxy> {
-    // Format: [name] = vmess, [server], [port], [method], [uuid], [options]
-    let parts: Vec<&str> = line.splitn(2, " = ").collect();
-    if parts.len() != 2 {
-        return None;
-    }
-
-    let name = parts[0].trim();
-    let config = parts[1].trim();
-
-    let config_parts: Vec<&str> = config.split(',').map(|s| s.trim()).collect();
-    if config_parts.len() < 5 {
-        return None;
-    }
-
-    // Validate this is a VMess line
-    if config_parts[0] != "vmess" {
-        return None;
+/// This implementation follows the C++ version closely
+fn parse_quan_vmess(name: &str, config_parts: Vec<&str>, node: &mut Proxy) -> bool {
+    // Format: vmess, [server], [port], [method], [uuid], [options]
+    if config_parts.len() < 6 {
+        return false;
     }
 
     // Extract basic parameters
     let server = config_parts[1];
     let port = match config_parts[2].parse::<u16>() {
         Ok(p) => p,
-        Err(_) => return None,
+        Err(_) => return false,
     };
-    let method = config_parts[3];
-    let uuid = config_parts[4];
+    if port == 0 {
+        return false; // Skip if port is 0
+    }
+    let cipher = config_parts[3];
+    let uuid = config_parts[4].replace("\"", ""); // Remove quotes as in C++ replaceAllDistinct
 
     // Default values
-    let mut aid = 0u16;
+    let mut group = V2RAY_DEFAULT_GROUP.to_string();
+    let mut aid = "0".to_string();
     let mut net = "tcp".to_string();
-    let mut tls = false;
-    let mut host = String::new();
     let mut path = String::new();
-    let mut sni = None;
-    // let mut alpn = Vec::new();
-    let mut udp = None;
-    let mut tfo = None;
-    let mut scv = None;
+    let mut host = String::new();
+    let mut edge = String::new();
+    let mut tls = String::new();
+    let mut fake_type = "none".to_string();
 
-    // Parse additional options
+    // Parse additional options exactly like the C++ version
     for i in 5..config_parts.len() {
-        if config_parts[i].starts_with("obfs=") {
-            net = config_parts[i][5..].to_string();
-        } else if config_parts[i].starts_with("obfs-path=") {
-            path = config_parts[i][10..].to_string();
-        } else if config_parts[i].starts_with("obfs-header=") {
-            let header_str = &config_parts[i][12..];
-            if let Ok(header_map) = serde_json::from_str::<HashMap<String, String>>(header_str) {
-                if let Some(host_value) = header_map.get("Host") {
-                    host = host_value.clone();
+        let option_parts: Vec<&str> = config_parts[i].splitn(2, "=").collect();
+        if option_parts.len() < 2 {
+            continue;
+        }
+
+        let item_name = option_parts[0].trim();
+        let item_val = option_parts[1].trim();
+
+        match item_name {
+            "group" => group = item_val.to_string(),
+            "over-tls" => {
+                tls = if item_val == "true" {
+                    "tls".to_string()
+                } else {
+                    String::new()
                 }
             }
-        } else if config_parts[i].starts_with("alterId=") {
-            aid = config_parts[i][8..].parse::<u16>().unwrap_or(0);
-        } else if config_parts[i].starts_with("over-tls=true") {
-            tls = true;
-        } else if config_parts[i].starts_with("tls-host=") {
-            sni = Some(config_parts[i][9..].to_string());
-        } else if config_parts[i] == "udp-relay=true" {
-            udp = Some(true);
-        } else if config_parts[i] == "fast-open=true" {
-            tfo = Some(true);
-        } else if config_parts[i] == "tls-verification=false" {
-            scv = Some(true);
+            "tls-host" => host = item_val.to_string(),
+            "obfs-path" => path = item_val.replace("\"", ""), // Remove quotes as in C++ replaceAllDistinct
+            "obfs-header" => {
+                // Parse headers similar to the C++ implementation
+                let processed_val = item_val
+                    .replace("\"", "")
+                    .replace("\r\n", "|")
+                    .replace("\n", "|");
+                let headers: Vec<&str> = processed_val.split('|').collect();
+
+                for header in headers {
+                    if header.to_lowercase().starts_with("host: ") {
+                        host = header[6..].to_string();
+                    } else if header.to_lowercase().starts_with("edge: ") {
+                        edge = header[6..].to_string();
+                    }
+                }
+            }
+            "obfs" => {
+                if item_val == "ws" {
+                    net = "ws".to_string();
+                }
+            }
+            _ => {}
         }
     }
 
-    // Create the proxy object
-    Some(Proxy::vmess_construct(
-        &V2RAY_DEFAULT_GROUP.to_string(),
-        &name.to_string(),
-        &server.to_string(),
+    // Set default path if empty
+    if path.is_empty() {
+        path = "/".to_string();
+    }
+
+    *node = Proxy::vmess_construct(
+        &group,
+        name,
+        server,
         port,
-        "",
-        &uuid.to_string(),
-        aid,
+        &fake_type,
+        &uuid,
+        aid.parse::<u16>().unwrap_or(0),
         &net,
-        method,
+        cipher,
         &path,
         &host,
-        "",
-        if tls { "tls" } else { "" },
-        &sni.unwrap_or_else(String::new),
-        udp,
-        tfo,
-        scv,
+        &edge,
+        &tls,
+        "", // SNI not set in C++ version
+        None,
+        None,
+        None,
         None,
         "",
-    ))
+    );
+
+    true
 }
 
 /// Parse a Quantumult HTTP/HTTPS line
-fn parse_quan_http(line: &str) -> Option<Proxy> {
-    // Format: [name] = http, [server], [port], [username], [password], [options]
-    let parts: Vec<&str> = line.splitn(2, " = ").collect();
-    if parts.len() != 2 {
-        return None;
-    }
-
-    let name = parts[0].trim();
-    let config = parts[1].trim();
-
-    let config_parts: Vec<&str> = config.split(',').map(|s| s.trim()).collect();
+fn parse_quan_http(name: &str, config_parts: Vec<&str>, node: &mut Proxy) -> bool {
+    // Format: http, [server], [port], [username], [password], [options]
     if config_parts.len() < 3 {
-        return None;
-    }
-
-    // Validate this is an HTTP line
-    if config_parts[0] != "http" {
-        return None;
+        return false;
     }
 
     // Extract basic parameters
     let server = config_parts[1];
     let port = match config_parts[2].parse::<u16>() {
         Ok(p) => p,
-        Err(_) => return None,
+        Err(_) => return false,
     };
+    if port == 0 {
+        return false; // Skip if port is 0
+    }
 
     // Default values
     let mut username = "";
@@ -357,7 +338,7 @@ fn parse_quan_http(line: &str) -> Option<Proxy> {
         }
     }
 
-    Some(Proxy::http_construct(
+    *node = Proxy::http_construct(
         HTTP_DEFAULT_GROUP,
         name,
         server,
@@ -369,36 +350,27 @@ fn parse_quan_http(line: &str) -> Option<Proxy> {
         scv,
         None,
         "",
-    ))
+    );
+
+    true
 }
 
 /// Parse a Quantumult Trojan line
-fn parse_quan_trojan(line: &str) -> Option<Proxy> {
-    // Format: [name] = trojan, [server], [port], [password], [options]
-    let parts: Vec<&str> = line.splitn(2, " = ").collect();
-    if parts.len() != 2 {
-        return None;
-    }
-
-    let name = parts[0].trim();
-    let config = parts[1].trim();
-
-    let config_parts: Vec<&str> = config.split(',').map(|s| s.trim()).collect();
+fn parse_quan_trojan(name: &str, config_parts: Vec<&str>, node: &mut Proxy) -> bool {
+    // Format: trojan, [server], [port], [password], [options]
     if config_parts.len() < 4 {
-        return None;
-    }
-
-    // Validate this is a Trojan line
-    if config_parts[0] != "trojan" {
-        return None;
+        return false;
     }
 
     // Extract basic parameters
     let server = config_parts[1];
     let port = match config_parts[2].parse::<u16>() {
         Ok(p) => p,
-        Err(_) => return None,
+        Err(_) => return false,
     };
+    if port == 0 {
+        return false; // Skip if port is 0
+    }
     let password = config_parts[3];
 
     // Default values
@@ -420,7 +392,7 @@ fn parse_quan_trojan(line: &str) -> Option<Proxy> {
         }
     }
 
-    Some(Proxy::trojan_construct(
+    *node = Proxy::trojan_construct(
         TROJAN_DEFAULT_GROUP.to_string(),
         name.to_string(),
         server.to_string(),
@@ -435,5 +407,7 @@ fn parse_quan_trojan(line: &str) -> Option<Proxy> {
         scv,
         None,
         None,
-    ))
+    );
+
+    true
 }
