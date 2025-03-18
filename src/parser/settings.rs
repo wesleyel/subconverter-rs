@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use crate::settings::get_settings;
+
 /// Case-insensitive string for use as HashMap keys
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CaseInsensitiveString(String);
@@ -75,14 +77,25 @@ pub struct ParseSettings {
 
 impl Default for ParseSettings {
     fn default() -> Self {
+        // Get global settings
+        let settings = get_settings();
+
         ParseSettings {
-            proxy: None,
-            exclude_remarks: None,
-            include_remarks: None,
-            stream_rules: None,
-            time_rules: None,
+            proxy: Some(settings.proxy_subscription),
+            exclude_remarks: if settings.exclude_remarks.is_empty() {
+                None
+            } else {
+                Some(settings.exclude_remarks)
+            },
+            include_remarks: if settings.include_remarks.is_empty() {
+                None
+            } else {
+                Some(settings.include_remarks)
+            },
+            stream_rules: None, // TODO: Get from global settings
+            time_rules: None,   // TODO: Get from global settings
             sub_info: None,
-            authorized: false,
+            authorized: !settings.access_token.is_empty(),
             request_header: None,
             #[cfg(feature = "js_runtime")]
             js_runtime: None,
@@ -90,4 +103,16 @@ impl Default for ParseSettings {
             js_context: None,
         }
     }
+}
+
+/// Create a new ParseSettings instance with defaults from global settings
+pub fn create_parse_settings() -> ParseSettings {
+    ParseSettings::default()
+}
+
+/// Create a new ParseSettings instance with authorization
+pub fn create_authorized_settings() -> ParseSettings {
+    let mut settings = ParseSettings::default();
+    settings.authorized = true;
+    settings
 }

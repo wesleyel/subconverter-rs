@@ -1,6 +1,6 @@
+use crate::utils::url::url_decode;
 use crate::{models::HTTP_DEFAULT_GROUP, Proxy};
 use url::Url;
-use urlencoding::decode as url_decode;
 
 /// Parse an HTTP subscription link into a Proxy object
 /// Matches C++ explodeHTTPSub implementation
@@ -25,18 +25,8 @@ pub fn explode_http_sub(link: &str, node: &mut Proxy) -> bool {
     // Extract query parameters
     for (key, value) in url.query_pairs() {
         match key.as_ref() {
-            "remarks" => {
-                remarks = match url_decode(&value) {
-                    Ok(s) => s.to_string(),
-                    Err(_) => value.to_string(),
-                }
-            }
-            "group" => {
-                group = match url_decode(&value) {
-                    Ok(s) => s.to_string(),
-                    Err(_) => value.to_string(),
-                }
-            }
+            "remarks" => remarks = url_decode(&value),
+            "group" => group = url_decode(&value),
             _ => {}
         }
     }

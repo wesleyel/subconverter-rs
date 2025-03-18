@@ -3,8 +3,11 @@ use crate::parser::explodes::*;
 use crate::parser::infoparser::{get_sub_info_from_nodes, get_sub_info_from_ssd};
 use crate::parser::settings::{CaseInsensitiveString, ParseSettings, RegexMatchConfigs};
 use crate::utils::base64::{base64_decode, base64_encode};
+use crate::utils::file_exists;
 use crate::utils::http::{get_sub_info_from_header, get_sub_info_from_response, web_get};
 use crate::utils::matcher::{apply_matcher, match_range, reg_find};
+use crate::utils::network::is_link;
+use crate::utils::url::url_decode;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::fs;
@@ -226,68 +229,6 @@ pub fn add_nodes(
             }
         }
     }
-}
-
-/// Checks if a string is a valid URL
-fn is_link(link: &str) -> bool {
-    link.starts_with("http://")
-        || link.starts_with("https://")
-        || link.starts_with("data:")
-        || link.starts_with("content://")
-}
-
-/// Checks if a file exists at the given path
-fn file_exists(path: &str) -> bool {
-    Path::new(path).exists()
-}
-
-/// Decodes URL-encoded strings
-fn url_decode(input: &str) -> String {
-    let mut result = input.to_string();
-
-    // Common URL decodings
-    let replacements = [
-        ("%20", " "),
-        ("%21", "!"),
-        ("%22", "\""),
-        ("%23", "#"),
-        ("%24", "$"),
-        ("%25", "%"),
-        ("%26", "&"),
-        ("%27", "'"),
-        ("%28", "("),
-        ("%29", ")"),
-        ("%2A", "*"),
-        ("%2B", "+"),
-        ("%2C", ","),
-        ("%2D", "-"),
-        ("%2E", "."),
-        ("%2F", "/"),
-        ("%3A", ":"),
-        ("%3B", ";"),
-        ("%3C", "<"),
-        ("%3D", "="),
-        ("%3E", ">"),
-        ("%3F", "?"),
-        ("%40", "@"),
-        ("%5B", "["),
-        ("%5C", "\\"),
-        ("%5D", "]"),
-        ("%5E", "^"),
-        ("%5F", "_"),
-        ("%60", "`"),
-        ("%7B", "{"),
-        ("%7C", "|"),
-        ("%7D", "}"),
-        ("%7E", "~"),
-        ("+", " "),
-    ];
-
-    for (encoded, decoded) in replacements.iter() {
-        result = result.replace(encoded, decoded);
-    }
-
-    result
 }
 
 /// Extracts a specific argument from a URL

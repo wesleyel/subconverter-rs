@@ -50,6 +50,15 @@
 
 mod builder;
 mod proxy;
+mod ruleset;
 
-pub use proxy::*;
-// Re-export other model types as needed
+pub use proxy::{Proxy, ProxyType};
+pub use ruleset::{RulesetContent, RulesetType};
+
+// Re-export constants to module scope for use by other modules
+// Default proxy group names
+pub use proxy::{
+    HTTP_DEFAULT_GROUP, HYSTERIA2_DEFAULT_GROUP, HYSTERIA_DEFAULT_GROUP, SNELL_DEFAULT_GROUP,
+    SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP, TROJAN_DEFAULT_GROUP,
+    V2RAY_DEFAULT_GROUP, WG_DEFAULT_GROUP,
+};

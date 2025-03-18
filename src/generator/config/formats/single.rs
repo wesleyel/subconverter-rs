@@ -1,4 +1,5 @@
 use crate::generator::config::subexport::{process_remark, ExtraSettings};
+use crate::utils::url::url_encode;
 use crate::{Proxy, ProxyType};
 use base64::{engine::general_purpose, Engine as _};
 use serde_json::{self, json, Value};
@@ -29,12 +30,12 @@ pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
             if !node.plugin.is_empty() && !node.plugin_opts.is_empty() {
                 uri.push_str(&format!(
                     "/?plugin={}",
-                    urlencoding::encode(&format!("{};{}", node.plugin, node.plugin_opts))
+                    url_encode(&format!("{};{}", node.plugin, node.plugin_opts))
                 ));
             }
 
             // Add remark
-            uri.push_str(&format!("#{}", urlencoding::encode(&remark)));
+            uri.push_str(&format!("#{}", url_encode(&remark)));
 
             uri
         }
@@ -139,11 +140,11 @@ pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
                 params.push("type=ws".to_string());
 
                 if !node.host.is_empty() {
-                    params.push(format!("host={}", urlencoding::encode(&node.host)));
+                    params.push(format!("host={}", url_encode(&node.host)));
                 }
 
                 if !node.path.is_empty() {
-                    params.push(format!("path={}", urlencoding::encode(&node.path)));
+                    params.push(format!("path={}", url_encode(&node.path)));
                 }
             }
 
@@ -152,7 +153,7 @@ pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
             }
 
             // Add remark
-            uri.push_str(&format!("#{}", urlencoding::encode(&remark)));
+            uri.push_str(&format!("#{}", url_encode(&remark)));
 
             uri
         }
@@ -175,7 +176,7 @@ pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
             uri.push_str(&format!("{}:{}", node.server, node.port));
 
             // Add remark
-            uri.push_str(&format!("#{}", urlencoding::encode(&remark)));
+            uri.push_str(&format!("#{}", url_encode(&remark)));
 
             uri
         }
@@ -203,7 +204,7 @@ pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
             uri.push_str(&format!("{}:{}", node.server, node.port));
 
             // Add remark
-            uri.push_str(&format!("#{}", urlencoding::encode(&remark)));
+            uri.push_str(&format!("#{}", url_encode(&remark)));
 
             uri
         }
@@ -222,7 +223,7 @@ pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
                 params.push(format!("obfs={}", node.obfs));
 
                 if !node.host.is_empty() {
-                    params.push(format!("obfs-host={}", urlencoding::encode(&node.host)));
+                    params.push(format!("obfs-host={}", url_encode(&node.host)));
                 }
             }
 
@@ -231,7 +232,7 @@ pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
             }
 
             // Add remark
-            uri.push_str(&format!("#{}", urlencoding::encode(&remark)));
+            uri.push_str(&format!("#{}", url_encode(&remark)));
 
             uri
         }

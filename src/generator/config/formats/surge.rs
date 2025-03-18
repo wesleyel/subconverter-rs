@@ -305,12 +305,21 @@ pub fn proxy_to_surge(
         group_config.push('\n');
     }
 
-    // Process rules
+    // Add rules section if rule generator is enabled
     if ext.enable_rule_generator && !ruleset_content_array.is_empty() {
         rule_config.push_str("[Rule]\n");
 
         for ruleset in ruleset_content_array {
-            for rule in &ruleset.rules {
+            // Convert ruleset based on its type
+            let processed_rules = crate::generator::ruleconvert::convert_ruleset(
+                ruleset.get_rule_content(),
+                ruleset.rule_type,
+            );
+
+            // Parse the rules
+            let parsed_rules = crate::utils::rule_parser::parse_rule_content(&processed_rules);
+
+            for rule in parsed_rules {
                 let rule_str =
                     format!("{},{},{}", rule.rule_type, rule.rule_content, ruleset.group);
                 rule_config.push_str(&rule_str);

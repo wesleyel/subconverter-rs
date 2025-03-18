@@ -1,6 +1,6 @@
 use crate::models::{Proxy, HTTP_DEFAULT_GROUP};
+use crate::utils::url::url_decode;
 use url::Url;
-use urlencoding::decode as url_decode;
 
 /// Parse an HTTP/HTTPS link into a Proxy object
 /// Matches C++ explodeHTTP implementation
@@ -31,30 +31,10 @@ pub fn explode_http(link: &str, node: &mut Proxy) -> bool {
         match key.as_ref() {
             "server" => server = value.to_string(),
             "port" => port = value.to_string(),
-            "user" => {
-                username = match url_decode(&value) {
-                    Ok(s) => s.to_string(),
-                    Err(_) => value.to_string(),
-                }
-            }
-            "pass" => {
-                password = match url_decode(&value) {
-                    Ok(s) => s.to_string(),
-                    Err(_) => value.to_string(),
-                }
-            }
-            "remarks" => {
-                remarks = match url_decode(&value) {
-                    Ok(s) => s.to_string(),
-                    Err(_) => value.to_string(),
-                }
-            }
-            "group" => {
-                group = match url_decode(&value) {
-                    Ok(s) => s.to_string(),
-                    Err(_) => value.to_string(),
-                }
-            }
+            "user" => username = url_decode(&value),
+            "pass" => password = url_decode(&value),
+            "remarks" => remarks = url_decode(&value),
+            "group" => group = url_decode(&value),
             _ => {}
         }
     }

@@ -1,4 +1,5 @@
 use crate::generator::config::subexport::{process_remark, ExtraSettings};
+use crate::utils::url::url_encode;
 use crate::{Proxy, ProxyType};
 use base64::{engine::general_purpose, Engine as _};
 
@@ -40,12 +41,12 @@ pub fn proxy_to_ss_sub(nodes: &mut Vec<Proxy>, ext: &mut ExtraSettings) -> Strin
         if !node.plugin.is_empty() && !node.plugin_opts.is_empty() {
             uri.push_str(&format!(
                 "/?plugin={}",
-                urlencoding::encode(&format!("{};{}", node.plugin, node.plugin_opts))
+                url_encode(&format!("{};{}", node.plugin, node.plugin_opts))
             ));
         }
 
         // Add remark
-        uri.push_str(&format!("#{}", urlencoding::encode(&remark)));
+        uri.push_str(&format!("#{}", url_encode(&remark)));
 
         // Add to subscription content
         sub_content.push_str(&uri);

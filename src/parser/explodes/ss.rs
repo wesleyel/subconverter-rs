@@ -1,10 +1,10 @@
 use crate::models::{Proxy, ProxyType, SS_DEFAULT_GROUP};
+use crate::utils::url::url_decode;
 use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
 use base64::Engine;
 use serde_json::Value;
 use std::borrow::Cow;
 use url::Url;
-use urlencoding;
 
 pub static SS_CIPHERS: &[&str] = &[
     "rc4-md5",
@@ -49,9 +49,7 @@ pub fn explode_ss(ss: &str, node: &mut Proxy) -> bool {
     // Extract fragment (remark) if present
     let mut ps = String::new();
     if let Some(hash_pos) = ss_content.find('#') {
-        ps = urlencoding::decode(&ss_content[hash_pos + 1..])
-            .unwrap_or(Cow::Borrowed(&ss_content[hash_pos + 1..]))
-            .to_string();
+        ps = url_decode(&ss_content[hash_pos + 1..]);
         ss_content = ss_content[..hash_pos].to_string();
     }
 
@@ -67,9 +65,7 @@ pub fn explode_ss(ss: &str, node: &mut Proxy) -> bool {
         // Parse query parameters
         for (key, value) in url::form_urlencoded::parse(addition.as_bytes()) {
             if key == "plugin" {
-                let plugins = urlencoding::decode(&value)
-                    .unwrap_or(Cow::Borrowed(&value))
-                    .to_string();
+                let plugins = url_decode(&value);
                 if let Some(semicolon_pos) = plugins.find(';') {
                     plugin = plugins[..semicolon_pos].to_string();
                     plugin_opts = plugins[semicolon_pos + 1..].to_string();
