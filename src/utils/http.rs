@@ -87,7 +87,7 @@ pub fn web_get(
     url: &str,
     proxy_str: Option<&str>,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
-) -> Result<String, String> {
+) -> Result<(String, HashMap<String, String>), String> {
     // Create a tokio runtime for running the async function
     let rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
@@ -97,7 +97,17 @@ pub fn web_get(
     };
 
     // Run the async function in the runtime
-    match rt.block_on(web_get_async(url, proxy_str, headers)) {
+    rt.block_on(web_get_async(url, proxy_str, headers))
+}
+
+/// Version of web_get that returns only the body content
+/// This is for backward compatibility where headers are not needed
+pub fn web_get_content(
+    url: &str,
+    proxy_str: Option<&str>,
+    headers: Option<&HashMap<CaseInsensitiveString, String>>,
+) -> Result<String, String> {
+    match web_get(url, proxy_str, headers) {
         Ok((body, _)) => Ok(body),
         Err(e) => Err(e),
     }

@@ -3,8 +3,8 @@ use crate::parser::explodes::*;
 use crate::parser::infoparser::{get_sub_info_from_nodes, get_sub_info_from_ssd};
 use crate::parser::settings::{CaseInsensitiveString, ParseSettings, RegexMatchConfigs};
 use crate::utils::base64::{base64_decode, base64_encode};
-use crate::utils::http::{get_sub_info_from_response, web_get};
-use crate::utils::matcher::{apply_matcher, match_range};
+use crate::utils::http::{get_sub_info_from_header, get_sub_info_from_response, web_get};
+use crate::utils::matcher::{apply_matcher, match_range, reg_find};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::fs;
@@ -38,11 +38,10 @@ pub fn add_nodes(
     mut link: String,
     all_nodes: &mut Vec<Proxy>,
     group_id: u32,
-    parse_settings: &ParseSettings,
+    parse_settings: &mut ParseSettings,
 ) -> Result<(), String> {
     // Extract references to settings for easier access
     let proxy = parse_settings.proxy.as_deref();
-    let sub_info = parse_settings.sub_info.as_deref().unwrap_or("");
     let exclude_remarks = parse_settings.exclude_remarks.as_ref();
     let include_remarks = parse_settings.include_remarks.as_ref();
     let stream_rules = parse_settings.stream_rules.as_ref();
@@ -55,8 +54,9 @@ pub fn add_nodes(
     let mut nodes: Vec<Proxy> = Vec::new();
     let mut node = Proxy::default();
     let mut custom_group = String::new();
+    let mut extra_headers: HashMap<String, String> = HashMap::new();
 
-    // Clean up the link string
+    // Clean up the link string - remove quotes
     link = link.replace("\"", "");
 
     // Handle JavaScript scripts (Not implementing JS support here)
@@ -106,8 +106,8 @@ pub fn add_nodes(
             }
 
             // Download subscription content
-            let sub_content = match web_get(&link, proxy, request_header) {
-                Ok(content) => content,
+            let (sub_content, headers) = match web_get(&link, proxy, request_header) {
+                Ok((content, headers)) => (content, headers),
                 Err(err) => return Err(format!("Cannot download subscription data: {}", err)),
             };
 
@@ -116,33 +116,36 @@ pub fn add_nodes(
                 let result = explode_conf_content(&sub_content, &mut nodes);
                 if result > 0 {
                     // Get subscription info
-                    let mut _sub_info = String::new();
-
                     if sub_content.starts_with("ssd://") {
                         // Extract info from SSD subscription
                         if let Some(info) = get_sub_info_from_ssd(&sub_content) {
-                            _sub_info = info;
-                            // If needed, store or use _sub_info elsewhere
+                            parse_settings.sub_info = Some(info);
                         }
                     } else {
-                        // Try to get info from header or nodes
-                        // No headers available from the web_get call, so only try from nodes
-                        if let (Some(stream_rules_unwrapped), Some(time_rules_unwrapped)) =
-                            (stream_rules, time_rules)
-                        {
-                            if let Some(info) = get_sub_info_from_nodes(
-                                &nodes,
-                                stream_rules_unwrapped,
-                                time_rules_unwrapped,
-                            ) {
-                                _sub_info = info;
-                                // If needed, store or use _sub_info elsewhere
+                        // Try to get info from header first
+                        let header_info = get_sub_info_from_header(&headers);
+                        if !header_info.is_empty() {
+                            parse_settings.sub_info = Some(header_info);
+                        } else {
+                            // If no header info, try from nodes
+                            if let (Some(stream_rules_unwrapped), Some(time_rules_unwrapped)) =
+                                (stream_rules, time_rules)
+                            {
+                                if let Some(info) = get_sub_info_from_nodes(
+                                    &nodes,
+                                    stream_rules_unwrapped,
+                                    time_rules_unwrapped,
+                                ) {
+                                    parse_settings.sub_info = Some(info);
+                                }
                             }
                         }
                     }
 
                     // Filter nodes and set group info
                     filter_nodes(&mut nodes, exclude_remarks, include_remarks, group_id);
+
+                    // Set group_id and custom_group for all nodes
                     for node in &mut nodes {
                         node.group_id = group_id;
                         if !custom_group.is_empty() {
@@ -170,13 +173,10 @@ pub fn add_nodes(
             if result > 0 {
                 // The rest is similar to SUB case
                 // Get subscription info
-                let mut _sub_info = String::new();
-
                 if link.starts_with("ssd://") {
                     // Extract info from SSD subscription
                     if let Some(info) = get_sub_info_from_ssd(&link) {
-                        _sub_info = info;
-                        // If needed, store or use _sub_info elsewhere
+                        parse_settings.sub_info = Some(info);
                     }
                 } else {
                     // Try to get info from nodes
@@ -188,19 +188,21 @@ pub fn add_nodes(
                             stream_rules_unwrapped,
                             time_rules_unwrapped,
                         ) {
-                            _sub_info = info;
-                            // If needed, store or use _sub_info elsewhere
+                            parse_settings.sub_info = Some(info);
                         }
                     }
                 }
 
                 filter_nodes(&mut nodes, exclude_remarks, include_remarks, group_id);
+
+                // Set group_id and custom_group for all nodes
                 for node in &mut nodes {
                     node.group_id = group_id;
                     if !custom_group.is_empty() {
                         node.group = custom_group.clone();
                     }
                 }
+
                 all_nodes.append(&mut nodes);
                 Ok(())
             } else {
@@ -323,10 +325,18 @@ fn filter_nodes(
 
     while i < nodes.len() {
         if should_ignore(&nodes[i], exclude_remarks, include_remarks) {
-            // If this node should be ignored, remove it
+            // Log that node is ignored
+            println!(
+                "Node {} - {} has been ignored and will not be added.",
+                nodes[i].group, nodes[i].remark
+            );
             nodes.remove(i);
         } else {
-            // Otherwise update its ID and groupID and keep it
+            // Log that node is added
+            println!(
+                "Node {} - {} has been added.",
+                nodes[i].group, nodes[i].remark
+            );
             nodes[i].id = node_index;
             nodes[i].group_id = group_id;
             node_index += 1;
@@ -346,36 +356,35 @@ fn should_ignore(
 
     // Check exclude rules
     if let Some(excludes) = exclude_remarks {
-        for pattern in excludes {
+        excluded = excludes.iter().any(|pattern| {
             let mut real_rule = String::new();
             if apply_matcher(pattern, &mut real_rule, node) {
-                if !real_rule.is_empty() && real_rule.contains(&node.remark) {
-                    excluded = true;
-                    break;
-                } else if real_rule.is_empty() && pattern == &node.remark {
-                    excluded = true;
-                    break;
+                if !real_rule.is_empty() {
+                    reg_find(&node.remark, &real_rule)
+                } else {
+                    pattern == &node.remark
                 }
+            } else {
+                false
             }
-        }
+        });
     }
 
     // Check include rules if they exist
     if let Some(includes) = include_remarks {
         if !includes.is_empty() {
-            included = false; // Start with false when we have include rules
-            for pattern in includes {
+            included = includes.iter().any(|pattern| {
                 let mut real_rule = String::new();
                 if apply_matcher(pattern, &mut real_rule, node) {
-                    if !real_rule.is_empty() && real_rule.contains(&node.remark) {
-                        included = true;
-                        break;
-                    } else if real_rule.is_empty() && pattern == &node.remark {
-                        included = true;
-                        break;
+                    if !real_rule.is_empty() {
+                        reg_find(&node.remark, &real_rule)
+                    } else {
+                        pattern == &node.remark
                     }
+                } else {
+                    false
                 }
-            }
+            });
         }
     }
 

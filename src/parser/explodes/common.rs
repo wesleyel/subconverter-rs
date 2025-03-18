@@ -109,82 +109,86 @@ pub fn explode_sub(sub: &str, nodes: &mut Vec<Proxy>) -> bool {
     !nodes.is_empty()
 }
 
-/// Explode a configuration file content into a vector of Proxy objects
+/// Explodes a configuration file content into a vector of Proxy objects
 ///
-/// This function tries to parse various configuration file formats
-/// and returns a vector of Proxy objects
+/// Attempts to detect and parse various configuration formats like
+/// Clash, SSD, Surge, Quantumult, etc., and converts them to Proxy objects.
+///
+/// # Arguments
+/// * `content` - The configuration content as a string
+/// * `nodes` - Vector to store the parsed Proxy objects
+///
+/// # Returns
+/// Number of nodes successfully parsed, or 0 if parsing failed
 pub fn explode_conf_content(content: &str, nodes: &mut Vec<Proxy>) -> i32 {
     // Trim the content
     let content = content.trim();
 
     // Check for empty content
     if content.is_empty() {
-        return -1;
+        return 0;
     }
+
+    let orig_size = nodes.len();
+    let mut parsed = false;
 
     // Try to parse as JSON
     if content.starts_with('{') {
         // Try to parse as V2Ray configuration
         if super::vmess::explode_vmess_conf(content, nodes) {
-            return 0;
+            parsed = true;
         }
-
         // Try Netch configuration
-        if content.contains("\"server\"") && content.contains("\"port\"") {
+        else if content.contains("\"server\"") && content.contains("\"port\"") {
             if super::netch::explode_netch_conf(content, nodes) {
-                return 0;
+                parsed = true;
             }
         }
-
-        return -1;
     }
-
     // Try to parse as YAML/Clash
-    if content.contains("proxies:") || content.contains("Proxy:") {
+    else if content.contains("proxies:") || content.contains("Proxy:") {
         if super::clash::explode_clash(content, nodes) {
-            return 0;
+            parsed = true;
         }
-        return -1;
     }
-
     // Try to parse as SSD
-    if content.starts_with("ssd://") {
+    else if content.starts_with("ssd://") {
         if super::ss::explode_ssd(content, nodes) {
-            return 0;
+            parsed = true;
         }
-        return -1;
     }
-
     // Try to parse as SSTap configuration
-    if content.contains("\"servers\":") || content.contains("\"configs\":") {
+    else if content.contains("\"servers\":") || content.contains("\"configs\":") {
         if super::sstap::explode_sstap(content, nodes) {
-            return 0;
+            parsed = true;
         }
     }
-
     // Try to parse as Surge configuration
-    if content.contains("[Proxy]") {
+    else if content.contains("[Proxy]") {
         if super::surge::explode_surge(content, nodes) {
-            return 0;
+            parsed = true;
         }
     }
-
     // Try to parse as Quantumult configuration
-    if content.contains(" = vmess")
+    else if content.contains(" = vmess")
         || content.contains(" = shadowsocks")
         || content.contains(" = shadowsocksr")
         || content.contains(" = http")
         || content.contains(" = trojan")
     {
         if super::quan::explode_quan(content, nodes) {
-            return 0;
+            parsed = true;
         }
     }
 
-    // Try to parse as subscription
-    if explode_sub(content, nodes) {
-        return 0;
+    // If no specific format was detected, try as a simple subscription
+    if !parsed && explode_sub(content, nodes) {
+        parsed = true;
     }
 
-    -1
+    if parsed {
+        (nodes.len() - orig_size) as i32
+    } else {
+        0
+    }
 }
