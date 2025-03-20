@@ -1,5 +1,5 @@
 use crate::parser::parse_settings::CaseInsensitiveString;
-use reqwest::{header, Client, ClientBuilder, Proxy, StatusCode};
+use reqwest::{Client, Proxy, StatusCode};
 use std::collections::HashMap;
 use std::time::Duration;
 

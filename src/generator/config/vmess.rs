@@ -2,7 +2,7 @@
 //!
 //! This module provides functionality for building VMess links.
 
-use serde_json::{json, Value};
+use serde_json::json;
 
 use crate::utils::base64::base64_encode;
 
@@ -37,7 +37,7 @@ pub fn vmess_link_construct(
     tls: &str,
 ) -> String {
     // Create the JSON object
-    let mut json_obj = json!({
+    let json_obj = json!({
         "v": "2",
         "ps": remarks,
         "add": add,

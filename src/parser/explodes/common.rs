@@ -1,7 +1,6 @@
 use crate::Proxy;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use std::collections::HashMap;
 
 /// Explode a proxy link into a Proxy object
 ///

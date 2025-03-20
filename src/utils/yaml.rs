@@ -1,8 +1,5 @@
-use log::warn;
 use serde_json::{self, Value as JsonValue};
 use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
-use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::fmt;
 
 /// Error types for YAML operations

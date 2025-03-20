@@ -1,16 +1,13 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::models::{
-    BalanceStrategy, ExtraSettings, Proxy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType,
     ProxyType, RulesetContent,
 };
 use crate::settings;
 use crate::utils::base64::base64_encode;
-use crate::utils::string::replace_all_distinct;
-use crate::utils::tribool::BoolTriboolExt;
-use log::{error, warn};
+use log::error;
 use serde_json::{json, Map, Value as JsonValue};
-use std::collections::HashMap;
 
 /// Format SingBox interval from seconds
 ///

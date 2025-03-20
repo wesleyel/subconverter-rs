@@ -2,7 +2,7 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    ExtraSettings, Proxy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType, ProxyType,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType,
     RulesetContent,
 };
 use crate::settings;
@@ -10,9 +10,7 @@ use crate::utils::ini_reader::IniReader;
 use crate::utils::network::{hostname_to_ip_addr, is_ipv4, is_ipv6};
 use crate::utils::string::{hash, join, to_lower};
 use crate::utils::tribool::{BoolTriboolExt, TriboolExt};
-use log::{error, warn};
-use std::collections::HashSet;
-use std::io::Write;
+use log::error;
 
 /// Generate a WireGuard peer configuration string
 ///

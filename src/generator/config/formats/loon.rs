@@ -2,15 +2,13 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    BalanceStrategy, ExtraSettings, Proxy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
+    BalanceStrategy, ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType,
     ProxyType, RulesetContent,
 };
 use crate::utils::ini_reader::IniReader;
 use crate::utils::string::join;
-use crate::utils::tribool::BoolTriboolExt;
-use log::{error, warn};
+use log::error;
 use std::collections::HashMap;
-use std::io::Write;
 
 /// Convert proxies to Loon format
 ///
@@ -307,7 +305,7 @@ pub fn proxy_to_loon(
     }
 
     // Process proxy groups
-    let mut original_groups: HashMap<String, Vec<String>> = HashMap::new();
+    let original_groups: HashMap<String, Vec<String>> = HashMap::new();
     ini.set_current_section("Proxy Group");
     ini.erase_section();
 

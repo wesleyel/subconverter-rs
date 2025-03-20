@@ -2,7 +2,6 @@
 //!
 //! This module provides functionality for generating peer configurations.
 
-use uuid::Uuid;
 
 use crate::models::Proxy;
 

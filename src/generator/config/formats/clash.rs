@@ -2,10 +2,10 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
 use crate::models::{
-    BalanceStrategy, ExtraSettings, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
+    ExtraSettings, ProxyGroupConfigs, ProxyGroupType,
 };
 use crate::models::{Proxy, ProxyType, RulesetContent};
-use crate::utils::tribool::{BoolTriboolExt, JsonApplicable, TriboolExt};
+use crate::utils::tribool::TriboolExt;
 use crate::utils::url::get_url_arg;
 use crate::utils::yaml::YamlNode;
 use log::error;

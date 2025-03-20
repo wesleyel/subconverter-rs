@@ -1,6 +1,5 @@
 //! URL encoding/decoding utilities
 
-use std::path::Path;
 
 /// Encodes a string using URL encoding
 ///

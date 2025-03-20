@@ -1,10 +1,8 @@
-use crate::models::{Proxy, ProxyType, SS_DEFAULT_GROUP};
+use crate::models::{Proxy, SS_DEFAULT_GROUP};
 use crate::utils::url::url_decode;
-use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
+use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use serde_json::Value;
-use std::borrow::Cow;
-use url::Url;
 
 /// Parse a Shadowsocks link into a Proxy object
 /// Based on the C++ implementation in explodeSS function
@@ -205,7 +203,7 @@ pub fn explode_ssd(link: &str, nodes: &mut Vec<Proxy>) -> bool {
         let formatted_remark = format!("{} - {}", airport, server_remark);
 
         // Create the proxy object
-        let mut node = Proxy::ss_construct(
+        let node = Proxy::ss_construct(
             SS_DEFAULT_GROUP,
             &formatted_remark,
             server_host,
@@ -348,7 +346,7 @@ pub fn explode_ss_conf(content: &str, nodes: &mut Vec<Proxy>) -> bool {
 
     // Check for single server configuration
     if json["server"].is_string() && json["server_port"].is_u64() {
-        let mut index = nodes.len();
+        let index = nodes.len();
 
         // Extract fields
         let server = json["server"].as_str().unwrap_or("");

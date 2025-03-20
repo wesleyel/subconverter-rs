@@ -10,7 +10,6 @@ use crate::utils::string::{hash, join};
 use crate::utils::tribool::BoolTriboolExt;
 use crate::utils::url::url_encode;
 use log::error;
-use std::collections::HashMap;
 
 /// Convert proxies to Mellow format (main entry point)
 ///

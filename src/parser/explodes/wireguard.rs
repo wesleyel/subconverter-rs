@@ -1,6 +1,5 @@
-use crate::{Proxy, ProxyType};
-use base64::{engine::general_purpose::STANDARD, Engine};
-use std::collections::{HashMap, HashSet};
+use crate::Proxy;
+use std::collections::HashMap;
 use url::Url;
 
 /// Parse a WireGuard link into a Proxy object

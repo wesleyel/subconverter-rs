@@ -1,10 +1,7 @@
 use crate::models::{
-    Proxy, ProxyType, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_CIPHERS, SS_DEFAULT_GROUP,
+    Proxy, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_CIPHERS, SS_DEFAULT_GROUP,
 };
-use crate::utils::base64::url_safe_base64_decode;
-use regex::Regex;
 use serde_json::{from_str, Value};
-use url::Url;
 
 /// Parse a SSTap JSON configuration into a vector of Proxy objects
 /// Based on the C++ implementation in explodeSSTap function

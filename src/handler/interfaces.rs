@@ -1,5 +1,5 @@
-use actix_web::{web, HttpResponse, Responder};
-use log::{debug, error, info};
+use actix_web::{web, HttpResponse};
+use log::{debug, error};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;

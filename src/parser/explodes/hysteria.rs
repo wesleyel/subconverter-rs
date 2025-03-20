@@ -1,4 +1,4 @@
-use crate::{models::HYSTERIA_DEFAULT_GROUP, Proxy, ProxyType};
+use crate::{models::HYSTERIA_DEFAULT_GROUP, Proxy};
 use std::collections::HashMap;
 use url::Url;
 

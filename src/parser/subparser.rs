@@ -1,18 +1,14 @@
 use crate::models::Proxy;
 use crate::parser::explodes::*;
 use crate::parser::infoparser::{get_sub_info_from_nodes, get_sub_info_from_ssd};
-use crate::parser::parse_settings::{CaseInsensitiveString, ParseSettings, RegexMatchConfigs};
-use crate::utils::base64::{base64_decode, base64_encode};
+use crate::parser::parse_settings::ParseSettings;
 use crate::utils::file_exists;
-use crate::utils::http::{get_sub_info_from_header, get_sub_info_from_response, web_get};
-use crate::utils::matcher::{apply_matcher, match_range, reg_find};
+use crate::utils::http::{get_sub_info_from_header, web_get};
+use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
-use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
-use url::Url;
 
 /// Equivalent to ConfType enum in C++
 #[derive(Debug, PartialEq, Eq)]
@@ -57,7 +53,7 @@ pub fn add_nodes(
     let mut nodes: Vec<Proxy> = Vec::new();
     let mut node = Proxy::default();
     let mut custom_group = String::new();
-    let mut extra_headers: HashMap<String, String> = HashMap::new();
+    let extra_headers: HashMap<String, String> = HashMap::new();
 
     // Clean up the link string - remove quotes
     link = link.replace("\"", "");

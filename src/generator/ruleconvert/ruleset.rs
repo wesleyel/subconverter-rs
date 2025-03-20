@@ -1,8 +1,5 @@
-use crate::utils::string::replace_all_distinct;
-use serde_json::{json, Value as JsonValue};
 use std::collections::HashSet;
-use std::fs::File;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{BufRead};
 use std::str::FromStr;
 
 /// Ruleset types for different proxy clients

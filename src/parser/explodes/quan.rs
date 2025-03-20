@@ -1,8 +1,7 @@
 use crate::models::{
-    Proxy, ProxyType, HTTP_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
+    Proxy, HTTP_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
     TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP,
 };
-use std::collections::HashMap;
 
 /// Parse Quantumult configuration into a vector of Proxy objects
 /// Consistent with the C++ implementation in explodeQuan
@@ -210,13 +209,13 @@ fn parse_quan_vmess(name: &str, config_parts: Vec<&str>, node: &mut Proxy) -> bo
 
     // Default values
     let mut group = V2RAY_DEFAULT_GROUP.to_string();
-    let mut aid = "0".to_string();
+    let aid = "0".to_string();
     let mut net = "tcp".to_string();
     let mut path = String::new();
     let mut host = String::new();
     let mut edge = String::new();
     let mut tls = String::new();
-    let mut fake_type = "none".to_string();
+    let fake_type = "none".to_string();
 
     // Parse additional options exactly like the C++ version
     for i in 5..config_parts.len() {

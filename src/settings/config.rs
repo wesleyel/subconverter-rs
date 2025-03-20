@@ -1,7 +1,4 @@
-use lazy_static::lazy_static;
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -9,8 +6,6 @@ use serde::{Deserialize, Serialize};
 use serde_yaml;
 use toml;
 
-use crate::models::ruleset::RulesetType;
-use crate::utils::file::{file_exists, file_get};
 use crate::utils::http::web_get;
 
 /// Macro for checking if keys exist in a TOML value and setting targets if they do

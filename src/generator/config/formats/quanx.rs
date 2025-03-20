@@ -2,10 +2,9 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    ExtraSettings, Proxy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType, ProxyType,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType,
     RulesetContent,
 };
-use crate::utils::base64::base64_encode;
 use crate::utils::ini_reader::IniReader;
 use crate::utils::string::{hash, join, replace_all_distinct, trim};
 use crate::utils::tribool::BoolTriboolExt;
@@ -209,7 +208,7 @@ fn proxy_to_quanx_internal(
                             ));
                         }
                     } else if plugin_hash == hash("v2ray-plugin") {
-                        let mut opts = replace_all_distinct(pluginopts, ";", "&");
+                        let opts = replace_all_distinct(pluginopts, ";", "&");
                         let mode = get_url_arg(&opts, "mode");
                         let mut plugin_type =
                             (if mode == "websocket" { "ws" } else { "" }).to_string();

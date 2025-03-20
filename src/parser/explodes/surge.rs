@@ -1,8 +1,7 @@
 use crate::models::{
-    Proxy, ProxyType, HTTP_DEFAULT_GROUP, SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP,
+    Proxy, HTTP_DEFAULT_GROUP, SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP,
     SS_DEFAULT_GROUP, TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP,
 };
-use std::collections::HashMap;
 
 /// Parse a Surge configuration into a vector of Proxy objects
 pub fn explode_surge(content: &str, nodes: &mut Vec<Proxy>) -> bool {
@@ -126,7 +125,7 @@ fn parse_surge_custom_ss(config: &str, name: &str, node: &mut Proxy) -> bool {
     let mut pluginopts_host = String::new();
     let mut udp = None;
     let mut tfo = None;
-    let mut scv = None;
+    let scv = None;
 
     // Parse additional parameters
     for i in 6..parts.len() {
@@ -438,7 +437,7 @@ fn parse_surge_vmess(config: &str, name: &str, node: &mut Proxy) -> bool {
     // Default values
     let mut id = String::new();
     let mut net = "tcp".to_string();
-    let mut method = "auto".to_string();
+    let method = "auto".to_string();
     let mut path = String::new();
     let mut host = String::new();
     let mut edge = String::new();

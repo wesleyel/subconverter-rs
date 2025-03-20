@@ -1,4 +1,4 @@
-use crate::models::{Proxy, ProxyType, SOCKS_DEFAULT_GROUP, SS_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP};
+use crate::models::{Proxy, SOCKS_DEFAULT_GROUP, SS_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use regex::Regex;
 use serde_json::Value;

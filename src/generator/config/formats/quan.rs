@@ -2,7 +2,7 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    ExtraSettings, Proxy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType, ProxyType,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType,
     RulesetContent,
 };
 use crate::utils::base64::{base64_encode, url_safe_base64_encode};
@@ -12,7 +12,6 @@ use crate::utils::string::{join, replace_all_distinct, trim_of};
 use crate::utils::tribool::BoolTriboolExt;
 use crate::utils::url::url_encode;
 use log::error;
-use std::collections::HashMap;
 
 /// Convert proxies to Quantumult format (main entry point)
 ///

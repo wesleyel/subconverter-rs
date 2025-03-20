@@ -5,10 +5,7 @@ use crate::generator::config::formats::{
 };
 use crate::models::{ExtraSettings, Proxy, ProxyGroupConfigs, RulesetContent};
 use crate::parser::parse_settings::ParseSettings;
-use crate::parser::subparser::{add_nodes, ConfType};
-use crate::utils::base64::{base64_decode, url_safe_base64_decode};
-use crate::utils::tribool::TriboolExt;
-use crate::utils::url::get_url_arg;
+use crate::parser::subparser::add_nodes;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::path::Path;

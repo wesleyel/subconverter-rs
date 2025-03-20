@@ -1,4 +1,4 @@
-use crate::models::{Proxy, ProxyType, SNELL_DEFAULT_GROUP};
+use crate::models::{Proxy, SNELL_DEFAULT_GROUP};
 use std::collections::HashMap;
 use url::Url;
 

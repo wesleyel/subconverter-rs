@@ -1,5 +1,5 @@
 use crate::models::{
-    Proxy, ProxyType, HTTP_DEFAULT_GROUP, HYSTERIA2_DEFAULT_GROUP, HYSTERIA_DEFAULT_GROUP,
+    Proxy, HTTP_DEFAULT_GROUP, HYSTERIA2_DEFAULT_GROUP, HYSTERIA_DEFAULT_GROUP,
     SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
     TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP, WG_DEFAULT_GROUP,
 };
@@ -918,7 +918,7 @@ fn parse_clash_hysteria2(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_yaml;
+    
 
     // Helper function to create a basic YAML Value for SS with simple-obfs plugin
     fn create_ss_obfs_yaml() -> Value {

@@ -2,7 +2,7 @@
 //!
 //! This module provides functionality to convert rulesets to Clash YAML string format.
 
-use crate::models::{RulesetContent, RulesetType};
+use crate::models::RulesetContent;
 use crate::settings::get_settings;
 use crate::utils::string::{find_str, starts_with, trim};
 use lazy_static::lazy_static;

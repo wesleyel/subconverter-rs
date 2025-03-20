@@ -4,7 +4,7 @@
 
 use crate::models::RulesetType;
 use crate::utils::network::is_ipv4;
-use crate::utils::string::{ends_with, replace_all_distinct, trim};
+use crate::utils::string::ends_with;
 use regex::Regex;
 
 /// Converts a ruleset from one format to another

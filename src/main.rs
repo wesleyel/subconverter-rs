@@ -1,7 +1,6 @@
-use log::info;
 use std::env;
 use std::path::Path;
-use subconverter_rs::settings::{global, update_settings, Settings};
+use subconverter_rs::settings::{update_settings, Settings};
 
 fn main() {
     // Check for a config file path from command line

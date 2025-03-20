@@ -1,9 +1,9 @@
 use crate::models::{
-    Proxy, ProxyType, HTTP_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
+    Proxy, HTTP_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
     TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP,
 };
 use crate::utils::base64::{base64_encode, url_safe_base64_decode};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 /// Parse a Netch JSON configuration into a Proxy object
 /// Matches C++ explodeNetch implementation

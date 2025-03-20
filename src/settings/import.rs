@@ -1,11 +1,6 @@
 use log::{error, info};
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-use toml;
 
-use crate::find_if_exist;
-use crate::settings::config::{global, parse_toml};
+use crate::settings::config::global;
 use crate::utils::http::web_get;
 use crate::utils::{file_exists, file_get, is_link};
 

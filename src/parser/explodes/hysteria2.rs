@@ -1,5 +1,4 @@
-use crate::{models::HYSTERIA2_DEFAULT_GROUP, Proxy, ProxyType};
-use std::collections::HashMap;
+use crate::{models::HYSTERIA2_DEFAULT_GROUP, Proxy};
 use url::Url;
 
 /// Parse a Hysteria2 link into a Proxy object
@@ -125,7 +124,7 @@ pub fn explode_std_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     let mut sni = String::new();
     let mut fingerprint = String::new();
     let mut ca = String::new();
-    let mut ca_str = String::new();
+    let ca_str = String::new();
     let mut cwnd = None;
     let mut allow_insecure = None;
     let mut ports = String::new();

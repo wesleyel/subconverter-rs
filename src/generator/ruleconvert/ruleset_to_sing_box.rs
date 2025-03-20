@@ -4,12 +4,10 @@
 
 use crate::models::RulesetContent;
 use crate::settings::get_settings;
-use crate::utils::string::{find_str, starts_with, to_lower, trim_whitespace};
+use crate::utils::string::{find_str, starts_with, to_lower};
 use crate::utils::trim;
-use lazy_static::lazy_static;
 use log::warn;
 use serde_json::{json, Map, Value};
-use std::collections::HashSet;
 
 use super::convert_ruleset::convert_ruleset;
 use super::ruleset::SINGBOX_RULE_TYPES;
