@@ -8,6 +8,7 @@ pub mod regexp;
 pub mod string;
 pub mod tribool;
 pub mod url;
+pub mod useragent;
 pub mod yaml;
 // Re-export common utilities
 pub use file::{file_exists, file_get};
@@ -19,4 +20,5 @@ pub use regexp::{
 };
 pub use string::{ends_with, replace_all_distinct, starts_with, to_lower, trim, trim_whitespace};
 pub use url::{url_decode, url_encode};
+pub use useragent::{match_user_agent, ver_greater_equal};
 pub use yaml::YamlNode;

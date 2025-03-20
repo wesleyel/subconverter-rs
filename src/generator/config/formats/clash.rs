@@ -1,9 +1,7 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
-use crate::models::{
-    ExtraSettings, ProxyGroupConfigs, ProxyGroupType,
-};
+use crate::models::{ExtraSettings, ProxyGroupConfigs, ProxyGroupType};
 use crate::models::{Proxy, ProxyType, RulesetContent};
 use crate::utils::tribool::TriboolExt;
 use crate::utils::url::get_url_arg;
@@ -170,7 +168,7 @@ pub fn proxy_to_clash(
         ext.clash_new_field_name,
     );
 
-    let yaml_output = match yaml_node.to_string() {
+    let yaml_output = match serde_yaml::to_string(&yaml_node.value) {
         Ok(result) => result,
         Err(_) => return String::new(),
     };

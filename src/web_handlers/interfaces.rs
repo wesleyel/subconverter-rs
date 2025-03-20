@@ -8,6 +8,7 @@ use crate::interfaces::subconverter::{
     subconverter, SubconverterConfig, SubconverterConfigBuilder, SubconverterTarget,
 };
 use crate::models::AppState;
+use crate::settings::refresh_configuration;
 
 /// A wrapper around SubconverterConfig that implements Default
 #[derive(Debug, Clone)]
@@ -113,6 +114,15 @@ pub async fn sub_handler(
     app_state: web::Data<Arc<AppState>>,
 ) -> HttpResponse {
     debug!("Received subconverter request: {:?}", query);
+
+    // Check if we should reload the config
+    if app_state.config.reload_conf_on_request && !app_state.config.api_mode {
+        // Try to refresh the configuration
+        if let Err(e) = refresh_configuration() {
+            error!("Failed to reload configuration: {}", e);
+            // Continue with the existing configuration
+        }
+    }
 
     // Start building configuration
     let mut builder = SubconverterConfigBuilder::new();
@@ -271,8 +281,10 @@ pub async fn sub_handler(
 
     let target = config.target.clone();
 
+    let subconverter_result = std::thread::spawn(move || subconverter(config));
+
     // Run subconverter
-    match subconverter(config) {
+    match subconverter_result.join().unwrap() {
         Ok(result) => {
             // Build response with headers
             let mut resp = HttpResponse::Ok();
@@ -348,10 +360,7 @@ pub async fn surge_to_clash_handler(
 
 /// Register the API endpoints with Actix Web
 pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/api")
-            .route("/sub", web::get().to(sub_handler))
-            .route("/surge2clash", web::get().to(surge_to_clash_handler))
-            .route("/{target_type}", web::get().to(simple_handler)),
-    );
+    cfg.route("/sub", web::get().to(sub_handler))
+        .route("/surge2clash", web::get().to(surge_to_clash_handler))
+        .route("/{target_type}", web::get().to(simple_handler));
 }

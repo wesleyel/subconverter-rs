@@ -13,6 +13,7 @@ use std::path::Path;
 /// The output format for subconverter
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum SubconverterTarget {
+    Auto,
     Clash,
     ClashR,
     Surge(i32), // Surge version as parameter
@@ -35,6 +36,7 @@ impl SubconverterTarget {
     /// Convert string to target enum
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
+            "auto" => Some(SubconverterTarget::Auto),
             "clash" => Some(SubconverterTarget::Clash),
             "clashr" => Some(SubconverterTarget::ClashR),
             "surge" => Some(SubconverterTarget::Surge(3)), // Default to Surge 3
@@ -51,6 +53,10 @@ impl SubconverterTarget {
             "loon" => Some(SubconverterTarget::Loon),
             "ssd" => Some(SubconverterTarget::SSD),
             "singbox" => Some(SubconverterTarget::SingBox),
+            // Map shadowrocket to Mixed
+            "shadowrocket" => Some(SubconverterTarget::Mixed),
+            // Map surfboardios to regular Surfboard
+            "surfboardios" => Some(SubconverterTarget::Surfboard),
             _ => None,
         }
     }
@@ -58,6 +64,7 @@ impl SubconverterTarget {
     /// Convert to string representation
     pub fn to_str(&self) -> String {
         match self {
+            SubconverterTarget::Auto => "auto".to_string(),
             SubconverterTarget::Clash => "clash".to_string(),
             SubconverterTarget::ClashR => "clashr".to_string(),
             SubconverterTarget::Surge(ver) => format!("surge{}", ver),
@@ -918,6 +925,24 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
                 &base,
                 &mut config.ruleset_content.clone(),
                 &config.proxy_groups,
+                &mut config.extra.clone(),
+            )
+        }
+        SubconverterTarget::Auto => {
+            // When target is Auto, we should have decided on a specific target earlier based on user agent
+            // If we still have Auto at this point, default to Clash
+            info!("Generate target: Auto (defaulting to Clash)");
+            let base = config
+                .base_content
+                .get(&SubconverterTarget::Clash)
+                .cloned()
+                .unwrap_or_default();
+            proxy_to_clash(
+                &mut nodes,
+                &base,
+                &mut config.ruleset_content.clone(),
+                &config.proxy_groups,
+                false,
                 &mut config.extra.clone(),
             )
         }

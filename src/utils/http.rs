@@ -27,12 +27,14 @@ pub async fn web_get_async(
         .user_agent("subconverter-rs");
 
     if let Some(proxy) = proxy_str {
-        match Proxy::all(proxy) {
-            Ok(proxy) => {
-                client_builder = client_builder.proxy(proxy);
-            }
-            Err(e) => {
-                return Err(format!("Failed to set proxy: {}", e));
+        if !proxy.is_empty() {
+            match Proxy::all(proxy) {
+                Ok(proxy) => {
+                    client_builder = client_builder.proxy(proxy);
+                }
+                Err(e) => {
+                    return Err(format!("Failed to set proxy: {}", e));
+                }
             }
         }
     }
