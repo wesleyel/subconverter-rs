@@ -184,6 +184,8 @@ pub fn explode_ssr_conf(content: &str, nodes: &mut Vec<Proxy>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::ProxyType;
+
     use super::*;
     use base64::{engine::general_purpose::STANDARD, Engine};
 

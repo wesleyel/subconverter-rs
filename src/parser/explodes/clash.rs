@@ -917,8 +917,9 @@ fn parse_clash_hysteria2(
 
 #[cfg(test)]
 mod tests {
+    use crate::ProxyType;
+
     use super::*;
-    
 
     // Helper function to create a basic YAML Value for SS with simple-obfs plugin
     fn create_ss_obfs_yaml() -> Value {
