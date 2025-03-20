@@ -8,7 +8,3 @@ pub mod peer;
 pub mod remark;
 pub mod subexport;
 pub mod vmess;
-
-pub use subexport::{
-    ExtraSettings, ProxyGroupConfig, ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs,
-};

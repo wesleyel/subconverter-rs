@@ -95,7 +95,7 @@ impl Default for ParseSettings {
             stream_rules: None, // TODO: Get from global settings
             time_rules: None,   // TODO: Get from global settings
             sub_info: None,
-            authorized: !settings.access_token.is_empty(),
+            authorized: !settings.api_access_token.is_empty(),
             request_header: None,
             #[cfg(feature = "js_runtime")]
             js_runtime: None,

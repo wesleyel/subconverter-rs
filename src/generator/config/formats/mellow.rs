@@ -1,14 +1,20 @@
-use crate::generator::config::subexport::{
-    group_generate, process_remark, ExtraSettings, ProxyGroupConfigs,
+use crate::generator::config::group::group_generate;
+use crate::generator::config::remark::process_remark;
+use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
+use crate::models::{
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
-use crate::parser::ruleset::RulesetContent;
-use crate::utils::ini::IniReader;
-use crate::{Proxy, ProxyType};
+use crate::utils::base64::url_safe_base64_encode;
+use crate::utils::ini_reader::IniReader;
+use crate::utils::string::{hash, join};
+use crate::utils::tribool::BoolTriboolExt;
+use crate::utils::url::url_encode;
+use log::error;
 use std::collections::HashMap;
 
-/// Convert proxies to Mellow format
+/// Convert proxies to Mellow format (main entry point)
 ///
-/// This function converts a list of proxies to the Mellow configuration format,
+/// This function converts a list of proxies to Mellow format,
 /// using a base configuration as a template and applying rules from ruleset_content_array.
 ///
 /// # Arguments
@@ -17,6 +23,9 @@ use std::collections::HashMap;
 /// * `ruleset_content_array` - Array of ruleset contents to apply
 /// * `extra_proxy_group` - Extra proxy group configurations
 /// * `ext` - Extra settings for conversion
+///
+/// # Returns
+/// * Mellow configuration as a string
 pub fn proxy_to_mellow(
     nodes: &mut Vec<Proxy>,
     base_conf: &str,
@@ -24,360 +33,249 @@ pub fn proxy_to_mellow(
     extra_proxy_group: &ProxyGroupConfigs,
     ext: &mut ExtraSettings,
 ) -> String {
-    let mut proxy_config = String::new();
-    let mut route_config = String::new();
-    let mut rule_config = String::new();
-    let mut base_config = base_conf.to_string();
+    let mut ini = IniReader::new();
+    ini.store_any_line = true;
 
-    // Process proxies
-    if !nodes.is_empty() {
-        proxy_config.push_str("[Endpoint]\n");
-
-        for node in nodes.iter_mut() {
-            // Skip unsupported proxy types
-            match node.proxy_type {
-                ProxyType::Shadowsocks
-                | ProxyType::ShadowsocksR
-                | ProxyType::VMess
-                | ProxyType::Socks5
-                | ProxyType::HTTP
-                | ProxyType::HTTPS => {}
-                _ => continue,
-            }
-
-            // Process remark
-            let mut remark = node.remark.clone();
-            process_remark(&mut remark, ext, true);
-
-            // Add proxy based on type
-            match node.proxy_type {
-                ProxyType::Shadowsocks => {
-                    proxy_config.push_str(&format!(
-                        "{} = ss, {}, {}, encrypt-method={}, password={}",
-                        remark, node.server, node.port, node.cipher, node.password
-                    ));
-
-                    // Add plugin if present
-                    if !node.plugin.is_empty() {
-                        if node.plugin == "obfs-local" || node.plugin == "simple-obfs" {
-                            let mut plugin_opts = HashMap::new();
-                            for opt in node.plugin_opts.split(';') {
-                                let parts: Vec<&str> = opt.split('=').collect();
-                                if parts.len() == 2 {
-                                    plugin_opts.insert(parts[0], parts[1]);
-                                }
-                            }
-
-                            if let Some(obfs) = plugin_opts.get("obfs") {
-                                proxy_config.push_str(&format!(", obfs={}", obfs));
-
-                                if let Some(host) = plugin_opts.get("obfs-host") {
-                                    proxy_config.push_str(&format!(", obfs-host={}", host));
-                                }
-                            }
-                        }
-                    }
-                }
-                ProxyType::ShadowsocksR => {
-                    proxy_config.push_str(&format!("{} = ssr, {}, {}, encrypt-method={}, password={}, obfs={}, obfs-param={}, protocol={}, protocol-param={}", 
-                        remark, node.server, node.port, node.cipher, node.password,
-                        node.obfs, node.obfs_param, node.protocol, node.protocol_param));
-                }
-                ProxyType::VMess => {
-                    proxy_config.push_str(&format!(
-                        "{} = vmess, {}, {}, uuid={}, security={}",
-                        remark,
-                        node.server,
-                        node.port,
-                        node.uuid,
-                        if node.cipher.is_empty() {
-                            "auto"
-                        } else {
-                            &node.cipher
-                        }
-                    ));
-
-                    // Add alterId if present
-                    if node.alter_id > 0 {
-                        proxy_config.push_str(&format!(", alter-id={}", node.alter_id));
-                    }
-
-                    // Add network settings
-                    if !node.network.is_empty() {
-                        proxy_config.push_str(&format!(", network={}", node.network));
-
-                        match node.network.as_str() {
-                            "ws" => {
-                                if !node.path.is_empty() {
-                                    proxy_config.push_str(&format!(", ws-path={}", node.path));
-                                }
-
-                                if !node.host.is_empty() {
-                                    proxy_config.push_str(&format!(", ws-host={}", node.host));
-                                }
-                            }
-                            "h2" => {
-                                if !node.path.is_empty() {
-                                    proxy_config.push_str(&format!(", h2-path={}", node.path));
-                                }
-
-                                if !node.host.is_empty() {
-                                    proxy_config.push_str(&format!(", h2-host={}", node.host));
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    // Add TLS settings
-                    if node.tls {
-                        proxy_config.push_str(", tls=true");
-
-                        if let Some(sni) = &node.sni {
-                            if !sni.is_empty() {
-                                proxy_config.push_str(&format!(", tls-server-name={}", sni));
-                            }
-                        }
-                    }
-                }
-                ProxyType::HTTP | ProxyType::HTTPS => {
-                    if node.proxy_type == ProxyType::HTTP {
-                        proxy_config.push_str(&format!(
-                            "{} = http, {}, {}",
-                            remark, node.server, node.port
-                        ));
-                    } else {
-                        proxy_config.push_str(&format!(
-                            "{} = http, {}, {}, tls=true",
-                            remark, node.server, node.port
-                        ));
-                    }
-
-                    // Add username/password if present
-                    if !node.username.is_empty() {
-                        proxy_config.push_str(&format!(", username={}", node.username));
-                    }
-
-                    if !node.password.is_empty() {
-                        proxy_config.push_str(&format!(", password={}", node.password));
-                    }
-                }
-                ProxyType::Socks5 => {
-                    proxy_config.push_str(&format!(
-                        "{} = socks, {}, {}",
-                        remark, node.server, node.port
-                    ));
-
-                    // Add username/password if present
-                    if !node.username.is_empty() {
-                        proxy_config.push_str(&format!(", username={}", node.username));
-                    }
-
-                    if !node.password.is_empty() {
-                        proxy_config.push_str(&format!(", password={}", node.password));
-                    }
-                }
-                _ => continue,
-            }
-
-            proxy_config.push('\n');
-        }
-
-        proxy_config.push('\n');
+    // Parse base configuration
+    if ini.parse(base_conf).is_err() {
+        error!(
+            "Mellow base loader failed with error: {}",
+            ini.get_last_error()
+        );
+        return String::new();
     }
 
-    // Process proxy groups
-    if !extra_proxy_group.is_empty() {
-        route_config.push_str("[Routing]\n");
+    // Process nodes and rules
+    proxy_to_mellow_internal(
+        nodes,
+        &mut ini,
+        ruleset_content_array,
+        extra_proxy_group,
+        ext,
+    );
 
-        // Add default route
-        route_config.push_str("default = direct\n");
-
-        // Add proxy groups
-        for group in extra_proxy_group {
-            // Skip unsupported group types
-            match group.type_field.as_str() {
-                "select" | "url-test" | "fallback" | "load-balance" => {}
-                _ => continue,
-            }
-
-            // Create proxy list for this group
-            let mut proxy_list = Vec::new();
-
-            for proxy_name in &group.proxies {
-                let mut filtered_nodes = Vec::new();
-                group_generate(proxy_name, nodes, &mut filtered_nodes, false, ext);
-                for node in filtered_nodes {
-                    proxy_list.push(node);
-                }
-            }
-
-            // Add group based on type
-            match group.type_field.as_str() {
-                "select" => {
-                    route_config.push_str(&format!(
-                        "proxy-{} = select, {}\n",
-                        group.name,
-                        proxy_list.join(", ")
-                    ));
-                }
-                "url-test" => {
-                    route_config.push_str(&format!(
-                        "proxy-{} = url-test, {}",
-                        group.name,
-                        proxy_list.join(", ")
-                    ));
-
-                    // Add URL if present
-                    if !group.url.is_empty() {
-                        route_config.push_str(&format!(", url={}", group.url));
-                    }
-
-                    // Add interval if present
-                    if group.interval > 0 {
-                        route_config.push_str(&format!(", interval={}", group.interval));
-                    }
-
-                    route_config.push('\n');
-                }
-                "fallback" => {
-                    route_config.push_str(&format!(
-                        "proxy-{} = fallback, {}",
-                        group.name,
-                        proxy_list.join(", ")
-                    ));
-
-                    // Add URL if present
-                    if !group.url.is_empty() {
-                        route_config.push_str(&format!(", url={}", group.url));
-                    }
-
-                    // Add interval if present
-                    if group.interval > 0 {
-                        route_config.push_str(&format!(", interval={}", group.interval));
-                    }
-
-                    route_config.push('\n');
-                }
-                "load-balance" => {
-                    route_config.push_str(&format!(
-                        "proxy-{} = load-balance, {}\n",
-                        group.name,
-                        proxy_list.join(", ")
-                    ));
-                }
-                _ => {}
-            }
-        }
-
-        route_config.push('\n');
-    }
-
-    // Process rules
-    if ext.enable_rule_generator && !ruleset_content_array.is_empty() {
-        rule_config.push_str("[Rule]\n");
-
-        for ruleset in ruleset_content_array {
-            for rule in &ruleset.rules {
-                let mut rule_str = String::new();
-
-                match rule.rule_type.as_str() {
-                    "DOMAIN" => {
-                        rule_str = format!("domain:{}, {}", rule.rule_content, ruleset.group);
-                    }
-                    "DOMAIN-SUFFIX" => {
-                        rule_str =
-                            format!("domain-suffix:{}, {}", rule.rule_content, ruleset.group);
-                    }
-                    "DOMAIN-KEYWORD" => {
-                        rule_str =
-                            format!("domain-keyword:{}, {}", rule.rule_content, ruleset.group);
-                    }
-                    "IP-CIDR" => {
-                        rule_str = format!("ip:{}, {}", rule.rule_content, ruleset.group);
-                    }
-                    "IP-CIDR6" => {
-                        rule_str = format!("ip:{}, {}", rule.rule_content, ruleset.group);
-                    }
-                    "GEOIP" => {
-                        rule_str = format!("geoip:{}, {}", rule.rule_content, ruleset.group);
-                    }
-                    "FINAL" => {
-                        rule_str = format!("final, {}", ruleset.group);
-                    }
-                    _ => {}
-                }
-
-                if !rule_str.is_empty() {
-                    rule_config.push_str(&rule_str);
-                    rule_config.push('\n');
-                }
-            }
-        }
-
-        rule_config.push('\n');
-    }
-
-    // Combine all sections
-    let mut config = String::new();
-
-    // Add base config if not empty
-    if !base_config.is_empty() {
-        // Check if we need to overwrite original sections
-        if ext.overwrite_original_rules {
-            // Remove original [Endpoint], [Routing], and [Rule] sections
-            let sections = ["[Endpoint]", "[Routing]", "[Rule]"];
-
-            for section in &sections {
-                if let Some(start) = base_config.find(section) {
-                    if let Some(next_section) = base_config[start + section.len()..].find('[') {
-                        let end = start + section.len() + next_section - 1;
-                        base_config.replace_range(start..end, "");
-                    } else {
-                        base_config.truncate(start);
-                    }
-                }
-            }
-        }
-
-        config.push_str(&base_config);
-
-        // Add a newline if the base config doesn't end with one
-        if !base_config.ends_with('\n') {
-            config.push('\n');
-        }
-    }
-
-    // Add proxy, route, and rule configs
-    config.push_str(&proxy_config);
-    config.push_str(&route_config);
-    config.push_str(&rule_config);
-
-    config
+    // Return the INI as a string
+    ini.to_string()
 }
 
-/// Convert proxies to Mellow format with INI reader
+/// Internal function for converting proxies to Mellow format
 ///
-/// This function modifies an INI reader in place to add Mellow configuration
-/// for the provided proxy nodes.
+/// This function handles the actual conversion logic for Mellow.
 ///
 /// # Arguments
 /// * `nodes` - List of proxy nodes to convert
-/// * `ini` - INI reader to modify
+/// * `ini` - INI reader to store configuration
 /// * `ruleset_content_array` - Array of ruleset contents to apply
 /// * `extra_proxy_group` - Extra proxy group configurations
 /// * `ext` - Extra settings for conversion
-pub fn proxy_to_mellow_ini(
+fn proxy_to_mellow_internal(
     nodes: &mut Vec<Proxy>,
     ini: &mut IniReader,
     ruleset_content_array: &mut Vec<RulesetContent>,
     extra_proxy_group: &ProxyGroupConfigs,
     ext: &mut ExtraSettings,
 ) {
-    // Placeholder for implementation
-    // Here will be code to:
-    // 1. Process proxy nodes into Mellow format
-    // 2. Add them to the INI object
-    // 3. Add proxy groups from extra_proxy_group
-    // 4. Add rules if rule generator is enabled
+    let mut nodelist = Vec::new();
+    let mut remarks_list = Vec::new();
+
+    // Set up Endpoint section
+    ini.set_current_section("Endpoint");
+
+    // Process each proxy node
+    for node in nodes {
+        // Add proxy type prefix if enabled
+        if ext.append_proxy_type {
+            let proxy_type = node.proxy_type.to_string();
+            node.remark = format!("[{}] {}", proxy_type, node.remark);
+        }
+
+        // Process remark
+        let mut remark = node.remark.clone();
+        process_remark(&mut remark, &remarks_list, true);
+        node.remark = remark;
+
+        // Extract node properties for easier access
+        let hostname = &node.hostname;
+        let port = node.port.to_string();
+        let username = node.username.as_deref().unwrap_or("");
+        let password = node.password.as_deref().unwrap_or("");
+        let method = node.encrypt_method.as_deref().unwrap_or("");
+        let id = node.user_id.as_deref().unwrap_or("");
+        let transproto = node.transfer_protocol.as_deref().unwrap_or("");
+        let host = node.host.as_deref().unwrap_or("");
+        let path = node.path.as_deref().unwrap_or("");
+        let quicsecure = node.quic_secure.as_deref().unwrap_or("");
+        let quicsecret = node.quic_secret.as_deref().unwrap_or("");
+        let plugin = node.plugin.as_deref().unwrap_or("");
+        let tls_secure = if node.tls_secure { "true" } else { "false" };
+
+        // Get option values with defaults from ext
+        let mut tfo = ext.tfo;
+        let mut scv = ext.skip_cert_verify;
+
+        // Override with node-specific values if present
+        tfo = node.tcp_fast_open.as_ref().map_or(tfo, |val| Some(*val));
+        scv = node.allow_insecure.as_ref().map_or(scv, |val| Some(*val));
+
+        let mut proxy_str = String::new();
+
+        // Format proxy string based on proxy type
+        match node.proxy_type {
+            ProxyType::Shadowsocks => {
+                // Skip if plugin is not empty
+                if !plugin.is_empty() {
+                    continue;
+                }
+
+                proxy_str = format!(
+                    "{}, ss, ss://{}/{}:{}",
+                    node.remark,
+                    url_safe_base64_encode(&format!("{}:{}", method, password)),
+                    hostname,
+                    port
+                );
+            }
+            ProxyType::VMess => {
+                proxy_str = format!(
+                    "{}, vmess1, vmess1://{}@{}:{}",
+                    node.remark, id, hostname, port
+                );
+
+                // Add path if not empty
+                if !path.is_empty() {
+                    proxy_str.push_str(path);
+                }
+
+                // Add network type
+                proxy_str.push_str(&format!("?network={}", transproto));
+
+                // Add protocol-specific options
+                match hash(transproto) {
+                    h if h == hash("ws") => {
+                        proxy_str.push_str(&format!("&ws.host={}", url_encode(host)));
+                    }
+                    h if h == hash("http") => {
+                        if !host.is_empty() {
+                            proxy_str.push_str(&format!("&http.host={}", url_encode(host)));
+                        }
+                    }
+                    h if h == hash("quic") => {
+                        if !quicsecure.is_empty() {
+                            proxy_str.push_str(&format!(
+                                "&quic.security={}&quic.key={}",
+                                quicsecure, quicsecret
+                            ));
+                        }
+                    }
+                    h if h == hash("kcp") || h == hash("tcp") => {
+                        // No additional parameters needed
+                    }
+                    _ => {}
+                }
+
+                // Add TLS settings
+                proxy_str.push_str(&format!("&tls={}", tls_secure));
+
+                if tls_secure == "true" {
+                    if !host.is_empty() {
+                        proxy_str.push_str(&format!("&tls.servername={}", url_encode(host)));
+                    }
+                }
+
+                // Add skip cert verify if defined
+                if !scv.is_undef() {
+                    proxy_str.push_str(&format!(
+                        "&tls.allowinsecure={}",
+                        if scv.unwrap_or(false) {
+                            "true"
+                        } else {
+                            "false"
+                        }
+                    ));
+                }
+
+                // Add TCP fast open if defined
+                if !tfo.is_undef() {
+                    proxy_str.push_str(&format!(
+                        "&sockopt.tcpfastopen={}",
+                        if tfo.unwrap_or(false) {
+                            "true"
+                        } else {
+                            "false"
+                        }
+                    ));
+                }
+            }
+            ProxyType::Socks5 => {
+                proxy_str = format!(
+                    "{}, builtin, socks, address={}, port={}, user={}, pass={}",
+                    node.remark, hostname, port, username, password
+                );
+            }
+            ProxyType::HTTP => {
+                proxy_str = format!(
+                    "{}, builtin, http, address={}, port={}, user={}, pass={}",
+                    node.remark, hostname, port, username, password
+                );
+            }
+            _ => continue,
+        }
+
+        // Add to INI
+        ini.set("{NONAME}", &proxy_str, "").unwrap_or(());
+        remarks_list.push(node.remark.clone());
+        nodelist.push(node.clone());
+    }
+
+    // Process endpoint groups
+    ini.set_current_section("EndpointGroup");
+
+    for group in extra_proxy_group {
+        // Only process certain group types
+        match group.group_type {
+            ProxyGroupType::Select
+            | ProxyGroupType::URLTest
+            | ProxyGroupType::Fallback
+            | ProxyGroupType::LoadBalance => {
+                // Generate node list
+                let mut filtered_nodelist = Vec::new();
+
+                // Process each proxy in the group
+                for proxy_name in &group.proxies {
+                    group_generate(proxy_name, &nodelist, &mut filtered_nodelist, false, ext);
+                }
+
+                // Use default if filtered list is empty
+                if filtered_nodelist.is_empty() {
+                    if remarks_list.is_empty() {
+                        filtered_nodelist.push("DIRECT".to_string());
+                    } else {
+                        filtered_nodelist = remarks_list.clone();
+                    }
+                }
+
+                // Create group string with joined node list
+                let proxy_str = format!(
+                    "{}, {}, latency, interval=300, timeout=6",
+                    group.name,
+                    join(&filtered_nodelist, ":")
+                );
+
+                // Add to INI
+                ini.set("{NONAME}", &proxy_str, "").unwrap_or(());
+            }
+            _ => continue,
+        }
+    }
+
+    // Generate rules if enabled
+    if ext.enable_rule_generator {
+        ruleset_to_surge(
+            ini,
+            ruleset_content_array,
+            0,
+            ext.overwrite_original_rules,
+            "",
+        );
+    }
 }

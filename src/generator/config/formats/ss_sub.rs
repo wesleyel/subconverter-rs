@@ -1,58 +1,100 @@
-use crate::generator::config::subexport::{process_remark, ExtraSettings};
-use crate::utils::url::url_encode;
-use crate::{Proxy, ProxyType};
-use base64::{engine::general_purpose, Engine as _};
+use crate::models::{ExtraSettings, Proxy, ProxyType, SS_CIPHERS};
+use crate::utils::string::trim_whitespace;
+use log::error;
+use serde_json::{json, Value as JsonValue};
 
-/// Convert proxies to SSSub format
+/// Convert proxies to SIP008 Shadowsocks subscription format
 ///
-/// This function converts a list of proxies to the SSSub configuration format,
-/// which is a base64-encoded list of SS URIs.
+/// This function converts a list of proxies to the SIP008 JSON format
+/// used by modern Shadowsocks clients.
 ///
 /// # Arguments
+/// * `base_conf` - Base configuration as a JSON string
 /// * `nodes` - List of proxy nodes to convert
 /// * `ext` - Extra settings for conversion
-pub fn proxy_to_ss_sub(nodes: &mut Vec<Proxy>, ext: &mut ExtraSettings) -> String {
-    let mut sub_content = String::new();
+///
+/// # Returns
+/// * JSON string in SIP008 format
+pub fn proxy_to_ss_sub(
+    base_conf: &str,
+    nodes: &mut Vec<Proxy>,
+    _ext: &mut ExtraSettings,
+) -> String {
+    // Parse the base configuration
+    let base_conf = trim_whitespace(base_conf, true, true);
+    let base_conf = if base_conf.is_empty() {
+        "{}"
+    } else {
+        &base_conf
+    };
 
-    for node in nodes.iter_mut() {
-        // Skip non-SS nodes
-        if node.proxy_type != ProxyType::Shadowsocks {
-            continue;
+    let base_json: JsonValue = match serde_json::from_str(base_conf) {
+        Ok(json) => json,
+        Err(e) => {
+            error!("SIP008 base loader failed with error: {}", e);
+            json!({})
+        }
+    };
+
+    // Create the array to hold proxy objects
+    let mut proxies = Vec::new();
+
+    // Process each proxy node
+    for node in nodes {
+        let remark = &node.remark;
+        let hostname = &node.hostname;
+        let port = node.port;
+
+        // Extract optional fields with safe defaults
+        let password = node.password.as_deref().unwrap_or("");
+        let method = node.encrypt_method.as_deref().unwrap_or("");
+        let mut plugin = node.plugin.as_deref().unwrap_or("").to_string();
+        let plugin_opts = node.plugin_option.as_deref().unwrap_or("");
+        let protocol = node.protocol.as_deref().unwrap_or("");
+        let obfs = node.obfs.as_deref().unwrap_or("");
+
+        // Filter nodes based on type and compatibility
+        match node.proxy_type {
+            ProxyType::Shadowsocks => {
+                // Convert simple-obfs to obfs-local
+                if plugin == "simple-obfs" {
+                    plugin = "obfs-local".to_string();
+                }
+            }
+            ProxyType::ShadowsocksR => {
+                // Skip incompatible SSR nodes
+                if !SS_CIPHERS.contains(&method) || protocol != "origin" || obfs != "plain" {
+                    continue;
+                }
+            }
+            _ => continue, // Skip all other proxy types
         }
 
-        // Process remark
-        let mut remark = node.remark.clone();
-        process_remark(&mut remark, ext, false);
+        // Create a proxy object
+        let mut proxy = match base_json.as_object() {
+            Some(obj) => obj.clone(),
+            None => serde_json::Map::new(),
+        };
 
-        // Create SS URI
-        let mut uri = String::new();
+        // Add all required fields
+        proxy.insert("remarks".to_string(), json!(remark));
+        proxy.insert("server".to_string(), json!(hostname));
+        proxy.insert("server_port".to_string(), json!(port));
+        proxy.insert("method".to_string(), json!(method));
+        proxy.insert("password".to_string(), json!(password));
+        proxy.insert("plugin".to_string(), json!(plugin));
+        proxy.insert("plugin_opts".to_string(), json!(plugin_opts));
 
-        // Add method and password
-        let user_info = format!("{}:{}", node.cipher, node.password);
-        let encoded_user_info = general_purpose::STANDARD.encode(user_info);
-
-        // Format: ss://BASE64(method:password)@server:port/?plugin=plugin_data#remark
-        uri.push_str(&format!(
-            "ss://{}@{}:{}",
-            encoded_user_info, node.server, node.port
-        ));
-
-        // Add plugin if present
-        if !node.plugin.is_empty() && !node.plugin_opts.is_empty() {
-            uri.push_str(&format!(
-                "/?plugin={}",
-                url_encode(&format!("{};{}", node.plugin, node.plugin_opts))
-            ));
-        }
-
-        // Add remark
-        uri.push_str(&format!("#{}", url_encode(&remark)));
-
-        // Add to subscription content
-        sub_content.push_str(&uri);
-        sub_content.push('\n');
+        // Add to proxies array
+        proxies.push(JsonValue::Object(proxy));
     }
 
-    // Base64 encode the entire subscription
-    general_purpose::STANDARD.encode(sub_content)
+    // Serialize the array to a JSON string
+    match serde_json::to_string_pretty(&proxies) {
+        Ok(json_str) => json_str,
+        Err(e) => {
+            error!("Failed to serialize SIP008 JSON: {}", e);
+            String::new()
+        }
+    }
 }

@@ -53,6 +53,8 @@ pub struct IniReader {
     exclude_sections: HashSet<String>,
     /// List of sections to include when parsing (if empty, all sections are included)
     include_sections: HashSet<String>,
+    /// List of sections to save directly without processing
+    direct_save_sections: HashSet<String>,
     /// Ordered list of sections as they appear in the original file
     section_order: Vec<String>,
     /// Mapping of sections to key-value pairs
@@ -82,6 +84,7 @@ impl IniReader {
             current_section: String::new(),
             exclude_sections: HashSet::new(),
             include_sections: HashSet::new(),
+            direct_save_sections: HashSet::new(),
             section_order: Vec::new(),
             content: HashMap::new(),
             last_error: IniReaderError::None,
@@ -89,6 +92,29 @@ impl IniReader {
             allow_dup_section_titles: false,
             keep_empty_section: true,
         }
+    }
+
+    /// Add a section to be saved directly without processing
+    pub fn add_direct_save_section(&mut self, section: &str) {
+        self.direct_save_sections.insert(section.to_string());
+    }
+
+    /// Erase all contents of the current section
+    pub fn erase_section(&mut self) {
+        if self.current_section.is_empty() {
+            return;
+        }
+
+        // Remove the section from the ini
+        self.ini.remove_section(&self.current_section);
+
+        // Add it back as an empty section
+        if let Some(section_map) = self.content.get_mut(&self.current_section) {
+            section_map.clear();
+        }
+
+        // Make sure the section exists in the ini
+        self.ini.set(&self.current_section, "", None);
     }
 
     /// Create a new INI reader and parse a file
@@ -331,16 +357,29 @@ impl IniReader {
             self.parsed = true;
         }
 
+        // If section is {NONAME}, we're setting key directly to the current section
+        let real_section = if section == "{NONAME}" {
+            if self.current_section.is_empty() {
+                self.last_error = IniReaderError::NotExist;
+                return Err(IniReaderError::NotExist);
+            }
+            &self.current_section
+        } else {
+            section
+        };
+
         // Add section if it doesn't exist
-        if !self.section_exist(section) {
-            self.section_order.push(section.to_string());
-            self.content.insert(section.to_string(), HashMap::new());
+        if !self.section_exist(real_section) {
+            self.section_order.push(real_section.to_string());
+            self.content
+                .insert(real_section.to_string(), HashMap::new());
         }
 
         // Update both the ini parser and our content HashMap
-        self.ini.set(section, item_name, Some(item_val.to_string()));
+        self.ini
+            .set(real_section, item_name, Some(item_val.to_string()));
 
-        if let Some(section_map) = self.content.get_mut(section) {
+        if let Some(section_map) = self.content.get_mut(real_section) {
             section_map.insert(item_name.to_string(), item_val.to_string());
         }
 

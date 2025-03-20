@@ -1,3 +1,8 @@
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
 /// Enum defining the type of ruleset
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RulesetType {
@@ -14,7 +19,33 @@ impl Default for RulesetType {
     }
 }
 
-use std::sync::{Arc, RwLock};
+/// Mapping from URL prefix to ruleset type
+pub type RulesetMapping = HashMap<String, RulesetType>;
+
+/// Available ruleset types with their prefixes
+pub static RULESET_TYPES: once_cell::sync::Lazy<RulesetMapping> =
+    once_cell::sync::Lazy::new(|| {
+        let mut types = RulesetMapping::new();
+        types.insert("clash-domain:".to_string(), RulesetType::ClashDomain);
+        types.insert("clash-ipcidr:".to_string(), RulesetType::ClashIpcidr);
+        types.insert("clash-classical:".to_string(), RulesetType::ClashClassical);
+        types.insert("quanx:".to_string(), RulesetType::Quanx);
+        types.insert("surge:".to_string(), RulesetType::Surge);
+        types
+    });
+
+/// Find a ruleset type based on a URL
+///
+/// Similar to the C++ implementation, this function looks for a matching
+/// ruleset type based on the prefix of a URL
+pub fn get_ruleset_type_from_url(url: &str) -> Option<RulesetType> {
+    for (prefix, ruleset_type) in RULESET_TYPES.iter() {
+        if url.starts_with(prefix) {
+            return Some(ruleset_type.clone());
+        }
+    }
+    None
+}
 
 /// Represents a ruleset with its metadata and content
 /// Matches the C++ struct RulesetContent:

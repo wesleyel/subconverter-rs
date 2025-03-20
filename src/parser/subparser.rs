@@ -1,7 +1,7 @@
 use crate::models::Proxy;
 use crate::parser::explodes::*;
 use crate::parser::infoparser::{get_sub_info_from_nodes, get_sub_info_from_ssd};
-use crate::parser::settings::{CaseInsensitiveString, ParseSettings, RegexMatchConfigs};
+use crate::parser::parse_settings::{CaseInsensitiveString, ParseSettings, RegexMatchConfigs};
 use crate::utils::base64::{base64_decode, base64_encode};
 use crate::utils::file_exists;
 use crate::utils::http::{get_sub_info_from_header, get_sub_info_from_response, web_get};

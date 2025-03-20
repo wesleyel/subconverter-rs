@@ -1,12 +1,24 @@
 use crate::generator::config::group::group_generate;
-use crate::generator::config::subexport::{process_remark, ExtraSettings, ProxyGroupConfigs};
+use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
+use crate::models::{
+    BalanceStrategy, ExtraSettings, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
+};
 use crate::models::{Proxy, ProxyType, RulesetContent};
+use crate::utils::tribool::{BoolTriboolExt, JsonApplicable, TriboolExt};
+use crate::utils::url::get_url_arg;
 use crate::utils::yaml::YamlNode;
 use log::error;
 use serde_json::{self, json, Map, Value as JsonValue};
-use serde_yaml::{self, Mapping, Value as YamlValue};
+use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::HashSet;
+
+// Macro to simplify creating and setting proxies with JsonApplicable trait
+macro_rules! apply_if_present {
+    ($json:expr, $key:expr, $value:expr) => {
+        $value.apply_to_json(&mut $json, $key);
+    };
+}
 
 // Lists of supported protocols and encryption methods for filtering in ClashR
 lazy_static::lazy_static! {
@@ -186,7 +198,8 @@ pub fn proxy_to_clash_yaml(
     clash_r: bool,
     ext: &mut ExtraSettings,
 ) {
-    // Style settings
+    // Style settings - in C++ this is used to set serialization style but in Rust we have less control
+    // over the serialization format. We keep them for compatibility but their actual effect may differ.
     let proxy_block = ext.clash_proxies_style == "block";
     let proxy_compact = ext.clash_proxies_style == "compact";
     let group_block = ext.clash_proxy_groups_style == "block";
@@ -194,750 +207,61 @@ pub fn proxy_to_clash_yaml(
 
     // Create JSON structure for the proxies
     let mut proxies_json = Vec::new();
+    let mut remarks_list = Vec::new();
 
     // Process each node
     for node in nodes.iter_mut() {
-        // Process remark
+        // Create a local copy of the node for processing
         let mut remark = node.remark.clone();
 
-        // Add proxy type to remark if enabled
+        // Add proxy type prefix if enabled
         if ext.append_proxy_type {
             remark = format!("[{}] {}", node.proxy_type.to_string(), remark);
         }
 
-        process_remark(&mut remark, ext, true);
+        // Process remark with optional remarks list
+        process_remark(&mut remark, &remarks_list, false);
+        remarks_list.push(remark.clone());
+
+        // Define tribool values with defaults from ext and override with node-specific values if present
+        // This matches C++ logic where tribool can be in three states: true, false, or undef
+        let udp = node.udp.define(ext.udp);
+        let tfo = node.tcp_fast_open.define(ext.tfo);
+        let scv = node.allow_insecure.define(ext.skip_cert_verify);
 
         // Check if proxy type is supported
         let mut proxy_json = match node.proxy_type {
-            ProxyType::Shadowsocks => {
-                // Skip chacha20 encryption if filter_deprecated is enabled
-                if ext.filter_deprecated && node.encrypt_method.as_deref() == Some("chacha20") {
-                    continue;
-                }
-
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "ss",
-                    "server": node.hostname,
-                    "port": node.port,
-                    "cipher": node.encrypt_method.as_deref().unwrap_or(""),
-                    "password": node.password.as_deref().unwrap_or("")
-                });
-
-                // Handle numeric passwords (in Rust we don't need special handling for JSON tags)
-
-                // Add plugin if present
-                if let Some(plugin) = &node.plugin {
-                    if !plugin.is_empty() {
-                        let plugin_option = node.plugin_option.as_deref().unwrap_or("");
-
-                        match plugin.as_str() {
-                            "simple-obfs" | "obfs-local" => {
-                                proxy["plugin"] = json!("obfs");
-
-                                // TODO: Implement urlDecode and getUrlArg functions
-                                // For now just use the plugin_option directly
-                                let mut plugin_opts = Map::new();
-                                plugin_opts.insert(
-                                    "mode".to_string(),
-                                    JsonValue::String(plugin_option.to_string()),
-                                );
-
-                                if let Some(host) = &node.host {
-                                    plugin_opts.insert(
-                                        "host".to_string(),
-                                        JsonValue::String(host.clone()),
-                                    );
-                                }
-
-                                proxy["plugin-opts"] = JsonValue::Object(plugin_opts);
-                            }
-                            "v2ray-plugin" => {
-                                proxy["plugin"] = json!("v2ray-plugin");
-
-                                let mut plugin_opts = Map::new();
-
-                                // TODO: Parse plugin options properly with getUrlArg
-                                plugin_opts.insert(
-                                    "mode".to_string(),
-                                    JsonValue::String(plugin_option.to_string()),
-                                );
-
-                                if let Some(host) = &node.host {
-                                    plugin_opts.insert(
-                                        "host".to_string(),
-                                        JsonValue::String(host.clone()),
-                                    );
-                                }
-
-                                if let Some(path) = &node.path {
-                                    plugin_opts.insert(
-                                        "path".to_string(),
-                                        JsonValue::String(path.clone()),
-                                    );
-                                }
-
-                                if plugin_option.contains("tls") {
-                                    plugin_opts.insert("tls".to_string(), JsonValue::Bool(true));
-                                }
-
-                                if plugin_option.contains("mux") {
-                                    plugin_opts.insert("mux".to_string(), JsonValue::Bool(true));
-                                }
-
-                                if let Some(allow_insecure) = node.allow_insecure {
-                                    plugin_opts.insert(
-                                        "skip-cert-verify".to_string(),
-                                        JsonValue::Bool(allow_insecure),
-                                    );
-                                }
-
-                                proxy["plugin-opts"] = JsonValue::Object(plugin_opts);
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                proxy
-            }
-            ProxyType::ShadowsocksR => {
-                // Skip if not using ClashR or if using deprecated features
-                if ext.filter_deprecated {
-                    if !clash_r {
-                        continue;
-                    }
-
-                    let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
-                    if !CLASH_SSR_CIPHERS.contains(encrypt_method) {
-                        continue;
-                    }
-
-                    let protocol = node.protocol.as_deref().unwrap_or("");
-                    if !CLASHR_PROTOCOLS.contains(protocol) {
-                        continue;
-                    }
-
-                    let obfs = node.obfs.as_deref().unwrap_or("");
-                    if !CLASHR_OBFS.contains(obfs) {
-                        continue;
-                    }
-                }
-
-                let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
-                let cipher = if encrypt_method == "none" {
-                    "dummy"
-                } else {
-                    encrypt_method
-                };
-
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "ssr",
-                    "server": node.hostname,
-                    "port": node.port,
-                    "cipher": cipher,
-                    "password": node.password.as_deref().unwrap_or(""),
-                    "protocol": node.protocol.as_deref().unwrap_or(""),
-                    "obfs": node.obfs.as_deref().unwrap_or("")
-                });
-
-                // ClashR uses different field names than regular Clash
-                if clash_r {
-                    proxy["protocolparam"] = json!(node.protocol_param.as_deref().unwrap_or(""));
-                    proxy["obfsparam"] = json!(node.obfs_param.as_deref().unwrap_or(""));
-                } else {
-                    proxy["protocol-param"] = json!(node.protocol_param.as_deref().unwrap_or(""));
-                    proxy["obfs-param"] = json!(node.obfs_param.as_deref().unwrap_or(""));
-                }
-
-                proxy
-            }
-            ProxyType::VMess => {
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "vmess",
-                    "server": node.hostname,
-                    "port": node.port,
-                    "uuid": node.user_id.as_deref().unwrap_or(""),
-                    "alterId": node.alter_id
-                });
-
-                // Add cipher
-                let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
-                proxy["cipher"] = json!(if encrypt_method.is_empty() {
-                    "auto"
-                } else {
-                    encrypt_method
-                });
-
-                // Add TLS settings
-                if node.tls_secure {
-                    proxy["tls"] = json!(true);
-
-                    if let Some(server_name) = &node.server_name {
-                        if !server_name.is_empty() {
-                            proxy["servername"] = json!(server_name);
-                        }
-                    }
-                }
-
-                if let Some(allow_insecure) = node.allow_insecure {
-                    proxy["skip-cert-verify"] = json!(allow_insecure);
-                }
-
-                // Add network settings
-                if let Some(protocol) = &node.transfer_protocol {
-                    match protocol.as_str() {
-                        "tcp" => {}
-                        "ws" => {
-                            proxy["network"] = json!("ws");
-
-                            // Use new field names if enabled
-                            if ext.clash_new_field_name {
-                                let mut ws_opts = Map::new();
-
-                                if let Some(path) = &node.path {
-                                    ws_opts.insert(
-                                        "path".to_string(),
-                                        JsonValue::String(path.clone()),
-                                    );
-                                }
-
-                                if node.host.as_ref().map_or(false, |h| !h.is_empty())
-                                    || node.edge.as_ref().map_or(false, |e| !e.is_empty())
-                                {
-                                    let mut headers = Map::new();
-
-                                    if let Some(host) = &node.host {
-                                        if !host.is_empty() {
-                                            headers.insert(
-                                                "Host".to_string(),
-                                                JsonValue::String(host.clone()),
-                                            );
-                                        }
-                                    }
-
-                                    if let Some(edge) = &node.edge {
-                                        if !edge.is_empty() {
-                                            headers.insert(
-                                                "Edge".to_string(),
-                                                JsonValue::String(edge.clone()),
-                                            );
-                                        }
-                                    }
-
-                                    ws_opts
-                                        .insert("headers".to_string(), JsonValue::Object(headers));
-                                }
-
-                                proxy["ws-opts"] = JsonValue::Object(ws_opts);
-                            } else {
-                                // Legacy field names
-                                if let Some(path) = &node.path {
-                                    proxy["ws-path"] = json!(path);
-                                }
-
-                                if node.host.as_ref().map_or(false, |h| !h.is_empty())
-                                    || node.edge.as_ref().map_or(false, |e| !e.is_empty())
-                                {
-                                    let mut headers = Map::new();
-
-                                    if let Some(host) = &node.host {
-                                        if !host.is_empty() {
-                                            headers.insert(
-                                                "Host".to_string(),
-                                                JsonValue::String(host.clone()),
-                                            );
-                                        }
-                                    }
-
-                                    if let Some(edge) = &node.edge {
-                                        if !edge.is_empty() {
-                                            headers.insert(
-                                                "Edge".to_string(),
-                                                JsonValue::String(edge.clone()),
-                                            );
-                                        }
-                                    }
-
-                                    proxy["ws-headers"] = JsonValue::Object(headers);
-                                }
-                            }
-                        }
-                        "http" => {
-                            proxy["network"] = json!("http");
-
-                            let mut http_opts = Map::new();
-                            http_opts
-                                .insert("method".to_string(), JsonValue::String("GET".to_string()));
-
-                            if let Some(path) = &node.path {
-                                http_opts.insert(
-                                    "path".to_string(),
-                                    JsonValue::Array(vec![JsonValue::String(path.clone())]),
-                                );
-                            }
-
-                            if node.host.as_ref().map_or(false, |h| !h.is_empty())
-                                || node.edge.as_ref().map_or(false, |e| !e.is_empty())
-                            {
-                                let mut headers = Map::new();
-
-                                if let Some(host) = &node.host {
-                                    if !host.is_empty() {
-                                        headers.insert(
-                                            "Host".to_string(),
-                                            JsonValue::Array(vec![JsonValue::String(host.clone())]),
-                                        );
-                                    }
-                                }
-
-                                if let Some(edge) = &node.edge {
-                                    if !edge.is_empty() {
-                                        headers.insert(
-                                            "Edge".to_string(),
-                                            JsonValue::Array(vec![JsonValue::String(edge.clone())]),
-                                        );
-                                    }
-                                }
-
-                                http_opts.insert("headers".to_string(), JsonValue::Object(headers));
-                            }
-
-                            proxy["http-opts"] = JsonValue::Object(http_opts);
-                        }
-                        "h2" => {
-                            proxy["network"] = json!("h2");
-
-                            let mut h2_opts = Map::new();
-
-                            if let Some(path) = &node.path {
-                                h2_opts.insert("path".to_string(), JsonValue::String(path.clone()));
-                            }
-
-                            if let Some(host) = &node.host {
-                                if !host.is_empty() {
-                                    h2_opts.insert(
-                                        "host".to_string(),
-                                        JsonValue::Array(vec![JsonValue::String(host.clone())]),
-                                    );
-                                }
-                            }
-
-                            proxy["h2-opts"] = JsonValue::Object(h2_opts);
-                        }
-                        "grpc" => {
-                            proxy["network"] = json!("grpc");
-
-                            if let Some(host) = &node.host {
-                                if !host.is_empty() {
-                                    proxy["servername"] = json!(host);
-                                }
-                            }
-
-                            let mut grpc_opts = Map::new();
-
-                            if let Some(path) = &node.path {
-                                grpc_opts.insert(
-                                    "grpc-service-name".to_string(),
-                                    JsonValue::String(path.clone()),
-                                );
-                            }
-
-                            proxy["grpc-opts"] = JsonValue::Object(grpc_opts);
-                        }
-                        _ => continue,
-                    }
-                }
-
-                proxy
-            }
-            ProxyType::Trojan => {
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "trojan",
-                    "server": node.hostname,
-                    "port": node.port,
-                    "password": node.password.as_deref().unwrap_or("")
-                });
-
-                if let Some(host) = &node.host {
-                    if !host.is_empty() {
-                        proxy["sni"] = json!(host);
-                    }
-                }
-
-                if let Some(allow_insecure) = node.allow_insecure {
-                    proxy["skip-cert-verify"] = json!(allow_insecure);
-                }
-
-                // Handle network protocols
-                if let Some(protocol) = &node.transfer_protocol {
-                    match protocol.as_str() {
-                        "tcp" => {}
-                        "grpc" => {
-                            proxy["network"] = json!("grpc");
-
-                            if let Some(path) = &node.path {
-                                if !path.is_empty() {
-                                    let mut grpc_opts = Map::new();
-                                    grpc_opts.insert(
-                                        "grpc-service-name".to_string(),
-                                        JsonValue::String(path.clone()),
-                                    );
-                                    proxy["grpc-opts"] = JsonValue::Object(grpc_opts);
-                                }
-                            }
-                        }
-                        "ws" => {
-                            proxy["network"] = json!("ws");
-
-                            let mut ws_opts = Map::new();
-
-                            if let Some(path) = &node.path {
-                                ws_opts.insert("path".to_string(), JsonValue::String(path.clone()));
-                            }
-
-                            if let Some(host) = &node.host {
-                                if !host.is_empty() {
-                                    let mut headers = Map::new();
-                                    headers.insert(
-                                        "Host".to_string(),
-                                        JsonValue::String(host.clone()),
-                                    );
-                                    ws_opts
-                                        .insert("headers".to_string(), JsonValue::Object(headers));
-                                }
-                            }
-
-                            proxy["ws-opts"] = JsonValue::Object(ws_opts);
-                        }
-                        _ => {}
-                    }
-                }
-
-                proxy
-            }
-            ProxyType::HTTP | ProxyType::HTTPS => {
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "http",
-                    "server": node.hostname,
-                    "port": node.port
-                });
-
-                if let Some(username) = &node.username {
-                    if !username.is_empty() {
-                        proxy["username"] = json!(username);
-                    }
-                }
-
-                if let Some(password) = &node.password {
-                    if !password.is_empty() {
-                        proxy["password"] = json!(password);
-                    }
-                }
-
-                // Set TLS for HTTPS
-                if node.proxy_type == ProxyType::HTTPS {
-                    proxy["tls"] = json!(true);
-                }
-
-                if let Some(allow_insecure) = node.allow_insecure {
-                    proxy["skip-cert-verify"] = json!(allow_insecure);
-                }
-
-                proxy
-            }
-            ProxyType::Socks5 => {
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "socks5",
-                    "server": node.hostname,
-                    "port": node.port
-                });
-
-                if let Some(username) = &node.username {
-                    if !username.is_empty() {
-                        proxy["username"] = json!(username);
-                    }
-                }
-
-                if let Some(password) = &node.password {
-                    if !password.is_empty() {
-                        proxy["password"] = json!(password);
-                    }
-                }
-
-                if let Some(allow_insecure) = node.allow_insecure {
-                    proxy["skip-cert-verify"] = json!(allow_insecure);
-                }
-
-                proxy
-            }
-            ProxyType::Snell => {
-                // Skip Snell v4+ if exists
-                if node.snell_version >= 4 {
-                    continue;
-                }
-
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "snell",
-                    "server": node.hostname,
-                    "port": node.port,
-                    "psk": node.password.as_deref().unwrap_or("")
-                });
-
-                if node.snell_version > 0 {
-                    proxy["version"] = json!(node.snell_version);
-                }
-
-                if let Some(obfs) = &node.obfs {
-                    if !obfs.is_empty() {
-                        proxy["obfs"] = json!(obfs);
-
-                        if let Some(host) = &node.host {
-                            if !host.is_empty() {
-                                proxy["obfs-host"] = json!(host);
-                            }
-                        }
-                    }
-                }
-
-                proxy
-            }
-            ProxyType::WireGuard => {
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "wireguard",
-                    "server": node.hostname,
-                    "port": node.port
-                });
-
-                if let Some(public_key) = &node.public_key {
-                    proxy["public-key"] = json!(public_key);
-                }
-
-                if let Some(private_key) = &node.private_key {
-                    proxy["private-key"] = json!(private_key);
-                }
-
-                if let Some(self_ip) = &node.self_ip {
-                    proxy["ip"] = json!(self_ip);
-                }
-
-                if let Some(self_ipv6) = &node.self_ipv6 {
-                    if !self_ipv6.is_empty() {
-                        proxy["ipv6"] = json!(self_ipv6);
-                    }
-                }
-
-                if let Some(pre_shared_key) = &node.pre_shared_key {
-                    if !pre_shared_key.is_empty() {
-                        proxy["preshared-key"] = json!(pre_shared_key);
-                    }
-                }
-
-                if !node.dns_servers.is_empty() {
-                    let mut dns_servers = Vec::new();
-                    for server in &node.dns_servers {
-                        dns_servers.push(JsonValue::String(server.clone()));
-                    }
-                    proxy["dns"] = JsonValue::Array(dns_servers);
-                }
-
-                if node.mtu > 0 {
-                    proxy["mtu"] = json!(node.mtu);
-                }
-
-                if !node.allowed_ips.is_empty() {
-                    let allowed_ips: Vec<JsonValue> = node
-                        .allowed_ips
-                        .split(',')
-                        .map(|ip| JsonValue::String(ip.trim().to_string()))
-                        .collect();
-                    proxy["allowed-ips"] = JsonValue::Array(allowed_ips);
-                } else {
-                    // Default allowed IPs
-                    proxy["allowed-ips"] = JsonValue::Array(vec![
-                        JsonValue::String("0.0.0.0/0".to_string()),
-                        JsonValue::String("::/0".to_string()),
-                    ]);
-                }
-
-                if node.keep_alive > 0 {
-                    proxy["keepalive"] = json!(node.keep_alive);
-                }
-
-                proxy
-            }
-            ProxyType::Hysteria => {
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "hysteria",
-                    "server": node.hostname,
-                    "port": node.port
-                });
-
-                // Add auth fields
-                if let Some(auth_type) = &node.protocol {
-                    match auth_type.as_str() {
-                        "auth" => {
-                            // Auth string format
-                            if let Some(password) = &node.password {
-                                proxy["auth_str"] = json!(password);
-                            }
-                        }
-                        "base64" => {
-                            // Base64 auth string
-                            if let Some(password) = &node.password {
-                                proxy["auth_str"] = json!(password);
-                            }
-                        }
-                        "none" => {
-                            // No auth
-                        }
-                        _ => {}
-                    }
-                }
-
-                // Add obfs fields
-                if let Some(obfs) = &node.obfs {
-                    if !obfs.is_empty() {
-                        proxy["obfs"] = json!(obfs);
-                    }
-                }
-
-                // Add TLS settings
-                proxy["tls"] = json!(true); // Hysteria always uses TLS
-
-                if let Some(server_name) = &node.server_name {
-                    if !server_name.is_empty() {
-                        proxy["sni"] = json!(server_name);
-                    }
-                }
-
-                if let Some(allow_insecure) = node.allow_insecure {
-                    proxy["skip-cert-verify"] = json!(allow_insecure);
-                }
-
-                // Add protocol-specific fields
-                if let Some(up_mbps) = &node.quic_secret {
-                    // In the Hysteria protocol, quic_secret might be repurposed to store up_mbps
-                    if let Ok(up_mbps_value) = up_mbps.parse::<u32>() {
-                        proxy["up_mbps"] = json!(up_mbps_value);
-                    }
-                }
-
-                if let Some(down_mbps) = &node.quic_secure {
-                    // In the Hysteria protocol, quic_secure might be repurposed to store down_mbps
-                    if let Ok(down_mbps_value) = down_mbps.parse::<u32>() {
-                        proxy["down_mbps"] = json!(down_mbps_value);
-                    }
-                }
-
-                // Add ALPN protocols if specified
-                if let Some(alpn) = &node.edge {
-                    // In Hysteria, edge might be repurposed to store ALPN
-                    let alpn_array: Vec<JsonValue> = alpn
-                        .split(',')
-                        .map(|protocol| JsonValue::String(protocol.trim().to_string()))
-                        .collect();
-                    proxy["alpn"] = JsonValue::Array(alpn_array);
-                } else {
-                    // Default ALPN
-                    proxy["alpn"] = JsonValue::Array(vec![JsonValue::String("h3".to_string())]);
-                }
-
-                proxy
-            }
-            ProxyType::Hysteria2 => {
-                let mut proxy = json!({
-                    "name": remark,
-                    "type": "hysteria2",
-                    "server": node.hostname,
-                    "port": node.port
-                });
-
-                // Add password/auth
-                if let Some(password) = &node.password {
-                    proxy["password"] = json!(password);
-                }
-
-                // Add TLS settings
-                proxy["tls"] = json!(true); // Hysteria2 always uses TLS
-
-                if let Some(server_name) = &node.server_name {
-                    if !server_name.is_empty() {
-                        proxy["sni"] = json!(server_name);
-                    }
-                }
-
-                if let Some(allow_insecure) = node.allow_insecure {
-                    proxy["skip-cert-verify"] = json!(allow_insecure);
-                }
-
-                // Add bandwidth settings
-                if let Some(up_mbps) = &node.quic_secret {
-                    // In the Hysteria2 protocol, quic_secret might be repurposed to store up_mbps
-                    if let Ok(up_mbps_value) = up_mbps.parse::<u32>() {
-                        proxy["up"] = json!(up_mbps_value);
-                    }
-                }
-
-                if let Some(down_mbps) = &node.quic_secure {
-                    // In the Hysteria2 protocol, quic_secure might be repurposed to store down_mbps
-                    if let Ok(down_mbps_value) = down_mbps.parse::<u32>() {
-                        proxy["down"] = json!(down_mbps_value);
-                    }
-                }
-
-                // Add obfs settings
-                if let Some(obfs) = &node.obfs {
-                    if !obfs.is_empty() {
-                        proxy["obfs"] = json!(obfs);
-
-                        if let Some(obfs_password) = &node.obfs_param {
-                            proxy["obfs-password"] = json!(obfs_password);
-                        }
-                    }
-                }
-
-                // Add ALPN protocols if specified
-                if let Some(alpn) = &node.edge {
-                    // In Hysteria2, edge might be repurposed to store ALPN
-                    let alpn_array: Vec<JsonValue> = alpn
-                        .split(',')
-                        .map(|protocol| JsonValue::String(protocol.trim().to_string()))
-                        .collect();
-                    proxy["alpn"] = JsonValue::Array(alpn_array);
-                } else {
-                    // Default ALPN for Hysteria2
-                    proxy["alpn"] = JsonValue::Array(vec![JsonValue::String("h3".to_string())]);
-                }
-
-                proxy
-            }
+            ProxyType::Shadowsocks => handle_shadowsocks(node, &remark, &scv, ext),
+            ProxyType::ShadowsocksR => handle_shadowsocksr(node, &remark, &scv, clash_r, ext),
+            ProxyType::VMess => handle_vmess(node, &remark, &scv, ext),
+            ProxyType::Trojan => handle_trojan(node, &remark, &scv),
+            ProxyType::HTTP | ProxyType::HTTPS => handle_http(node, &remark, &scv),
+            ProxyType::Socks5 => handle_socks5(node, &remark, &scv),
+            ProxyType::Snell => handle_snell(node, &remark),
+            ProxyType::WireGuard => handle_wireguard(node, &remark),
+            ProxyType::Hysteria => handle_hysteria(node, &remark, &scv),
+            ProxyType::Hysteria2 => handle_hysteria2(node, &remark, &scv),
             _ => continue,
         };
 
-        // Add common fields
-        if let Some(udp) = node.udp {
-            proxy_json["udp"] = JsonValue::Bool(udp);
-        }
-
-        if let Some(tfo) = node.tcp_fast_open {
-            proxy_json["tfo"] = JsonValue::Bool(tfo);
-        }
-
-        if let Some(scv) = node.allow_insecure {
-            proxy_json["skip-cert-verify"] = JsonValue::Bool(scv);
+        // Add common fields using tribool logic from C++
+        // In C++: only add field if tribool is not undefined
+        if let Some(obj) = proxy_json.as_object_mut() {
+            udp.apply_to_json(obj, "udp");
+            tfo.apply_to_json(obj, "tfo");
+            scv.apply_to_json(obj, "skip-cert-verify");
         }
 
         // Add to proxies array
         proxies_json.push(proxy_json);
+    }
+
+    if ext.nodelist {
+        let mut provider = YamlValue::Mapping(Mapping::new());
+        provider["proxies"] =
+            serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
+        yaml_node.value = provider;
+        return;
     }
 
     // Update the YAML node with proxies
@@ -945,54 +269,974 @@ pub fn proxy_to_clash_yaml(
         // Convert JSON proxies array to YAML
         let proxies_yaml_value =
             serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
-        map.insert(YamlValue::String("proxies".to_string()), proxies_yaml_value);
+        if ext.clash_new_field_name {
+            map.insert(YamlValue::String("proxies".to_string()), proxies_yaml_value);
+        } else {
+            map.insert(YamlValue::String("Proxy".to_string()), proxies_yaml_value);
+        }
     }
 
     // Add proxy groups if present
     if !extra_proxy_group.is_empty() {
-        let mut proxy_groups_json = Vec::new();
+        // Get existing proxy groups if any
+        let mut original_groups = if ext.clash_new_field_name {
+            match yaml_node.value.get("proxy-groups") {
+                Some(YamlValue::Sequence(seq)) => seq.clone(),
+                _ => Sequence::new(),
+            }
+        } else {
+            match yaml_node.value.get("Proxy Group") {
+                Some(YamlValue::Sequence(seq)) => seq.clone(),
+                _ => Sequence::new(),
+            }
+        };
 
         // Process each proxy group
         for group in extra_proxy_group {
-            let mut proxy_group = json!({
-                "name": group.name,
-                "type": group.type_field
-            });
+            // Create the proxy group with basic properties
+            let mut proxy_group_map = Mapping::new();
+            proxy_group_map.insert(
+                YamlValue::String("name".to_string()),
+                YamlValue::String(group.name.clone()),
+            );
 
-            // Add URL if present
-            if !group.url.is_empty() {
-                proxy_group["url"] = json!(group.url);
-            }
+            // Set type (special case for Smart type which becomes url-test)
+            let type_str = if group.group_type == ProxyGroupType::Smart {
+                "url-test"
+            } else {
+                group.type_str()
+            };
+            proxy_group_map.insert(
+                YamlValue::String("type".to_string()),
+                YamlValue::String(type_str.to_string()),
+            );
 
-            // Add interval if present
-            if group.interval > 0 {
-                proxy_group["interval"] = json!(group.interval);
-            }
+            // Add fields based on proxy group type
+            match group.group_type {
+                ProxyGroupType::Select | ProxyGroupType::Relay => {
+                    // No special fields for these types
+                }
+                ProxyGroupType::LoadBalance => {
+                    // Add strategy for load balancing
+                    proxy_group_map.insert(
+                        YamlValue::String("strategy".to_string()),
+                        YamlValue::String(group.strategy_str().to_string()),
+                    );
 
-            // Add proxies
-            let mut proxies_list = Vec::new();
-            for proxy_name in &group.proxies {
-                let mut filtered_nodes = Vec::new();
-                group_generate(proxy_name, nodes, &mut filtered_nodes, false, ext);
-                for node in filtered_nodes {
-                    proxies_list.push(JsonValue::String(node));
+                    // Continue with URL test fields (fall through)
+                    if !group.lazy {
+                        proxy_group_map.insert(
+                            YamlValue::String("lazy".to_string()),
+                            YamlValue::Bool(group.lazy),
+                        );
+                    }
+
+                    proxy_group_map.insert(
+                        YamlValue::String("url".to_string()),
+                        YamlValue::String(group.url.clone()),
+                    );
+
+                    if group.interval > 0 {
+                        proxy_group_map.insert(
+                            YamlValue::String("interval".to_string()),
+                            YamlValue::Number(group.interval.into()),
+                        );
+                    }
+
+                    if group.tolerance > 0 {
+                        proxy_group_map.insert(
+                            YamlValue::String("tolerance".to_string()),
+                            YamlValue::Number(group.tolerance.into()),
+                        );
+                    }
+                }
+                ProxyGroupType::Smart | ProxyGroupType::URLTest => {
+                    // Add lazy if defined
+                    if !group.lazy {
+                        proxy_group_map.insert(
+                            YamlValue::String("lazy".to_string()),
+                            YamlValue::Bool(group.lazy),
+                        );
+                    }
+
+                    // Add URL test fields
+                    proxy_group_map.insert(
+                        YamlValue::String("url".to_string()),
+                        YamlValue::String(group.url.clone()),
+                    );
+
+                    if group.interval > 0 {
+                        proxy_group_map.insert(
+                            YamlValue::String("interval".to_string()),
+                            YamlValue::Number(group.interval.into()),
+                        );
+                    }
+
+                    if group.tolerance > 0 {
+                        proxy_group_map.insert(
+                            YamlValue::String("tolerance".to_string()),
+                            YamlValue::Number(group.tolerance.into()),
+                        );
+                    }
+                }
+                ProxyGroupType::Fallback => {
+                    // Add URL test fields
+                    proxy_group_map.insert(
+                        YamlValue::String("url".to_string()),
+                        YamlValue::String(group.url.clone()),
+                    );
+
+                    if group.interval > 0 {
+                        proxy_group_map.insert(
+                            YamlValue::String("interval".to_string()),
+                            YamlValue::Number(group.interval.into()),
+                        );
+                    }
+
+                    if group.tolerance > 0 {
+                        proxy_group_map.insert(
+                            YamlValue::String("tolerance".to_string()),
+                            YamlValue::Number(group.tolerance.into()),
+                        );
+                    }
+                }
+                _ => {
+                    // Skip unsupported types
+                    continue;
                 }
             }
-            proxy_group["proxies"] = JsonValue::Array(proxies_list);
 
-            // Add to proxy groups array
-            proxy_groups_json.push(proxy_group);
+            // Add disable-udp if defined
+            if group.disable_udp {
+                proxy_group_map.insert(
+                    YamlValue::String("disable-udp".to_string()),
+                    YamlValue::Bool(group.disable_udp),
+                );
+            }
+
+            // Add persistent if defined
+            if group.persistent {
+                proxy_group_map.insert(
+                    YamlValue::String("persistent".to_string()),
+                    YamlValue::Bool(group.persistent),
+                );
+            }
+
+            // Add evaluate-before-use if defined
+            if group.evaluate_before_use {
+                proxy_group_map.insert(
+                    YamlValue::String("evaluate-before-use".to_string()),
+                    YamlValue::Bool(group.evaluate_before_use),
+                );
+            }
+
+            // Get filtered proxies
+            let mut filtered_nodes = Vec::new();
+            for proxy_name in &group.proxies {
+                group_generate(proxy_name, nodes, &mut filtered_nodes, true, ext);
+            }
+
+            // Add provider via "use" field if present, or filtered nodes
+            if !group.using_provider.is_empty() {
+                let provider_seq = group
+                    .using_provider
+                    .iter()
+                    .map(|name| YamlValue::String(name.clone()))
+                    .collect::<Vec<_>>();
+                proxy_group_map.insert(
+                    YamlValue::String("use".to_string()),
+                    YamlValue::Sequence(provider_seq),
+                );
+            } else {
+                // Add DIRECT if empty
+                if filtered_nodes.is_empty() {
+                    filtered_nodes.push("DIRECT".to_string());
+                }
+            }
+
+            // Add proxies list
+            if !filtered_nodes.is_empty() {
+                let proxies_seq = filtered_nodes
+                    .into_iter()
+                    .map(|name| YamlValue::String(name))
+                    .collect::<Vec<_>>();
+                proxy_group_map.insert(
+                    YamlValue::String("proxies".to_string()),
+                    YamlValue::Sequence(proxies_seq),
+                );
+            }
+
+            // Create the final YamlValue from the map
+            let proxy_group = YamlValue::Mapping(proxy_group_map);
+
+            // Check if this group should replace an existing one with the same name
+            let mut replaced = false;
+            for i in 0..original_groups.len() {
+                if let Some(YamlValue::Mapping(map)) = original_groups.get(i) {
+                    if let Some(YamlValue::String(name)) =
+                        map.get(&YamlValue::String("name".to_string()))
+                    {
+                        if name == &group.name {
+                            if let Some(elem) = original_groups.get_mut(i) {
+                                *elem = proxy_group.clone();
+                                replaced = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If not replaced, add to the list
+            if !replaced {
+                original_groups.push(proxy_group);
+            }
         }
 
         // Update the YAML node with proxy groups
         if let YamlValue::Mapping(ref mut map) = yaml_node.value {
-            // Convert JSON proxy groups array to YAML
-            let proxy_groups_yaml_value =
-                serde_yaml::to_value(&proxy_groups_json).unwrap_or(YamlValue::Sequence(Vec::new()));
-            map.insert(
-                YamlValue::String("proxy-groups".to_string()),
-                proxy_groups_yaml_value,
-            );
+            if ext.clash_new_field_name {
+                map.insert(
+                    YamlValue::String("proxy-groups".to_string()),
+                    YamlValue::Sequence(original_groups),
+                );
+            } else {
+                map.insert(
+                    YamlValue::String("Proxy Group".to_string()),
+                    YamlValue::Sequence(original_groups),
+                );
+            }
         }
     }
+}
+
+// Helper functions for each proxy type
+fn handle_shadowsocks(
+    node: &Proxy,
+    remark: &str,
+    scv: &Option<bool>,
+    ext: &ExtraSettings,
+) -> JsonValue {
+    // Skip chacha20 encryption if filter_deprecated is enabled
+    if ext.filter_deprecated && node.encrypt_method.as_deref() == Some("chacha20") {
+        return JsonValue::Null;
+    }
+
+    let mut proxy = json!({
+        "name": remark,
+        "type": "ss",
+        "server": node.hostname,
+        "port": node.port,
+        "cipher": node.encrypt_method.as_deref().unwrap_or(""),
+        "password": node.password.as_deref().unwrap_or("")
+    });
+
+    // Add plugin if present
+    if let Some(plugin) = &node.plugin {
+        if !plugin.is_empty() {
+            let plugin_option = node.plugin_option.as_deref().unwrap_or("");
+
+            match plugin.as_str() {
+                "simple-obfs" | "obfs-local" => {
+                    proxy["plugin"] = json!("obfs");
+
+                    let obfs_mode = get_url_arg(plugin_option, "obfs");
+                    let obfs_host = get_url_arg(plugin_option, "obfs-host");
+
+                    let mut plugin_opts = Map::new();
+                    plugin_opts.insert("mode".to_string(), JsonValue::String(obfs_mode));
+                    if !obfs_host.is_empty() {
+                        plugin_opts.insert("host".to_string(), JsonValue::String(obfs_host));
+                    }
+
+                    scv.apply_to_json(&mut plugin_opts, "skip-cert-verify");
+                    proxy["plugin-opts"] = JsonValue::Object(plugin_opts);
+                }
+                "v2ray-plugin" => {
+                    proxy["plugin"] = json!("v2ray-plugin");
+
+                    let mut plugin_opts = Map::new();
+
+                    let mode = get_url_arg(plugin_option, "mode");
+                    if !mode.is_empty() {
+                        plugin_opts.insert("mode".to_string(), JsonValue::String(mode));
+                    }
+
+                    let host = get_url_arg(plugin_option, "host");
+                    if !host.is_empty() {
+                        plugin_opts.insert("host".to_string(), JsonValue::String(host));
+                    }
+
+                    let path = get_url_arg(plugin_option, "path");
+                    if !path.is_empty() {
+                        plugin_opts.insert("path".to_string(), JsonValue::String(path));
+                    }
+
+                    if plugin_option.contains("tls") {
+                        plugin_opts.insert("tls".to_string(), JsonValue::Bool(true));
+                    }
+
+                    if plugin_option.contains("mux") {
+                        plugin_opts.insert("mux".to_string(), JsonValue::Bool(true));
+                    }
+
+                    scv.apply_to_json(&mut plugin_opts, "skip-cert-verify");
+                    proxy["plugin-opts"] = JsonValue::Object(plugin_opts);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    proxy
+}
+
+fn handle_shadowsocksr(
+    node: &Proxy,
+    remark: &str,
+    scv: &Option<bool>,
+    clash_r: bool,
+    ext: &ExtraSettings,
+) -> JsonValue {
+    // Skip if not using ClashR or if using deprecated features
+    if ext.filter_deprecated {
+        if !clash_r {
+            return JsonValue::Null;
+        }
+
+        let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
+        if !CLASH_SSR_CIPHERS.contains(encrypt_method) {
+            return JsonValue::Null;
+        }
+
+        let protocol = node.protocol.as_deref().unwrap_or("");
+        if !CLASHR_PROTOCOLS.contains(protocol) {
+            return JsonValue::Null;
+        }
+
+        let obfs = node.obfs.as_deref().unwrap_or("");
+        if !CLASHR_OBFS.contains(obfs) {
+            return JsonValue::Null;
+        }
+    }
+
+    let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
+    let cipher = if encrypt_method == "none" {
+        "dummy"
+    } else {
+        encrypt_method
+    };
+
+    let mut proxy = json!({
+        "name": remark,
+        "type": "ssr",
+        "server": node.hostname,
+        "port": node.port,
+        "cipher": cipher,
+        "password": node.password.as_deref().unwrap_or(""),
+        "protocol": node.protocol.as_deref().unwrap_or(""),
+        "obfs": node.obfs.as_deref().unwrap_or("")
+    });
+
+    // ClashR uses different field names than regular Clash
+    if clash_r {
+        proxy["protocolparam"] = json!(node.protocol_param.as_deref().unwrap_or(""));
+        proxy["obfsparam"] = json!(node.obfs_param.as_deref().unwrap_or(""));
+    } else {
+        proxy["protocol-param"] = json!(node.protocol_param.as_deref().unwrap_or(""));
+        proxy["obfs-param"] = json!(node.obfs_param.as_deref().unwrap_or(""));
+    }
+
+    proxy
+}
+
+fn handle_vmess(node: &Proxy, remark: &str, scv: &Option<bool>, ext: &ExtraSettings) -> JsonValue {
+    let mut proxy = json!({
+        "name": remark,
+        "type": "vmess",
+        "server": node.hostname,
+        "port": node.port,
+        "uuid": node.user_id.as_deref().unwrap_or(""),
+        "alterId": node.alter_id
+    });
+
+    // Add cipher
+    let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
+    proxy["cipher"] = json!(if encrypt_method.is_empty() {
+        "auto"
+    } else {
+        encrypt_method
+    });
+
+    // Add TLS settings and other common fields
+    if let Some(obj) = proxy.as_object_mut() {
+        apply_proxy_fields(obj, node, scv);
+    }
+
+    // Add network settings
+    if let Some(protocol) = &node.transfer_protocol {
+        match protocol.as_str() {
+            "tcp" => {}
+            "ws" => {
+                proxy["network"] = json!("ws");
+
+                // Use new field names if enabled - exactly matches C++ behavior
+                if ext.clash_new_field_name {
+                    let mut ws_opts = Map::new();
+                    if let Some(path) = &node.path {
+                        ws_opts.insert("path".to_string(), JsonValue::String(path.clone()));
+                    }
+
+                    if node.host.as_ref().map_or(false, |h| !h.is_empty())
+                        || node.edge.as_ref().map_or(false, |e| !e.is_empty())
+                    {
+                        let mut headers = Map::new();
+                        if let Some(host) = &node.host {
+                            headers.insert("Host".to_string(), JsonValue::String(host.clone()));
+                        }
+                        if let Some(edge) = &node.edge {
+                            headers.insert("Edge".to_string(), JsonValue::String(edge.clone()));
+                        }
+
+                        if !headers.is_empty() {
+                            ws_opts.insert("headers".to_string(), JsonValue::Object(headers));
+                        }
+                    }
+
+                    if !ws_opts.is_empty() {
+                        proxy["ws-opts"] = JsonValue::Object(ws_opts);
+                    }
+                } else {
+                    // Legacy field names - exactly matches C++ behavior
+                    if let Some(path) = &node.path {
+                        proxy["ws-path"] = json!(path);
+                    }
+
+                    if node.host.as_ref().map_or(false, |h| !h.is_empty())
+                        || node.edge.as_ref().map_or(false, |e| !e.is_empty())
+                    {
+                        let mut headers = Map::new();
+                        if let Some(host) = &node.host {
+                            headers.insert("Host".to_string(), JsonValue::String(host.clone()));
+                        }
+                        if let Some(edge) = &node.edge {
+                            headers.insert("Edge".to_string(), JsonValue::String(edge.clone()));
+                        }
+
+                        if !headers.is_empty() {
+                            proxy["ws-headers"] = JsonValue::Object(headers);
+                        }
+                    }
+                }
+            }
+            "http" => {
+                proxy["network"] = json!("http");
+
+                let mut http_opts = Map::new();
+                http_opts.insert("method".to_string(), JsonValue::String("GET".to_string()));
+
+                if let Some(path) = &node.path {
+                    http_opts.insert(
+                        "path".to_string(),
+                        JsonValue::Array(vec![JsonValue::String(path.clone())]),
+                    );
+                }
+
+                if node.host.as_ref().map_or(false, |h| !h.is_empty())
+                    || node.edge.as_ref().map_or(false, |e| !e.is_empty())
+                {
+                    let mut headers = Map::new();
+
+                    if let Some(host) = &node.host {
+                        if !host.is_empty() {
+                            headers.insert(
+                                "Host".to_string(),
+                                JsonValue::Array(vec![JsonValue::String(host.clone())]),
+                            );
+                        }
+                    }
+
+                    if let Some(edge) = &node.edge {
+                        if !edge.is_empty() {
+                            headers.insert(
+                                "Edge".to_string(),
+                                JsonValue::Array(vec![JsonValue::String(edge.clone())]),
+                            );
+                        }
+                    }
+
+                    http_opts.insert("headers".to_string(), JsonValue::Object(headers));
+                }
+
+                proxy["http-opts"] = JsonValue::Object(http_opts);
+            }
+            "h2" => {
+                proxy["network"] = json!("h2");
+
+                let mut h2_opts = Map::new();
+
+                if let Some(path) = &node.path {
+                    h2_opts.insert("path".to_string(), JsonValue::String(path.clone()));
+                }
+
+                if let Some(host) = &node.host {
+                    if !host.is_empty() {
+                        h2_opts.insert(
+                            "host".to_string(),
+                            JsonValue::Array(vec![JsonValue::String(host.clone())]),
+                        );
+                    }
+                }
+
+                proxy["h2-opts"] = JsonValue::Object(h2_opts);
+            }
+            "grpc" => {
+                proxy["network"] = json!("grpc");
+
+                if let Some(host) = &node.host {
+                    if !host.is_empty() {
+                        proxy["servername"] = json!(host);
+                    }
+                }
+
+                let mut grpc_opts = Map::new();
+
+                if let Some(path) = &node.path {
+                    grpc_opts.insert(
+                        "grpc-service-name".to_string(),
+                        JsonValue::String(path.clone()),
+                    );
+                }
+
+                proxy["grpc-opts"] = JsonValue::Object(grpc_opts);
+            }
+            _ => {}
+        }
+    }
+
+    proxy
+}
+
+fn handle_trojan(node: &Proxy, remark: &str, scv: &Option<bool>) -> JsonValue {
+    let mut proxy = json!({
+        "name": remark,
+        "type": "trojan",
+        "server": node.hostname,
+        "port": node.port,
+        "password": node.password.as_deref().unwrap_or("")
+    });
+
+    // Add SNI from Host field as per C++ implementation
+    if let Some(host) = &node.host {
+        if !host.is_empty() {
+            proxy["sni"] = json!(host);
+        }
+    }
+
+    // Add skip-cert-verify if defined
+    if let Some(obj) = proxy.as_object_mut() {
+        scv.apply_to_json(obj, "skip-cert-verify");
+    }
+
+    // Handle network protocols
+    if let Some(protocol) = &node.transfer_protocol {
+        match protocol.as_str() {
+            "tcp" => {}
+            "grpc" => {
+                proxy["network"] = json!("grpc");
+
+                if let Some(path) = &node.path {
+                    if !path.is_empty() {
+                        let mut grpc_opts = Map::new();
+                        grpc_opts.insert(
+                            "grpc-service-name".to_string(),
+                            JsonValue::String(path.clone()),
+                        );
+                        proxy["grpc-opts"] = JsonValue::Object(grpc_opts);
+                    }
+                }
+            }
+            "ws" => {
+                proxy["network"] = json!("ws");
+
+                let mut ws_opts = Map::new();
+
+                if let Some(path) = &node.path {
+                    ws_opts.insert("path".to_string(), JsonValue::String(path.clone()));
+                }
+
+                if let Some(host) = &node.host {
+                    if !host.is_empty() {
+                        let mut headers = Map::new();
+                        headers.insert("Host".to_string(), JsonValue::String(host.clone()));
+                        ws_opts.insert("headers".to_string(), JsonValue::Object(headers));
+                    }
+                }
+
+                proxy["ws-opts"] = JsonValue::Object(ws_opts);
+            }
+            _ => {}
+        }
+    }
+
+    proxy
+}
+
+fn handle_http(node: &Proxy, remark: &str, scv: &Option<bool>) -> JsonValue {
+    let mut proxy = json!({
+        "name": remark,
+        "type": "http",
+        "server": node.hostname,
+        "port": node.port
+    });
+
+    if let Some(username) = &node.username {
+        if !username.is_empty() {
+            proxy["username"] = json!(username);
+        }
+    }
+
+    if let Some(password) = &node.password {
+        if !password.is_empty() {
+            proxy["password"] = json!(password);
+        }
+    }
+
+    // Set TLS for HTTPS
+    if node.proxy_type == ProxyType::HTTPS {
+        proxy["tls"] = json!(true);
+    }
+
+    // Add skip-cert-verify if defined
+    if let Some(obj) = proxy.as_object_mut() {
+        scv.apply_to_json(obj, "skip-cert-verify");
+    }
+
+    proxy
+}
+
+fn handle_socks5(node: &Proxy, remark: &str, scv: &Option<bool>) -> JsonValue {
+    let mut proxy = json!({
+        "name": remark,
+        "type": "socks5",
+        "server": node.hostname,
+        "port": node.port
+    });
+
+    if let Some(username) = &node.username {
+        if !username.is_empty() {
+            proxy["username"] = json!(username);
+        }
+    }
+
+    if let Some(password) = &node.password {
+        if !password.is_empty() {
+            proxy["password"] = json!(password);
+        }
+    }
+
+    // Add skip-cert-verify if defined
+    if let Some(obj) = proxy.as_object_mut() {
+        scv.apply_to_json(obj, "skip-cert-verify");
+    }
+
+    proxy
+}
+
+fn handle_snell(node: &Proxy, remark: &str) -> JsonValue {
+    // Skip Snell v4+ if exists - exactly matching C++ behavior
+    if node.snell_version >= 4 {
+        return JsonValue::Null;
+    }
+
+    let mut proxy = json!({
+        "name": remark,
+        "type": "snell",
+        "server": node.hostname,
+        "port": node.port,
+        "psk": node.password.as_deref().unwrap_or("")
+    });
+
+    if node.snell_version > 0 {
+        proxy["version"] = json!(node.snell_version);
+    }
+
+    // Handling obfs differs slightly between C++ and Rust
+    // C++ uses obfs-opts structure, while in clash config it's often the direct field
+    if let Some(obfs) = &node.obfs {
+        if !obfs.is_empty() {
+            proxy["obfs"] = json!(obfs);
+
+            if let Some(host) = &node.host {
+                if !host.is_empty() {
+                    proxy["obfs-host"] = json!(host);
+                }
+            }
+        }
+    }
+
+    proxy
+}
+
+fn handle_wireguard(node: &Proxy, remark: &str) -> JsonValue {
+    let mut proxy = json!({
+        "name": remark,
+        "type": "wireguard",
+        "server": node.hostname,
+        "port": node.port
+    });
+
+    if let Some(public_key) = &node.public_key {
+        proxy["public-key"] = json!(public_key);
+    }
+
+    if let Some(private_key) = &node.private_key {
+        proxy["private-key"] = json!(private_key);
+    }
+
+    if let Some(self_ip) = &node.self_ip {
+        proxy["ip"] = json!(self_ip);
+    }
+
+    if let Some(self_ipv6) = &node.self_ipv6 {
+        if !self_ipv6.is_empty() {
+            proxy["ipv6"] = json!(self_ipv6);
+        }
+    }
+
+    if let Some(pre_shared_key) = &node.pre_shared_key {
+        if !pre_shared_key.is_empty() {
+            proxy["preshared-key"] = json!(pre_shared_key);
+        }
+    }
+
+    if !node.dns_servers.is_empty() {
+        let mut dns_servers = Vec::new();
+        for server in &node.dns_servers {
+            dns_servers.push(JsonValue::String(server.clone()));
+        }
+        proxy["dns"] = JsonValue::Array(dns_servers);
+    }
+
+    if node.mtu > 0 {
+        proxy["mtu"] = json!(node.mtu);
+    }
+
+    if !node.allowed_ips.is_empty() {
+        let allowed_ips: Vec<JsonValue> = node
+            .allowed_ips
+            .split(',')
+            .map(|ip| JsonValue::String(ip.trim().to_string()))
+            .collect();
+        proxy["allowed-ips"] = JsonValue::Array(allowed_ips);
+    } else {
+        // Default allowed IPs
+        proxy["allowed-ips"] = JsonValue::Array(vec![
+            JsonValue::String("0.0.0.0/0".to_string()),
+            JsonValue::String("::/0".to_string()),
+        ]);
+    }
+
+    if node.keep_alive > 0 {
+        proxy["keepalive"] = json!(node.keep_alive);
+    }
+
+    proxy
+}
+
+fn handle_hysteria(node: &Proxy, remark: &str, scv: &Option<bool>) -> JsonValue {
+    let mut proxy = json!({
+        "name": remark,
+        "type": "hysteria",
+        "server": node.hostname,
+        "port": node.port
+    });
+
+    // Add auth fields
+    if let Some(auth_type) = &node.protocol {
+        match auth_type.as_str() {
+            "auth" | "base64" => {
+                if let Some(password) = &node.password {
+                    proxy["auth_str"] = json!(password);
+                }
+            }
+            "none" => {
+                // No auth
+            }
+            _ => {}
+        }
+    }
+
+    // Add protocol fields
+    if let Some(obfs) = &node.obfs {
+        proxy["obfs"] = json!(obfs);
+    }
+
+    // Hysteria always uses TLS
+    proxy["tls"] = json!(true);
+    if let Some(server_name) = &node.server_name {
+        proxy["sni"] = json!(server_name);
+    }
+
+    // Add skip-cert-verify if defined
+    if let Some(obj) = proxy.as_object_mut() {
+        scv.apply_to_json(obj, "skip-cert-verify");
+    }
+
+    // Add bandwidth settings
+    if let Some(up_mbps) = &node.quic_secret {
+        if let Ok(up_mbps_value) = up_mbps.parse::<u32>() {
+            proxy["up_mbps"] = json!(up_mbps_value);
+        }
+    }
+
+    if let Some(down_mbps) = &node.quic_secure {
+        if let Ok(down_mbps_value) = down_mbps.parse::<u32>() {
+            proxy["down_mbps"] = json!(down_mbps_value);
+        }
+    }
+
+    // Add remaining Hysteria fields
+    if let Some(fingerprint) = &node.fingerprint {
+        proxy["fingerprint"] = json!(fingerprint);
+    }
+    if let Some(ca) = &node.ca {
+        proxy["ca"] = json!(ca);
+    }
+    if let Some(ca_str) = &node.ca_str {
+        proxy["ca-str"] = json!(ca_str);
+    }
+    if node.recv_window_conn > 0 {
+        proxy["recv-window-conn"] = json!(node.recv_window_conn);
+    }
+    if node.recv_window > 0 {
+        proxy["recv-window"] = json!(node.recv_window);
+    }
+
+    // Add disable-mtu-discovery if defined
+    if let Some(disable_mtu_discovery) = &node.disable_mtu_discovery {
+        proxy["disable-mtu-discovery"] = json!(disable_mtu_discovery);
+    }
+
+    // Add hop-interval if defined
+    if node.hop_interval > 0 {
+        proxy["hop-interval"] = json!(node.hop_interval);
+    }
+
+    // Add ALPN protocols if specified
+    if let Some(alpn) = &node.edge {
+        // In Hysteria, edge might be repurposed to store ALPN
+        let alpn_array: Vec<JsonValue> = alpn
+            .split(',')
+            .map(|protocol| JsonValue::String(protocol.trim().to_string()))
+            .collect();
+        if !alpn_array.is_empty() {
+            proxy["alpn"] = JsonValue::Array(alpn_array);
+        }
+    } else {
+        // Default ALPN
+        proxy["alpn"] = JsonValue::Array(vec![JsonValue::String("h3".to_string())]);
+    }
+
+    proxy
+}
+
+fn handle_hysteria2(node: &Proxy, remark: &str, scv: &Option<bool>) -> JsonValue {
+    let mut proxy = json!({
+        "name": remark,
+        "type": "hysteria2",
+        "server": node.hostname,
+        "port": node.port
+    });
+
+    // Add password/auth
+    if let Some(password) = &node.password {
+        proxy["password"] = json!(password);
+    }
+
+    // Add TLS settings
+    proxy["tls"] = json!(true); // Hysteria2 always uses TLS
+    if let Some(server_name) = &node.server_name {
+        proxy["sni"] = json!(server_name);
+    }
+
+    // Add skip-cert-verify if defined
+    if let Some(obj) = proxy.as_object_mut() {
+        scv.apply_to_json(obj, "skip-cert-verify");
+    }
+
+    // Add bandwidth settings
+    if let Some(up_mbps) = &node.quic_secret {
+        if let Ok(up_mbps_value) = up_mbps.parse::<u32>() {
+            proxy["up"] = json!(up_mbps_value);
+        }
+    }
+
+    if let Some(down_mbps) = &node.quic_secure {
+        if let Ok(down_mbps_value) = down_mbps.parse::<u32>() {
+            proxy["down"] = json!(down_mbps_value);
+        }
+    }
+
+    // Add obfs settings
+    if let Some(obfs) = &node.obfs {
+        proxy["obfs"] = json!(obfs);
+    }
+    if let Some(obfs_param) = &node.obfs_param {
+        proxy["obfs-password"] = json!(obfs_param);
+    }
+
+    // Add other fields
+    if let Some(fingerprint) = &node.fingerprint {
+        proxy["fingerprint"] = json!(fingerprint);
+    }
+    if let Some(ca) = &node.ca {
+        proxy["ca"] = json!(ca);
+    }
+    if let Some(ca_str) = &node.ca_str {
+        proxy["ca-str"] = json!(ca_str);
+    }
+    if node.cwnd > 0 {
+        proxy["cwnd"] = json!(node.cwnd);
+    }
+
+    // Add ALPN protocols if specified
+    if let Some(alpn) = &node.edge {
+        // In Hysteria2, edge might be repurposed to store ALPN
+        let alpn_array: Vec<JsonValue> = alpn
+            .split(',')
+            .map(|protocol| JsonValue::String(protocol.trim().to_string()))
+            .collect();
+        if !alpn_array.is_empty() {
+            proxy["alpn"] = JsonValue::Array(alpn_array);
+        }
+    } else {
+        // Default ALPN for Hysteria2
+        proxy["alpn"] = JsonValue::Array(vec![JsonValue::String("h3".to_string())]);
+    }
+
+    proxy
+}
+
+/// Helper function to apply common optional fields to a proxy
+fn apply_proxy_fields(proxy: &mut Map<String, JsonValue>, node: &Proxy, scv: &Option<bool>) {
+    // Apply common optional fields
+    if let Some(obfs) = &node.obfs {
+        if !obfs.is_empty() {
+            proxy.insert("obfs".to_string(), JsonValue::String(obfs.clone()));
+        }
+    }
+
+    // For TLS-based protocols
+    if node.tls_secure {
+        proxy.insert("tls".to_string(), JsonValue::Bool(true));
+        if let Some(server_name) = &node.server_name {
+            if !server_name.is_empty() {
+                proxy.insert("sni".to_string(), JsonValue::String(server_name.clone()));
+            }
+        }
+    }
+
+    // Apply cert verification if defined
+    scv.apply_to_json(proxy, "skip-cert-verify");
 }

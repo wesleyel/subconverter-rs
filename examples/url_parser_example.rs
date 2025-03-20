@@ -1,7 +1,7 @@
 use std::env;
 use subconverter_rs::{
     models::Proxy,
-    parser::settings::{ParseSettings, RegexMatchConfig, RegexMatchConfigs},
+    parser::parse_settings::{ParseSettings, RegexMatchConfig, RegexMatchConfigs},
     parser::subparser::add_nodes,
 };
 

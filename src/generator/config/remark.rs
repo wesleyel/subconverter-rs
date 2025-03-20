@@ -4,25 +4,46 @@
 
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::collections::HashSet;
 
 /// Processes a remark string according to a list of remark rules
 ///
 /// # Arguments
 ///
 /// * `remark` - The remark to process (will be modified in-place)
-/// * `remarks_list` - List of remark processing rules
+/// * `remarks_list` - List of already processed remarks to avoid duplicates
 /// * `proc_comma` - Whether to process comma replacements
 ///
 /// # Returns
 ///
 /// Nothing, modifies the remark in-place
-pub fn process_remark(remark: &mut String, remarks_list: &[String], proc_comma: bool) {
+pub fn process_remark(remark: &mut String, remarks_list: &Vec<String>, proc_comma: bool) {
+    // Replace every '=' with '-' in the remark string to avoid parse errors from clients
+    *remark = remark.replace('=', "-");
+
     if proc_comma {
-        // Replace commas with empty spaces
-        *remark = remark.replace(',', " ");
+        // If the remark contains a comma, wrap it in quotes
+        if remark.contains(',') {
+            *remark = format!("\"{}\"", remark);
+        }
     }
 
+    // Ensure uniqueness by adding a number suffix if needed
+    let mut temp_remark = remark.clone();
+    let mut cnt = 2;
+    while remarks_list.contains(&temp_remark) {
+        temp_remark = format!("{} {}", remark, cnt);
+        cnt += 1;
+    }
+    *remark = temp_remark;
+
+    // Filter-related processing was added in the Rust implementation but isn't in
+    // the original C++ processRemark function, so we'll keep it for additional functionality
+    // Since it's specific to the Rust implementation, we'll run it after the C++ behavior
+    // process_filters(remark, remarks_list);
+}
+
+/// Process filters in the remark string
+fn process_filters(remark: &mut String, remarks_list: &Vec<String>) {
     lazy_static! {
         static ref SCRIPT_REGEX: Regex = Regex::new(r"\s*\[([^\]]*?)\]$").unwrap();
     }

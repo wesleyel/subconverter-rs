@@ -1,5 +1,35 @@
 //! Network utilities for IP address handling and validation
 
+use std::net::{IpAddr, ToSocketAddrs};
+
+/// Resolves a hostname to its IP address
+///
+/// # Arguments
+///
+/// * `host` - The hostname to resolve
+///
+/// # Returns
+///
+/// The IP address as a string, or an empty string if resolution fails
+pub fn hostname_to_ip_addr(host: &str) -> Option<String> {
+    // Try to resolve the hostname using the standard library
+    let sock_addr = format!("{}:0", host).to_socket_addrs();
+
+    match sock_addr {
+        Ok(mut addrs) => {
+            // Find the first IPv4 or IPv6 address
+            while let Some(addr) = addrs.next() {
+                match addr.ip() {
+                    IpAddr::V4(ipv4) => return Some(ipv4.to_string()),
+                    IpAddr::V6(ipv6) => return Some(ipv6.to_string()),
+                }
+            }
+            None
+        }
+        Err(_) => None,
+    }
+}
+
 /// Checks if a string is a valid IPv4 address
 ///
 /// # Arguments
@@ -82,5 +112,13 @@ mod tests {
     fn test_is_ipv6_invalid() {
         assert!(!is_ipv6("192.168.1.1"));
         assert!(!is_ipv6("not an ip"));
+    }
+
+    #[test]
+    fn test_hostname_to_ip_addr() {
+        // This test might be flaky depending on network conditions
+        let ip = hostname_to_ip_addr("localhost");
+        assert!(ip.is_some());
+        assert!(ip.as_ref().unwrap() == "127.0.0.1" || ip.as_ref().unwrap() == "::1");
     }
 }

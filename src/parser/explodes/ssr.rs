@@ -1,10 +1,8 @@
-use crate::models::{Proxy, ProxyType, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP};
+use crate::models::{Proxy, ProxyType, SSR_DEFAULT_GROUP, SS_CIPHERS, SS_DEFAULT_GROUP};
 use crate::utils::base64::url_safe_base64_decode;
 use serde_json::Value;
 use std::collections::HashMap;
 use url::Url;
-
-use super::ss::SS_CIPHERS;
 
 /// Parse a ShadowsocksR link into a Proxy object
 /// Based on the C++ implementation in explodeSSR function

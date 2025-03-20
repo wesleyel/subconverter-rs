@@ -1,5 +1,57 @@
 //! String utility functions for text processing
 
+/// FNV-1a hash constants
+pub const HASH_PRIME: u64 = 0x100000001B3;
+pub const HASH_BASIS: u64 = 0xCBF29CE484222325;
+
+/// Hash a string using FNV-1a algorithm
+///
+/// This matches the behavior of the C++ hash_ function in string_hash.h
+///
+/// # Arguments
+///
+/// * `s` - The string to hash
+///
+/// # Returns
+///
+/// The 64-bit hash value
+pub fn hash(s: &str) -> u64 {
+    let mut result = HASH_BASIS;
+    for &byte in s.as_bytes() {
+        result ^= byte as u64;
+        result = result.wrapping_mul(HASH_PRIME);
+    }
+    result
+}
+/// Compile-time version of the hash function
+///
+/// While not directly usable as a string literal suffix like in C++,
+/// this can be used in const contexts.
+///
+/// # Arguments
+///
+/// * `s` - The string to hash
+///
+/// # Returns
+///
+/// The 64-bit hash value
+pub const fn hash_const(s: &str) -> u64 {
+    let bytes = s.as_bytes();
+    let mut result = HASH_BASIS;
+    let mut i = 0;
+    while i < bytes.len() {
+        result ^= bytes[i] as u64;
+        result = result.wrapping_mul(HASH_PRIME);
+        i += 1;
+    }
+    result
+}
+
+/// Alias for hash_const to match C++ naming pattern
+pub const fn hash_compile_time(s: &str) -> u64 {
+    hash_const(s)
+}
+
 /// Replace all occurrences of a string with another
 ///
 /// # Arguments
@@ -88,6 +140,57 @@ pub fn trim_whitespace(s: &str, before: bool, after: bool) -> String {
     }
 }
 
+/// Trim a specific character from the beginning and/or end of a string
+///
+/// # Arguments
+///
+/// * `s` - The string to trim
+/// * `target` - The character to trim
+/// * `before` - Whether to trim from the beginning
+/// * `after` - Whether to trim from the end
+///
+/// # Returns
+///
+/// The trimmed string
+pub fn trim_of(s: &str, target: char, before: bool, after: bool) -> String {
+    if !before && !after {
+        return s.to_string();
+    }
+
+    let len = s.len();
+    if len == 0 {
+        return s.to_string();
+    }
+
+    let mut start = 0;
+    let mut end = len;
+
+    if before {
+        for (i, ch) in s.char_indices() {
+            if ch != target {
+                start = i;
+                break;
+            }
+        }
+    }
+
+    if after {
+        for (i, ch) in s.char_indices().rev() {
+            if ch != target {
+                end = i + ch.len_utf8();
+                break;
+            }
+        }
+    }
+
+    // Handle case where the string consists only of the target character
+    if start >= end {
+        return String::new();
+    }
+
+    s[start..end].to_string()
+}
+
 /// Find the position of a substring in a string
 ///
 /// # Arguments
@@ -102,9 +205,43 @@ pub fn find_str(s: &str, search: &str) -> Option<usize> {
     s.find(search)
 }
 
+/// Join a slice of strings with a separator
+///
+/// # Arguments
+///
+/// * `parts` - Slice of strings to join
+/// * `separator` - Separator to place between strings
+///
+/// # Returns
+///
+/// A new string with all parts joined by the separator
+pub fn join<T: AsRef<str>>(parts: &[T], separator: &str) -> String {
+    parts
+        .iter()
+        .map(|s| s.as_ref())
+        .collect::<Vec<&str>>()
+        .join(separator)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_hash() {
+        // Test some known values
+        assert_eq!(hash("test"), 18007334074686647077);
+        assert_eq!(hash("hello"), 11831194018420276491);
+        assert_eq!(hash(""), HASH_BASIS);
+    }
+
+    #[test]
+    fn test_hash_const() {
+        // Should match the runtime hash function
+        assert_eq!(hash_const("test"), hash("test"));
+        assert_eq!(hash_const("hello"), hash("hello"));
+        assert_eq!(hash_const(""), HASH_BASIS);
+    }
 
     #[test]
     fn test_replace_all_distinct() {
@@ -135,5 +272,17 @@ mod tests {
     fn test_trim() {
         assert_eq!(trim("  hello  "), "hello");
         assert_eq!(trim("\t\nhello\r\n"), "hello");
+    }
+
+    #[test]
+    fn test_join() {
+        let parts = vec!["a", "b", "c"];
+        assert_eq!(join(&parts, ","), "a,b,c");
+        assert_eq!(join(&parts, ""), "abc");
+        assert_eq!(join(&parts, " - "), "a - b - c");
+
+        // Test with empty array
+        let empty: Vec<&str> = vec![];
+        assert_eq!(join(&empty, ","), "");
     }
 }

@@ -1,262 +1,247 @@
-use crate::generator::config::subexport::{process_remark, ExtraSettings};
+use crate::models::{ExtraSettings, Proxy, ProxyType, SSR_CIPHERS, SS_CIPHERS};
+use crate::utils::base64::{base64_encode, url_safe_base64_encode};
 use crate::utils::url::url_encode;
-use crate::{Proxy, ProxyType};
-use base64::{engine::general_purpose, Engine as _};
-use serde_json::{self, json, Value};
-use std::collections::HashMap;
+use log::error;
 
-/// Convert a proxy to a single URI
-///
-/// This function converts a proxy to its URI representation.
+/// Generate a VMess link
 ///
 /// # Arguments
-/// * `node` - Proxy node to convert
-/// * `ext` - Extra settings for conversion
-pub fn proxy_to_uri(node: &mut Proxy, ext: &mut ExtraSettings) -> String {
-    // Process remark
-    let mut remark = node.remark.clone();
-    process_remark(&mut remark, ext, false);
+/// * `remark` - Remark for the node
+/// * `hostname` - Server hostname
+/// * `port` - Server port
+/// * `fake_type` - Fake type
+/// * `user_id` - User ID
+/// * `alter_id` - Alter ID
+/// * `transfer_protocol` - Transfer protocol
+/// * `path` - Path
+/// * `host` - Host
+/// * `tls` - TLS setting
+///
+/// # Returns
+/// * VMess link as JSON string
+fn vmess_link_construct(
+    remark: &str,
+    hostname: &str,
+    port: u16,
+    fake_type: Option<&str>,
+    user_id: &str,
+    alter_id: u16,
+    transfer_protocol: &str,
+    path: &str,
+    host: &str,
+    tls: &str,
+) -> String {
+    let mut json = serde_json::json!({
+        "v": "2",
+        "ps": remark,
+        "add": hostname,
+        "port": port.to_string(),
+        "id": user_id,
+        "aid": alter_id.to_string(),
+        "net": transfer_protocol,
+        "path": path,
+        "host": host,
+        "tls": tls
+    });
 
-    // Create URI based on proxy type
-    match node.proxy_type {
-        ProxyType::Shadowsocks => {
-            // Format: ss://BASE64(method:password)@server:port/?plugin=plugin_data#remark
-            let user_info = format!("{}:{}", node.cipher, node.password);
-            let encoded_user_info = general_purpose::STANDARD.encode(user_info);
+    if let Some(ft) = fake_type {
+        json["type"] = serde_json::Value::String(ft.to_string());
+    }
 
-            let mut uri = format!("ss://{}@{}:{}", encoded_user_info, node.server, node.port);
-
-            // Add plugin if present
-            if !node.plugin.is_empty() && !node.plugin_opts.is_empty() {
-                uri.push_str(&format!(
-                    "/?plugin={}",
-                    url_encode(&format!("{};{}", node.plugin, node.plugin_opts))
-                ));
-            }
-
-            // Add remark
-            uri.push_str(&format!("#{}", url_encode(&remark)));
-
-            uri
+    match serde_json::to_string(&json) {
+        Ok(result) => result,
+        Err(e) => {
+            error!("Failed to serialize VMess JSON: {}", e);
+            String::new()
         }
-        ProxyType::ShadowsocksR => {
-            // Format: ssr://BASE64(server:port:protocol:method:obfs:BASE64(password)/?remarks=BASE64(remark)&protoparam=BASE64(protocol_param)&obfsparam=BASE64(obfs_param))
-            let mut plain_text = format!(
-                "{}:{}:{}:{}:{}:{}",
-                node.server,
-                node.port,
-                node.protocol,
-                node.cipher,
-                node.obfs,
-                general_purpose::STANDARD.encode(&node.password)
-            );
-
-            // Add parameters
-            let mut params = Vec::new();
-
-            if !remark.is_empty() {
-                params.push(format!(
-                    "remarks={}",
-                    general_purpose::STANDARD.encode(&remark)
-                ));
-            }
-
-            if !node.protocol_param.is_empty() {
-                params.push(format!(
-                    "protoparam={}",
-                    general_purpose::STANDARD.encode(&node.protocol_param)
-                ));
-            }
-
-            if !node.obfs_param.is_empty() {
-                params.push(format!(
-                    "obfsparam={}",
-                    general_purpose::STANDARD.encode(&node.obfs_param)
-                ));
-            }
-
-            if !params.is_empty() {
-                plain_text.push_str(&format!("/?{}", params.join("&")));
-            }
-
-            // Base64 encode the entire URI
-            format!("ssr://{}", general_purpose::STANDARD.encode(plain_text))
-        }
-        ProxyType::VMess => {
-            // Format: vmess://BASE64(JSON)
-            let mut vmess_json = json!({
-                "v": "2",
-                "ps": remark,
-                "add": node.server,
-                "port": node.port,
-                "id": node.uuid,
-                "aid": node.alter_id,
-                "net": if node.network.is_empty() { "tcp" } else { &node.network },
-                "type": if node.header_type.is_empty() { "none" } else { &node.header_type },
-                "host": node.host,
-                "path": node.path,
-                "tls": if node.tls { "tls" } else { "none" }
-            });
-
-            // Add SNI if present
-            if let Some(sni) = &node.sni {
-                if !sni.is_empty() {
-                    vmess_json["sni"] = json!(sni);
-                }
-            }
-
-            // Add cipher if present
-            if !node.cipher.is_empty() {
-                vmess_json["cipher"] = json!(node.cipher);
-            }
-
-            // Convert to string and base64 encode
-            if let Ok(json_str) = serde_json::to_string(&vmess_json) {
-                format!("vmess://{}", general_purpose::STANDARD.encode(json_str))
-            } else {
-                String::new()
-            }
-        }
-        ProxyType::Trojan => {
-            // Format: trojan://password@server:port?sni=sni&allowInsecure=1#remark
-            let mut uri = format!("trojan://{}@{}:{}", node.password, node.server, node.port);
-
-            // Add parameters
-            let mut params = Vec::new();
-
-            if let Some(sni) = &node.sni {
-                if !sni.is_empty() {
-                    params.push(format!("sni={}", sni));
-                }
-            }
-
-            if let Some(skip_cert_verify) = node.skip_cert_verify {
-                if skip_cert_verify {
-                    params.push("allowInsecure=1".to_string());
-                }
-            }
-
-            if !node.network.is_empty() && node.network == "ws" {
-                params.push("type=ws".to_string());
-
-                if !node.host.is_empty() {
-                    params.push(format!("host={}", url_encode(&node.host)));
-                }
-
-                if !node.path.is_empty() {
-                    params.push(format!("path={}", url_encode(&node.path)));
-                }
-            }
-
-            if !params.is_empty() {
-                uri.push_str(&format!("?{}", params.join("&")));
-            }
-
-            // Add remark
-            uri.push_str(&format!("#{}", url_encode(&remark)));
-
-            uri
-        }
-        ProxyType::Socks5 => {
-            // Format: socks5://username:password@server:port#remark
-            let mut uri = String::from("socks5://");
-
-            // Add username/password if present
-            if !node.username.is_empty() {
-                uri.push_str(&node.username);
-
-                if !node.password.is_empty() {
-                    uri.push_str(&format!(":{}", node.password));
-                }
-
-                uri.push('@');
-            }
-
-            // Add server and port
-            uri.push_str(&format!("{}:{}", node.server, node.port));
-
-            // Add remark
-            uri.push_str(&format!("#{}", url_encode(&remark)));
-
-            uri
-        }
-        ProxyType::HTTP | ProxyType::HTTPS => {
-            // Format: http(s)://username:password@server:port#remark
-            let protocol = if node.proxy_type == ProxyType::HTTP {
-                "http"
-            } else {
-                "https"
-            };
-            let mut uri = format!("{}://", protocol);
-
-            // Add username/password if present
-            if !node.username.is_empty() {
-                uri.push_str(&node.username);
-
-                if !node.password.is_empty() {
-                    uri.push_str(&format!(":{}", node.password));
-                }
-
-                uri.push('@');
-            }
-
-            // Add server and port
-            uri.push_str(&format!("{}:{}", node.server, node.port));
-
-            // Add remark
-            uri.push_str(&format!("#{}", url_encode(&remark)));
-
-            uri
-        }
-        ProxyType::Snell => {
-            // Format: snell://PSK@server:port?version=version#remark
-            let mut uri = format!("snell://{}@{}:{}", node.password, node.server, node.port);
-
-            // Add parameters
-            let mut params = Vec::new();
-
-            if node.version > 0 {
-                params.push(format!("version={}", node.version));
-            }
-
-            if !node.obfs.is_empty() {
-                params.push(format!("obfs={}", node.obfs));
-
-                if !node.host.is_empty() {
-                    params.push(format!("obfs-host={}", url_encode(&node.host)));
-                }
-            }
-
-            if !params.is_empty() {
-                uri.push_str(&format!("?{}", params.join("&")));
-            }
-
-            // Add remark
-            uri.push_str(&format!("#{}", url_encode(&remark)));
-
-            uri
-        }
-        _ => String::new(),
     }
 }
 
-/// Convert proxies to a list of URIs
+/// Convert proxies to single links
 ///
-/// This function converts a list of proxies to their URI representations.
+/// This function converts a list of proxies to single URL format links.
 ///
 /// # Arguments
 /// * `nodes` - List of proxy nodes to convert
+/// * `types` - Bitmask of types to include (SS=1, SSR=2, VMess=4, Trojan=8)
 /// * `ext` - Extra settings for conversion
-pub fn proxy_to_single(nodes: &mut Vec<Proxy>, ext: &mut ExtraSettings) -> String {
-    let mut result = String::new();
+///
+/// # Returns
+/// * String containing the converted proxies
+pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettings) -> String {
+    let mut all_links = String::new();
 
-    for node in nodes.iter_mut() {
-        let uri = proxy_to_uri(node, ext);
-        if !uri.is_empty() {
-            result.push_str(&uri);
-            result.push('\n');
+    // Extract proxy type flags from the bitmask
+    let ss = (types & 1) != 0;
+    let ssr = (types & 2) != 0;
+    let vmess = (types & 4) != 0;
+    let trojan = (types & 8) != 0;
+
+    for node in nodes {
+        let remark = &node.remark;
+        let hostname = &node.hostname;
+        let port = node.port.to_string();
+
+        // Extract optional fields with safe defaults
+        let password = node.password.as_deref().unwrap_or("");
+        let method = node.encrypt_method.as_deref().unwrap_or("");
+        let plugin = node.plugin.as_deref().unwrap_or("");
+        let plugin_opts = node.plugin_option.as_deref().unwrap_or("");
+        let protocol = node.protocol.as_deref().unwrap_or("");
+        let protocol_param = node.protocol_param.as_deref().unwrap_or("");
+        let obfs = node.obfs.as_deref().unwrap_or("");
+        let obfs_param = node.obfs_param.as_deref().unwrap_or("");
+        let user_id = node.user_id.as_deref().unwrap_or("");
+        let transfer_protocol = node.transfer_protocol.as_deref().unwrap_or("");
+        let host = node.host.as_deref().unwrap_or("");
+        let path = node.path.as_deref().unwrap_or("");
+        let fake_type = node.fake_type.as_deref();
+        let tls_secure = node.tls_secure;
+        let alter_id = node.alter_id;
+        let group = node.group.as_ref();
+
+        let mut proxy_str = String::new();
+
+        match node.proxy_type {
+            ProxyType::Shadowsocks => {
+                if ss {
+                    // SS format
+                    proxy_str = format!(
+                        "ss://{}@{}:{}",
+                        url_safe_base64_encode(&format!("{}:{}", method, password)),
+                        hostname,
+                        port
+                    );
+
+                    if !plugin.is_empty() && !plugin_opts.is_empty() {
+                        proxy_str.push_str(&format!(
+                            "/?plugin={}",
+                            url_encode(&format!("{};{}", plugin, plugin_opts))
+                        ));
+                    }
+
+                    proxy_str.push_str(&format!("#{}", url_encode(remark)));
+                } else if ssr {
+                    // Convert SS to SSR if compatible
+                    if SSR_CIPHERS.contains(&method) && plugin.is_empty() {
+                        proxy_str = format!(
+                            "ssr://{}",
+                            url_safe_base64_encode(&format!(
+                                "{}:{}:origin:{}:plain:{}/?group={}&remarks={}",
+                                hostname,
+                                port,
+                                method,
+                                url_safe_base64_encode(password),
+                                url_safe_base64_encode(group),
+                                url_safe_base64_encode(remark)
+                            ))
+                        );
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
+            ProxyType::ShadowsocksR => {
+                if ssr {
+                    // SSR format
+                    proxy_str = format!(
+                        "ssr://{}",
+                        url_safe_base64_encode(&format!(
+                            "{}:{}:{}:{}:{}:{}/?group={}&remarks={}&obfsparam={}&protoparam={}",
+                            hostname,
+                            port,
+                            protocol,
+                            method,
+                            obfs,
+                            url_safe_base64_encode(password),
+                            url_safe_base64_encode(group),
+                            url_safe_base64_encode(remark),
+                            url_safe_base64_encode(obfs_param),
+                            url_safe_base64_encode(protocol_param)
+                        ))
+                    );
+                } else if ss {
+                    // Convert SSR to SS if compatible
+                    if SS_CIPHERS.contains(&method) && protocol == "origin" && obfs == "plain" {
+                        proxy_str = format!(
+                            "ss://{}@{}:{}#{}",
+                            url_safe_base64_encode(&format!("{}:{}", method, password)),
+                            hostname,
+                            port,
+                            url_encode(remark)
+                        );
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
+            ProxyType::VMess => {
+                if !vmess {
+                    continue;
+                }
+
+                // VMess format
+                let vmess_json = vmess_link_construct(
+                    remark,
+                    hostname,
+                    node.port,
+                    fake_type,
+                    user_id,
+                    alter_id,
+                    transfer_protocol,
+                    path,
+                    host,
+                    if tls_secure { "tls" } else { "" },
+                );
+
+                proxy_str = format!("vmess://{}", base64_encode(&vmess_json));
+            }
+            ProxyType::Trojan => {
+                if !trojan {
+                    continue;
+                }
+
+                // Trojan format
+                proxy_str = format!(
+                    "trojan://{}@{}:{}?allowInsecure={}",
+                    password,
+                    hostname,
+                    port,
+                    if node.allow_insecure.unwrap_or(false) {
+                        "1"
+                    } else {
+                        "0"
+                    }
+                );
+
+                if !host.is_empty() {
+                    proxy_str.push_str(&format!("&sni={}", host));
+                }
+
+                if transfer_protocol == "ws" {
+                    proxy_str.push_str("&ws=1");
+                    if !path.is_empty() {
+                        proxy_str.push_str(&format!("&wspath={}", url_encode(path)));
+                    }
+                }
+
+                proxy_str.push_str(&format!("#{}", url_encode(remark)));
+            }
+            _ => continue,
         }
+
+        all_links.push_str(&proxy_str);
+        all_links.push('\n');
     }
 
-    result
+    // Return raw links or base64 encoded based on settings
+    if ext.nodelist {
+        all_links
+    } else {
+        base64_encode(&all_links)
+    }
 }

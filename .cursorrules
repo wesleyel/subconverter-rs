@@ -1,0 +1,74 @@
+# Cursor Rules for subconverter-rs
+
+# C++ to Rust conversion patterns
+cpp_method_to_rust_trait:
+  pattern: "tribool.*is_undef()"
+  replacement: "Option<bool>.is_undef()"
+  note: "Convert C++ tribool methods to Rust trait implementations"
+
+ini_reader_adaptation:
+  pattern: "erase_section"
+  replacement: |
+    pub fn erase_section(&mut self) {
+        if self.current_section.is_empty() {
+            return;
+        }
+        
+        self.ini.remove_section(&self.current_section);
+        
+        if let Some(section_map) = self.content.get_mut(&self.current_section) {
+            section_map.clear();
+        }
+        
+        self.ini.set(&self.current_section, "", None);
+    }
+  note: "Adapt INIReader methods to work with configparser crate"
+
+noname_placeholder:
+  pattern: "ini.set(\"{NONAME}\""
+  replacement: "ini.set(\"{NONAME}\", item_name, item_val)"
+  note: "Handle {NONAME} placeholder in INI operations"
+
+# Proxy conversion rules
+proxy_handler_pattern:
+  pattern: "handle_(.*)\(node, remark, .*\)"
+  replacement: "fn handle_$1(node: &Proxy, remark: &str, ...) -> JsonValue"
+  note: "Implement proxy type handlers similarly across all formats"
+
+yaml_mapping_pattern:
+  pattern: "YamlValue::Mapping\(.*\)"
+  replacement: "let mut map = Mapping::new(); map.insert(...); YamlValue::Mapping(map)"
+  note: "Create YAML mappings for proxy configurations"
+
+# Type conversion
+tribool_handling:
+  pattern: "tribool (.*) = ext\\.(.*)"
+  replacement: "let mut $1 = ext.$2; $1 = node.$2.define($1);"
+  note: "Handle tribool value definitions and overrides"
+
+option_to_json:
+  pattern: "scv.apply_to_json\\(obj, \"skip-cert-verify\"\\)"
+  replacement: "scv.apply_to_json(obj, \"skip-cert-verify\")"
+  note: "Apply Option<bool> values to JSON objects conditionally"
+
+# Common Rust patterns
+error_handling:
+  pattern: "ini\\.set.*\\.unwrap_or\\(\\(\\)\\)"
+  replacement: "ini.set(...).unwrap_or(())"
+  note: "Handle potential errors in INI operations with unwrap_or(())"
+
+string_manipulations:
+  pattern: "join\\(&.*\\)"
+  replacement: "join(&filtered_nodelist, \",\")"
+  note: "Join string arrays with separators"
+
+yaml_node_operations:
+  pattern: "yaml_node\\.to_string\\(\\)"
+  replacement: "match yaml_node.to_string() { Ok(result) => result, Err(_) => String::new() }"
+  note: "Handle YAML node serialization with proper error handling"
+
+# File structure
+module_organization:
+  pattern: "mod (.*)"
+  replacement: "pub mod $1"
+  note: "Organize code into modules with proper visibility"

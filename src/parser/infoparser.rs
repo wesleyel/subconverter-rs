@@ -1,25 +1,10 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::models::Proxy;
-use crate::parser::settings::RegexMatchConfigs;
+use crate::parser::parse_settings::RegexMatchConfigs;
 use crate::utils::base64::url_safe_base64_decode;
+use crate::utils::url::get_url_arg;
 use regex::Regex;
-
-/// Extracts a URL parameter from a query string
-fn get_url_arg(url: &str, arg: &str) -> String {
-    let pattern = format!("{}=([^&]*)", arg);
-    let re = match Regex::new(&pattern) {
-        Ok(re) => re,
-        Err(_) => return String::new(),
-    };
-
-    if let Some(captures) = re.captures(url) {
-        if let Some(value) = captures.get(1) {
-            return value.as_str().to_string();
-        }
-    }
-    String::new()
-}
 
 /// Converts a string representing data size with units (B, KB, MB, etc.) to bytes
 pub fn stream_to_int(stream: &str) -> u64 {

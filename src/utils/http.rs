@@ -1,4 +1,4 @@
-use crate::parser::settings::CaseInsensitiveString;
+use crate::parser::parse_settings::CaseInsensitiveString;
 use reqwest::{header, Client, ClientBuilder, Proxy, StatusCode};
 use std::collections::HashMap;
 use std::time::Duration;

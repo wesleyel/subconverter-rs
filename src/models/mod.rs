@@ -48,15 +48,24 @@
 //!
 //! See the examples directory for more detailed usage examples.
 
+mod app_state;
 mod builder;
+mod ciphers;
+mod configs;
 mod proxy;
-mod ruleset;
+pub mod ruleset;
 
+pub use app_state::AppState;
+pub use configs::{
+    BalanceStrategy, ExtraSettings, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
+    RegexMatchConfig, RegexMatchConfigs,
+};
 pub use proxy::{Proxy, ProxyType};
 pub use ruleset::{RulesetContent, RulesetType};
 
 // Re-export constants to module scope for use by other modules
 // Default proxy group names
+pub use ciphers::{SSR_CIPHERS, SS_CIPHERS};
 pub use proxy::{
     HTTP_DEFAULT_GROUP, HYSTERIA2_DEFAULT_GROUP, HYSTERIA_DEFAULT_GROUP, SNELL_DEFAULT_GROUP,
     SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP, TROJAN_DEFAULT_GROUP,

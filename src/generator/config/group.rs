@@ -3,14 +3,13 @@
 //! This module provides functionality for generating proxy groups.
 
 use crate::{
+    models::ExtraSettings,
     utils::{
         matcher::{apply_matcher, reg_find},
         starts_with,
     },
     Proxy,
 };
-
-use super::ExtraSettings;
 
 /// Generates a filtered list of nodes based on a rule and node list
 ///
