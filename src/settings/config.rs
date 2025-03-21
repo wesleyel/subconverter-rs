@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
-use serde_yaml;
+use serde_yml;
 use toml;
 
 use crate::utils::http::web_get;
@@ -441,7 +441,7 @@ impl Settings {
 
         // Try to parse as YAML first
         if content.contains("common:") {
-            let mut settings: Settings = serde_yaml::from_str(&content)?;
+            let mut settings: Settings = serde_yml::from_str(&content)?;
             settings.pref_path = path.to_string();
 
             // Ensure listen_address is not empty

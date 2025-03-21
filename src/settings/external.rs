@@ -68,7 +68,7 @@ impl ExternalConfig {
 
         // Try to parse as YAML first
         if content.contains("custom:") {
-            return Ok(serde_yaml::from_str(&content)?);
+            return Ok(serde_yml::from_str(&content)?);
         }
 
         // Try to parse as TOML

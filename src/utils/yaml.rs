@@ -1,12 +1,12 @@
 use serde_json::{self, Value as JsonValue};
-use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
+use serde_yml::{self, Mapping, Sequence, Value as YamlValue};
 use std::fmt;
 
 /// Error types for YAML operations
 #[derive(Debug)]
 pub enum YamlError {
-    ParseError(serde_yaml::Error),
-    SerializeError(serde_yaml::Error),
+    ParseError(serde_yml::Error),
+    SerializeError(serde_yml::Error),
     PathError(String),
     TypeError(String),
     NotFound,
@@ -24,13 +24,13 @@ impl fmt::Display for YamlError {
     }
 }
 
-impl From<serde_yaml::Error> for YamlError {
-    fn from(error: serde_yaml::Error) -> Self {
+impl From<serde_yml::Error> for YamlError {
+    fn from(error: serde_yml::Error) -> Self {
         YamlError::ParseError(error)
     }
 }
 
-/// Wrapper around serde_yaml::Value for easier manipulation, similar to yaml-cpp's Node
+/// Wrapper around serde_yml::Value for easier manipulation, similar to yaml-cpp's Node
 #[derive(Debug, Clone)]
 pub struct YamlNode {
     pub value: YamlValue,
@@ -46,13 +46,13 @@ impl YamlNode {
 
     /// Create a YamlNode from a YAML string
     pub fn from_str(content: &str) -> Result<Self, YamlError> {
-        let value = serde_yaml::from_str(content)?;
+        let value = serde_yml::from_str(content)?;
         Ok(YamlNode { value })
     }
 
     /// Convert the YAML node to a string
     pub fn to_string(&self) -> Result<String, YamlError> {
-        serde_yaml::to_string(&self.value).map_err(YamlError::SerializeError)
+        serde_yml::to_string(&self.value).map_err(YamlError::SerializeError)
     }
 
     /// Check if the node is null
@@ -501,7 +501,7 @@ where
     T: serde::Serialize,
 {
     fn from(value: T) -> Self {
-        match serde_yaml::to_value(value) {
+        match serde_yml::to_value(value) {
             Ok(yaml) => YamlNode { value: yaml },
             Err(_) => YamlNode::new(),
         }

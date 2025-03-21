@@ -8,7 +8,7 @@ use crate::utils::url::get_url_arg;
 use crate::utils::yaml::YamlNode;
 use log::error;
 use serde_json::{self, json, Map, Value as JsonValue};
-use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
+use serde_yml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::HashSet;
 
 // Macro to simplify creating and setting proxies with JsonApplicable trait
@@ -168,7 +168,7 @@ pub fn proxy_to_clash(
         ext.clash_new_field_name,
     );
 
-    let yaml_output = match serde_yaml::to_string(&yaml_node.value) {
+    let yaml_output = match serde_yml::to_string(&yaml_node.value) {
         Ok(result) => result,
         Err(_) => return String::new(),
     };
@@ -257,7 +257,7 @@ pub fn proxy_to_clash_yaml(
     if ext.nodelist {
         let mut provider = YamlValue::Mapping(Mapping::new());
         provider["proxies"] =
-            serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
+            serde_yml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
         yaml_node.value = provider;
         return;
     }
@@ -266,7 +266,7 @@ pub fn proxy_to_clash_yaml(
     if let YamlValue::Mapping(ref mut map) = yaml_node.value {
         // Convert JSON proxies array to YAML
         let proxies_yaml_value =
-            serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
+            serde_yml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
         if ext.clash_new_field_name {
             map.insert(YamlValue::String("proxies".to_string()), proxies_yaml_value);
         } else {
