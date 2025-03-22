@@ -58,7 +58,7 @@ pub fn explode_trojan(trojan: &str, node: &mut Proxy) -> bool {
     // Extract group parameter
     let group = params
         .get("group")
-        .map(|s| urlDecode(s))
+        .map(|s| url_decode(s))
         .unwrap_or_else(|| TROJAN_DEFAULT_GROUP.to_string());
 
     // Handle WebSocket support
@@ -73,7 +73,7 @@ pub fn explode_trojan(trojan: &str, node: &mut Proxy) -> bool {
         if let Some(p) = params.get("path") {
             let p_str = p.to_string();
             if p_str.starts_with("%2F") {
-                path = Some(urlDecode(&p_str));
+                path = Some(url_decode(&p_str));
             } else {
                 path = Some(p_str);
             }
@@ -110,7 +110,7 @@ pub fn explode_trojan(trojan: &str, node: &mut Proxy) -> bool {
 }
 
 /// Simple URL decoding function
-fn urlDecode(input: &str) -> String {
+fn url_decode(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut i = 0;
     let bytes = input.as_bytes();
@@ -191,7 +191,7 @@ pub fn explode_trojan_go(trojan_go: &str, node: &mut Proxy) -> bool {
     // Extract group parameter
     let group = params
         .get("group")
-        .map(|s| urlDecode(s))
+        .map(|s| url_decode(s))
         .unwrap_or_else(|| TROJAN_DEFAULT_GROUP.to_string());
 
     // Extract remark from the fragment
