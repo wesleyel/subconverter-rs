@@ -2,7 +2,7 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
 use crate::generator::yaml::clash::{
-    ClashProxy, ClashProxyCommon, CommonProxyOptions, CommonProxyOptionsBuilder,
+    ClashProxy, ClashProxyCommon, CommonProxyOptions,
 };
 use crate::models::{ExtraSettings, ProxyGroupConfigs, ProxyGroupType};
 use crate::models::{Proxy, ProxyType, RulesetContent};
@@ -12,8 +12,6 @@ use crate::utils::tribool::{OptionSetExt, TriboolExt};
 use crate::utils::url::get_url_arg;
 use log::error;
 use serde::{Deserialize, Serialize};
-use serde_yml::de::Progress;
-use serde_yml::loader::Loader;
 use serde_yml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -885,7 +883,7 @@ fn handle_snell(node: &Proxy, remark: &str) -> Option<ClashProxy> {
     if let ClashProxy::Snell {
         psk,
         version,
-        obfs,
+        
         obfs_opts,
         ..
     } = &mut proxy

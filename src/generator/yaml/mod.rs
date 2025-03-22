@@ -4,7 +4,7 @@ pub mod clash;
 #[cfg(test)]
 mod tests {
     use super::clash::{ClashProxy, ClashProxyCommon};
-    use std::collections::HashMap;
+    
 
     #[test]
     fn test_common_proxy_operations() {
