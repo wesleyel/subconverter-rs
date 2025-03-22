@@ -5,18 +5,10 @@ use crate::models::{ExtraSettings, ProxyGroupConfigs, ProxyGroupType};
 use crate::models::{Proxy, ProxyType, RulesetContent};
 use crate::utils::tribool::TriboolExt;
 use crate::utils::url::get_url_arg;
-use crate::utils::yaml::YamlNode;
 use log::error;
 use serde_json::{self, json, Map, Value as JsonValue};
 use serde_yml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::HashSet;
-
-// Macro to simplify creating and setting proxies with JsonApplicable trait
-macro_rules! apply_if_present {
-    ($json:expr, $key:expr, $value:expr) => {
-        $value.apply_to_json(&mut $json, $key);
-    };
-}
 
 // Lists of supported protocols and encryption methods for filtering in ClashR
 lazy_static::lazy_static! {
@@ -168,9 +160,9 @@ pub fn proxy_to_clash(
         ext.clash_new_field_name,
     );
 
-    let yaml_output = match serde_yml::to_string(&yaml_node.value) {
+    let yaml_output = match yaml_node.to_string() {
         Ok(result) => result,
-        Err(_) => return String::new(),
+        Err(_) => String::new(),
     };
 
     format!("{}{}", yaml_output, rules_str)

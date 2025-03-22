@@ -52,14 +52,17 @@ mod app_state;
 mod builder;
 mod ciphers;
 mod configs;
+mod extra_settings;
 mod proxy;
+mod proxy_group_config;
 pub mod ruleset;
 
 pub use app_state::AppState;
-pub use configs::{
-    BalanceStrategy, ExtraSettings, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
-    RegexMatchConfig, RegexMatchConfigs,
+pub use extra_settings::{ExtraSettings, RegexMatchConfig, RegexMatchConfigs};
+pub use proxy_group_config::{
+    BalanceStrategy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
 };
+
 pub use proxy::{Proxy, ProxyType};
 pub use ruleset::{RulesetContent, RulesetType};
 

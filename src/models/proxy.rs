@@ -57,6 +57,7 @@ pub struct Proxy {
     pub password: Option<String>,
     pub encrypt_method: Option<String>,
     pub plugin: Option<String>,
+    /// Plugin options in the format of `key1=value1;key2=value2`
     pub plugin_option: Option<String>,
     pub protocol: Option<String>,
     pub protocol_param: Option<String>,

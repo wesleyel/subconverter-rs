@@ -152,6 +152,17 @@ pub trait TriboolExt<T> {
     where
         T: Into<JsonValue> + Clone;
 }
+pub trait OptionSetExt<T> {
+    fn set_if_some(&mut self, src: Option<T>);
+}
+
+impl<T> OptionSetExt<T> for Option<T> {
+    fn set_if_some(&mut self, src: Option<T>) {
+        if let Some(value) = src {
+            *self = Some(value);
+        }
+    }
+}
 
 impl<T> TriboolExt<T> for Option<T> {
     fn define(&self, default: Option<T>) -> Option<T>

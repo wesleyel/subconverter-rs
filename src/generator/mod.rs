@@ -1,5 +1,7 @@
 pub mod config;
+pub mod exports;
 pub mod ruleconvert;
+pub mod yaml;
 
 // Re-export rule conversion functions
 pub use ruleconvert::{

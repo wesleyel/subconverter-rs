@@ -1,8 +1,8 @@
 use crate::generator::config::formats::{
-    clash::proxy_to_clash, loon::proxy_to_loon, mellow::proxy_to_mellow, quan::proxy_to_quan,
-    quanx::proxy_to_quanx, singbox::proxy_to_singbox, ss_sub::proxy_to_ss_sub,
-    surge::proxy_to_surge,
+    loon::proxy_to_loon, mellow::proxy_to_mellow, quan::proxy_to_quan, quanx::proxy_to_quanx,
+    singbox::proxy_to_singbox, ss_sub::proxy_to_ss_sub, surge::proxy_to_surge,
 };
+use crate::generator::exports::clash::proxy_to_clash;
 use crate::models::{ExtraSettings, Proxy, ProxyGroupConfigs, RulesetContent};
 use crate::parser::parse_settings::ParseSettings;
 use crate::parser::subparser::add_nodes;

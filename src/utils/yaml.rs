@@ -1,3 +1,4 @@
+use serde::Serialize;
 use serde_json::{self, Value as JsonValue};
 use serde_yml::{self, Mapping, Sequence, Value as YamlValue};
 use std::fmt;
@@ -32,7 +33,7 @@ impl From<serde_yml::Error> for YamlError {
 
 /// Wrapper around serde_yml::Value for easier manipulation, similar to yaml-cpp's Node
 #[derive(Debug, Clone)]
-pub struct YamlNode {
+struct YamlNode {
     pub value: YamlValue,
 }
 
@@ -52,7 +53,12 @@ impl YamlNode {
 
     /// Convert the YAML node to a string
     pub fn to_string(&self) -> Result<String, YamlError> {
-        serde_yml::to_string(&self.value).map_err(YamlError::SerializeError)
+        let mut buffer = Vec::new();
+        let mut ser = serde_yml::Serializer::new(&mut buffer);
+        self.value
+            .serialize(&mut ser)
+            .map_err(YamlError::SerializeError)?;
+        Ok(String::from_utf8(buffer).unwrap())
     }
 
     /// Check if the node is null
