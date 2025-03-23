@@ -50,9 +50,9 @@ pub struct IniReader {
     /// The current section being operated on
     current_section: String,
     /// List of sections to exclude when parsing
-    exclude_sections: HashSet<String>,
+    // exclude_sections: HashSet<String>,
     /// List of sections to include when parsing (if empty, all sections are included)
-    include_sections: HashSet<String>,
+    // include_sections: HashSet<String>,
     /// List of sections to save directly without processing
     direct_save_sections: HashSet<String>,
     /// Ordered list of sections as they appear in the original file
@@ -82,8 +82,6 @@ impl IniReader {
             ini: Ini::new(),
             parsed: false,
             current_section: String::new(),
-            exclude_sections: HashSet::new(),
-            include_sections: HashSet::new(),
             direct_save_sections: HashSet::new(),
             section_order: Vec::new(),
             content: HashMap::new(),
@@ -129,28 +127,6 @@ impl IniReader {
         self.last_error.to_string()
     }
 
-    /// Exclude a section with the given name
-    pub fn exclude_section(&mut self, section: &str) {
-        self.exclude_sections.insert(section.to_string());
-    }
-
-    /// Include a section with the given name
-    pub fn include_section(&mut self, section: &str) {
-        self.include_sections.insert(section.to_string());
-    }
-
-    /// Check if a section should be ignored
-    fn should_ignore_section(&self, section: &str) -> bool {
-        let excluded = self.exclude_sections.contains(section);
-        let included = if self.include_sections.is_empty() {
-            true
-        } else {
-            self.include_sections.contains(section)
-        };
-
-        excluded || !included
-    }
-
     /// Parse INI content into the internal data structure
     pub fn parse(&mut self, content: &str) -> Result<(), IniReaderError> {
         if content.is_empty() {
@@ -171,7 +147,7 @@ impl IniReader {
                 self.content.clear();
 
                 // Get all sections
-                let sections = self.ini.sections();
+                self.direct_save_sections = self.ini.sections().iter().map(|s| s.clone()).collect();
                 // TODO: Process each section
 
                 self.last_error = IniReaderError::None;

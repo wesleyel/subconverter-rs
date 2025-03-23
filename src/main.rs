@@ -7,7 +7,7 @@ use env_logger::Env;
 use log::{error, info};
 
 use subconverter_rs::models::AppState;
-use subconverter_rs::settings::{get_settings, update_settings, Settings};
+use subconverter_rs::settings::unified::{get_instance, init_settings};
 use subconverter_rs::web_handlers::interfaces;
 
 #[actix_web::main]
@@ -22,19 +22,13 @@ async fn main() -> std::io::Result<()> {
     // Load settings from file if it exists
     if Path::new(config_path).exists() {
         info!("Loading settings from {}", config_path);
-        match Settings::load_from_file(config_path) {
-            Ok(settings) => {
-                // Update global settings
-                update_settings(settings);
-            }
-            Err(e) => {
-                error!("Error loading settings: {}", e);
-            }
+        if let Err(e) = init_settings(config_path) {
+            error!("Error loading settings: {}", e);
         }
     }
 
     // Get the current settings
-    let settings = get_settings();
+    let settings = get_instance().get_global();
 
     // Ensure we have a valid listen address
     let listen_address = if settings.listen_address.trim().is_empty() {

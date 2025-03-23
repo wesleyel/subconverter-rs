@@ -37,8 +37,8 @@ fn parse_v2rayn_socks(link: &str, node: &mut Proxy) -> bool {
     // Parse the decoded content
     let mut username = String::new();
     let mut password = String::new();
-    let mut server = String::new();
-    let mut port = 0;
+    let mut _server = String::new();
+    let mut _port = 0;
 
     if decoded.contains('@') {
         let parts: Vec<&str> = decoded.split('@').collect();
@@ -59,8 +59,8 @@ fn parse_v2rayn_socks(link: &str, node: &mut Proxy) -> bool {
         if server_port.len() < 2 {
             return false;
         }
-        server = server_port[0].to_string();
-        port = match server_port[1].parse::<u16>() {
+        _server = server_port[0].to_string();
+        _port = match server_port[1].parse::<u16>() {
             Ok(p) => p,
             Err(_) => return false,
         };
@@ -70,28 +70,28 @@ fn parse_v2rayn_socks(link: &str, node: &mut Proxy) -> bool {
         if server_port.len() < 2 {
             return false;
         }
-        server = server_port[0].to_string();
-        port = match server_port[1].parse::<u16>() {
+        _server = server_port[0].to_string();
+        _port = match server_port[1].parse::<u16>() {
             Ok(p) => p,
             Err(_) => return false,
         };
     }
 
-    if port == 0 {
+    if _port == 0 {
         return false;
     }
 
     // Use default remark if none provided
     if remarks.is_empty() {
-        remarks = format!("{} ({})", server, port);
+        remarks = format!("{} ({})", _server, _port);
     }
 
     // Create the proxy object
     *node = Proxy::socks_construct(
         SOCKS_DEFAULT_GROUP,
         &remarks,
-        &server,
-        port,
+        &_server,
+        _port,
         &username,
         &password,
         None,

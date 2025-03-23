@@ -2,8 +2,7 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType,
-    RulesetContent,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
 use crate::utils::base64::{base64_encode, url_safe_base64_encode};
 use crate::utils::ini_reader::IniReader;
@@ -134,7 +133,7 @@ fn proxy_to_quan_internal(
         let mut scv = ext.skip_cert_verify;
         scv = node.allow_insecure.as_ref().map_or(scv, |val| Some(*val));
 
-        let mut proxy_str = String::new();
+        let mut _proxy_str = String::new();
 
         // Format proxy string based on proxy type
         match node.proxy_type {
@@ -144,15 +143,15 @@ fn proxy_to_quan_internal(
                     actual_method = "chacha20-ietf-poly1305";
                 }
 
-                proxy_str = format!(
+                _proxy_str = format!(
                     "{} = vmess, {}, {}, {}, \"{}\", group={}",
                     node.remark, hostname, port, actual_method, id, group
                 );
 
                 if tls_secure {
-                    proxy_str.push_str(&format!(", over-tls=true, tls-host={}", host));
+                    _proxy_str.push_str(&format!(", over-tls=true, tls-host={}", host));
                     if !scv.is_undef() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             ", certificate={}",
                             if scv.unwrap_or(false) { "0" } else { "1" }
                         ));
@@ -160,23 +159,23 @@ fn proxy_to_quan_internal(
                 }
 
                 if transproto == "ws" {
-                    proxy_str.push_str(&format!(
+                    _proxy_str.push_str(&format!(
                         ", obfs=ws, obfs-path=\"{}\", obfs-header=\"Host: {}",
                         path, host
                     ));
                     if !edge.is_empty() {
-                        proxy_str.push_str(&format!("[Rr][Nn]Edge: {}", edge));
+                        _proxy_str.push_str(&format!("[Rr][Nn]Edge: {}", edge));
                     }
-                    proxy_str.push('"');
+                    _proxy_str.push('"');
                 }
 
                 if ext.nodelist {
-                    proxy_str = format!("vmess://{}", url_safe_base64_encode(&proxy_str));
+                    _proxy_str = format!("vmess://{}", url_safe_base64_encode(&_proxy_str));
                 }
             }
             ProxyType::ShadowsocksR => {
                 if ext.nodelist {
-                    proxy_str = format!(
+                    _proxy_str = format!(
                         "ssr://{}",
                         url_safe_base64_encode(&format!(
                             "{}:{}:{}:{}:{}:{}/?group={}&remarks={}&obfsparam={}&protoparam={}",
@@ -193,23 +192,23 @@ fn proxy_to_quan_internal(
                         ))
                     );
                 } else {
-                    proxy_str = format!(
+                    _proxy_str = format!(
                         "{} = shadowsocksr, {}, {}, {}, \"{}\", group={}, protocol={}, obfs={}",
                         node.remark, hostname, port, method, password, group, protocol, obfs
                     );
 
                     if !protoparam.is_empty() {
-                        proxy_str.push_str(&format!(", protocol_param={}", protoparam));
+                        _proxy_str.push_str(&format!(", protocol_param={}", protoparam));
                     }
 
                     if !obfsparam.is_empty() {
-                        proxy_str.push_str(&format!(", obfs_param={}", obfsparam));
+                        _proxy_str.push_str(&format!(", obfs_param={}", obfsparam));
                     }
                 }
             }
             ProxyType::Shadowsocks => {
                 if ext.nodelist {
-                    proxy_str = format!(
+                    _proxy_str = format!(
                         "ss://{}@{}:{}",
                         url_safe_base64_encode(&format!("{}:{}", method, password)),
                         hostname,
@@ -217,25 +216,25 @@ fn proxy_to_quan_internal(
                     );
 
                     if !plugin.is_empty() && !pluginopts.is_empty() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             "/?plugin={}",
                             url_encode(&format!("{};{}", plugin, pluginopts))
                         ));
                     }
 
-                    proxy_str.push_str(&format!(
+                    _proxy_str.push_str(&format!(
                         "&group={}#{}",
                         url_safe_base64_encode(group),
                         url_encode(&node.remark)
                     ));
                 } else {
-                    proxy_str = format!(
+                    _proxy_str = format!(
                         "{} = shadowsocks, {}, {}, {}, \"{}\", group={}",
                         node.remark, hostname, port, method, password, group
                     );
 
                     if plugin == "obfs-local" && !pluginopts.is_empty() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             ", {}",
                             replace_all_distinct(pluginopts, ";", ", ")
                         ));
@@ -243,29 +242,29 @@ fn proxy_to_quan_internal(
                 }
             }
             ProxyType::HTTP | ProxyType::HTTPS => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "{} = http, upstream-proxy-address={}, upstream-proxy-port={}, group={}",
                     node.remark, hostname, port, group
                 );
 
                 if !username.is_empty() && !password.is_empty() {
-                    proxy_str.push_str(
+                    _proxy_str.push_str(
                         &format!(
                             ", upstream-proxy-auth=true, upstream-proxy-username={}, upstream-proxy-password={}",
                             username, password
                         )
                     );
                 } else {
-                    proxy_str.push_str(", upstream-proxy-auth=false");
+                    _proxy_str.push_str(", upstream-proxy-auth=false");
                 }
 
                 if tls_secure {
-                    proxy_str.push_str(", over-tls=true");
+                    _proxy_str.push_str(", over-tls=true");
                     if !host.is_empty() {
-                        proxy_str.push_str(&format!(", tls-host={}", host));
+                        _proxy_str.push_str(&format!(", tls-host={}", host));
                     }
                     if !scv.is_undef() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             ", certificate={}",
                             if scv.unwrap_or(false) { "0" } else { "1" }
                         ));
@@ -273,33 +272,33 @@ fn proxy_to_quan_internal(
                 }
 
                 if ext.nodelist {
-                    proxy_str = format!("http://{}", url_safe_base64_encode(&proxy_str));
+                    _proxy_str = format!("http://{}", url_safe_base64_encode(&_proxy_str));
                 }
             }
             ProxyType::Socks5 => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "{} = socks, upstream-proxy-address={}, upstream-proxy-port={}, group={}",
                     node.remark, hostname, port, group
                 );
 
                 if !username.is_empty() && !password.is_empty() {
-                    proxy_str.push_str(
+                    _proxy_str.push_str(
                         &format!(
                             ", upstream-proxy-auth=true, upstream-proxy-username={}, upstream-proxy-password={}",
                             username, password
                         )
                     );
                 } else {
-                    proxy_str.push_str(", upstream-proxy-auth=false");
+                    _proxy_str.push_str(", upstream-proxy-auth=false");
                 }
 
                 if tls_secure {
-                    proxy_str.push_str(", over-tls=true");
+                    _proxy_str.push_str(", over-tls=true");
                     if !host.is_empty() {
-                        proxy_str.push_str(&format!(", tls-host={}", host));
+                        _proxy_str.push_str(&format!(", tls-host={}", host));
                     }
                     if !scv.is_undef() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             ", certificate={}",
                             if scv.unwrap_or(false) { "0" } else { "1" }
                         ));
@@ -307,14 +306,14 @@ fn proxy_to_quan_internal(
                 }
 
                 if ext.nodelist {
-                    proxy_str = format!("socks://{}", url_safe_base64_encode(&proxy_str));
+                    _proxy_str = format!("socks://{}", url_safe_base64_encode(&_proxy_str));
                 }
             }
             _ => continue,
         }
 
         // Add to INI
-        ini.set("{NONAME}", &proxy_str, "").unwrap_or(());
+        ini.set("{NONAME}", &_proxy_str, "").unwrap_or(());
         remarks_list.push(node.remark.clone());
         nodelist.push(node.clone());
     }
@@ -330,7 +329,7 @@ fn proxy_to_quan_internal(
 
     for group in extra_proxy_group {
         let mut filtered_nodelist = Vec::new();
-        let mut single_group = String::new();
+        let mut _single_group = String::new();
 
         // Determine group type and format accordingly
         match group.group_type {
@@ -346,8 +345,8 @@ fn proxy_to_quan_internal(
 
                 let proxies = join(&filtered_nodelist, "\n");
 
-                single_group = format!("{} : static, {}", group.name, filtered_nodelist[0]);
-                single_group.push_str(&format!("\n{}\n", proxies));
+                _single_group = format!("{} : static, {}", group.name, filtered_nodelist[0]);
+                _single_group.push_str(&format!("\n{}\n", proxies));
             }
             ProxyGroupType::URLTest => {
                 // Process as auto type
@@ -363,12 +362,12 @@ fn proxy_to_quan_internal(
 
                 // For groups with only 1 node, force static type
                 if filtered_nodelist.len() < 2 {
-                    single_group = format!("{} : static, {}", group.name, filtered_nodelist[0]);
+                    _single_group = format!("{} : static, {}", group.name, filtered_nodelist[0]);
                 } else {
-                    single_group = format!("{} : auto", group.name);
+                    _single_group = format!("{} : auto", group.name);
                 }
 
-                single_group.push_str(&format!("\n{}\n", proxies));
+                _single_group.push_str(&format!("\n{}\n", proxies));
             }
             ProxyGroupType::LoadBalance => {
                 // Process as balance type
@@ -384,12 +383,12 @@ fn proxy_to_quan_internal(
 
                 // For groups with only 1 node, force static type
                 if filtered_nodelist.len() < 2 {
-                    single_group = format!("{} : static, {}", group.name, filtered_nodelist[0]);
+                    _single_group = format!("{} : static, {}", group.name, filtered_nodelist[0]);
                 } else {
-                    single_group = format!("{} : balance, round-robin", group.name);
+                    _single_group = format!("{} : balance, round-robin", group.name);
                 }
 
-                single_group.push_str(&format!("\n{}\n", proxies));
+                _single_group.push_str(&format!("\n{}\n", proxies));
             }
             ProxyGroupType::SSID => {
                 // Handle SSID group type
@@ -397,7 +396,7 @@ fn proxy_to_quan_internal(
                     continue;
                 }
 
-                single_group = format!("{} : wifi = {}", group.name, group.proxies[0]);
+                _single_group = format!("{} : wifi = {}", group.name, group.proxies[0]);
 
                 let mut content = String::new();
                 let celluar_matcher = r"^(.*?),?celluar\s?=\s?(.*?)(,.*)$";
@@ -425,11 +424,11 @@ fn proxy_to_quan_internal(
                 }
 
                 if !celluar.is_empty() {
-                    single_group.push_str(&format!(", celluar = {}", celluar));
+                    _single_group.push_str(&format!(", celluar = {}", celluar));
                 }
 
-                single_group.push('\n');
-                single_group.push_str(&replace_all_distinct(
+                _single_group.push('\n');
+                _single_group.push_str(&replace_all_distinct(
                     &trim_of(&content, ',', true, true),
                     ",",
                     "\n",
@@ -439,8 +438,8 @@ fn proxy_to_quan_internal(
         }
 
         // Add group to INI if not empty
-        if !single_group.is_empty() {
-            ini.set("{NONAME}", &base64_encode(&single_group), "")
+        if !_single_group.is_empty() {
+            ini.set("{NONAME}", &base64_encode(&_single_group), "")
                 .unwrap_or(());
         }
     }

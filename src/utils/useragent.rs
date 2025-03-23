@@ -3,7 +3,7 @@
 //! This module provides functionality for parsing and matching user agent strings
 //! to determine target formats and settings.
 
-use crate::interfaces::subconverter::SubconverterTarget;
+use crate::models::SubconverterTarget;
 
 /// User agent profile structure
 pub struct UAProfile {

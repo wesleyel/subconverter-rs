@@ -25,10 +25,10 @@ pub fn import_items(target: &mut Vec<String>, _scope_limit: bool) -> i32 {
             continue;
         }
 
-        let mut content = String::new();
+        let mut _content = String::new();
         if file_exists(url) {
             match file_get(url) {
-                Ok(data) => content = data,
+                Ok(data) => _content = data,
                 Err(e) => {
                     error!("Error reading file '{}': {}", url, e);
                     continue;
@@ -46,7 +46,7 @@ pub fn import_items(target: &mut Vec<String>, _scope_limit: bool) -> i32 {
 
             // Fetch from URL
             match web_get(url, proxy.as_deref(), None) {
-                Ok((data, _)) => content = data,
+                Ok((data, _)) => _content = data,
                 Err(e) => {
                     error!("Error fetching URL '{}': {}", url, e);
                     continue;
@@ -60,7 +60,7 @@ pub fn import_items(target: &mut Vec<String>, _scope_limit: bool) -> i32 {
         }
 
         // Process content line by line
-        for line in content.lines() {
+        for line in _content.lines() {
             let trimmed = line.trim();
             if !trimmed.is_empty() && !trimmed.starts_with("//") && !trimmed.starts_with('#') {
                 result.push(trimmed.to_string());

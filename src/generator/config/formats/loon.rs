@@ -2,8 +2,8 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    BalanceStrategy, ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType,
-    ProxyType, RulesetContent,
+    BalanceStrategy, ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType,
+    RulesetContent,
 };
 use crate::utils::ini_reader::IniReader;
 use crate::utils::string::join;
@@ -87,7 +87,7 @@ pub fn proxy_to_loon(
         let scv = ext.skip_cert_verify;
         let scv = node.allow_insecure.as_ref().map_or(scv, |val| Some(*val));
 
-        let mut proxy = String::new();
+        let mut proxy;
 
         // Build proxy string based on type
         match node.proxy_type {
@@ -311,7 +311,7 @@ pub fn proxy_to_loon(
 
     for group in extra_proxy_group {
         let mut filtered_nodelist = Vec::new();
-        let mut group_str = String::new();
+        let mut group_str;
 
         match group.group_type {
             ProxyGroupType::Select
@@ -370,7 +370,6 @@ pub fn proxy_to_loon(
                 let algorithm = match group.strategy {
                     BalanceStrategy::RoundRobin => "round-robin",
                     BalanceStrategy::ConsistentHashing => "pcc",
-                    _ => "pcc", // Default fallback
                 };
                 group_str.push_str(&format!(",algorithm={}", algorithm));
 

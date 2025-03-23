@@ -1,9 +1,7 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
-use crate::generator::yaml::clash::{
-    ClashProxy, ClashProxyCommon, CommonProxyOptions,
-};
+use crate::generator::yaml::clash::{ClashProxy, ClashProxyCommon, CommonProxyOptions};
 use crate::models::{ExtraSettings, ProxyGroupConfigs, ProxyGroupType};
 use crate::models::{Proxy, ProxyType, RulesetContent};
 use crate::utils::base64::base64_encode;
@@ -97,6 +95,10 @@ pub fn proxy_to_clash(
         }
     };
 
+    if yaml_node.is_null() {
+        yaml_node = YamlValue::Mapping(Mapping::new());
+    }
+
     // Apply conversion to the YAML node
     proxy_to_clash_yaml(
         nodes,
@@ -189,17 +191,17 @@ pub fn proxy_to_clash(
 pub fn proxy_to_clash_yaml(
     nodes: &mut Vec<Proxy>,
     yaml_node: &mut serde_yml::Value,
-    ruleset_content_array: &Vec<RulesetContent>,
+    _ruleset_content_array: &Vec<RulesetContent>,
     extra_proxy_group: &ProxyGroupConfigs,
     clash_r: bool,
     ext: &mut ExtraSettings,
 ) {
     // Style settings - in C++ this is used to set serialization style but in Rust we have less control
     // over the serialization format. We keep them for compatibility but their actual effect may differ.
-    let proxy_block = ext.clash_proxies_style == "block";
-    let proxy_compact = ext.clash_proxies_style == "compact";
-    let group_block = ext.clash_proxy_groups_style == "block";
-    let group_compact = ext.clash_proxy_groups_style == "compact";
+    let _proxy_block = ext.clash_proxies_style == "block";
+    let _proxy_compact = ext.clash_proxies_style == "compact";
+    let _group_block = ext.clash_proxy_groups_style == "block";
+    let _group_compact = ext.clash_proxy_groups_style == "compact";
 
     // Create JSON structure for the proxies
     let mut proxies_json = Vec::new();
@@ -682,7 +684,7 @@ fn handle_vmess(
     node: &Proxy,
     remark: &str,
     scv: &Option<bool>,
-    ext: &ExtraSettings,
+    _ext: &ExtraSettings,
 ) -> Option<ClashProxy> {
     let mut proxy =
         ClashProxy::new_vmess(build_common_proxy_options(node, remark, &None, &None, scv));
@@ -883,7 +885,7 @@ fn handle_snell(node: &Proxy, remark: &str) -> Option<ClashProxy> {
     if let ClashProxy::Snell {
         psk,
         version,
-        
+
         obfs_opts,
         ..
     } = &mut proxy

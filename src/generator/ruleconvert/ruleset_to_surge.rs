@@ -298,11 +298,11 @@ pub fn ruleset_to_surge(
 
             // Convert the ruleset based on its type
             let converted_rules = convert_ruleset(&retrieved_rules, ruleset.rule_type);
-            let line_break = if converted_rules.contains("\r\n") {
-                '\r'
-            } else {
-                '\n'
-            };
+            // let line_break = if converted_rules.contains("\r\n") {
+            //     '\r'
+            // } else {
+            //     '\n'
+            // };
 
             // Process each rule line
             for line in converted_rules.lines() {

@@ -1,6 +1,6 @@
 use subconverter_rs::{
-    interfaces::subconverter::SubconverterTarget,
     utils::useragent::{match_user_agent, ver_greater_equal},
+    SubconverterTarget,
 };
 
 #[test]

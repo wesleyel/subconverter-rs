@@ -17,9 +17,9 @@ pub fn explode_http_sub(link: &str, node: &mut Proxy) -> bool {
     // Initialize variables
     let mut group = String::new();
     let mut remarks = String::new();
-    let mut server = String::new();
-    let mut port = String::new();
-    let mut username = String::new();
+    let mut _server = String::new();
+    let mut _port = String::new();
+    let mut _username = String::new();
     let mut password = String::new();
 
     // Extract query parameters
@@ -32,22 +32,22 @@ pub fn explode_http_sub(link: &str, node: &mut Proxy) -> bool {
     }
 
     // Extract username and password
-    username = url.username().to_string();
+    _username = url.username().to_string();
     if let Some(pass) = url.password() {
         password = pass.to_string();
     }
 
     // Extract hostname and port
     if let Some(host) = url.host_str() {
-        server = host.to_string();
+        _server = host.to_string();
     } else {
         return false;
     }
 
     if let Some(p) = url.port() {
-        port = p.to_string();
+        _port = p.to_string();
     } else {
-        port = if is_https {
+        _port = if is_https {
             "443".to_string()
         } else {
             "80".to_string()
@@ -61,23 +61,23 @@ pub fn explode_http_sub(link: &str, node: &mut Proxy) -> bool {
 
     // Use server:port as remark if none specified
     if remarks.is_empty() {
-        remarks = format!("{}:{}", server, port);
+        remarks = format!("{}:{}", _server, _port);
     }
 
     // Skip invalid port
-    if port == "0" {
+    if _port == "0" {
         return false;
     }
 
     // Parse port to u16
-    let port_num = match port.parse::<u16>() {
+    let port_num = match _port.parse::<u16>() {
         Ok(p) => p,
         Err(_) => return false,
     };
 
     // Create the proxy object
     *node = Proxy::http_construct(
-        &group, &remarks, &server, port_num, &username, &password, is_https, None, None, None, "",
+        &group, &remarks, &_server, port_num, &_username, &password, is_https, None, None, None, "",
     );
 
     true

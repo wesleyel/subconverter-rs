@@ -48,20 +48,22 @@
 //!
 //! See the examples directory for more detailed usage examples.
 
-mod app_state;
-mod builder;
-mod ciphers;
-mod configs;
-mod extra_settings;
-mod proxy;
-mod proxy_group_config;
+pub mod app_state;
+pub mod builder;
+pub mod ciphers;
+pub mod configs;
+pub mod extra_settings;
+pub mod proxy;
+pub mod proxy_group_config;
 pub mod ruleset;
+pub mod subconverter_target;
 
 pub use app_state::AppState;
 pub use extra_settings::{ExtraSettings, RegexMatchConfig, RegexMatchConfigs};
 pub use proxy_group_config::{
     BalanceStrategy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
 };
+pub use subconverter_target::SubconverterTarget;
 
 pub use proxy::{Proxy, ProxyType};
 pub use ruleset::{RulesetContent, RulesetType};

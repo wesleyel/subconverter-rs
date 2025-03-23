@@ -1,8 +1,7 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::models::{
-    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType,
-    ProxyType, RulesetContent,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
 use crate::settings;
 use crate::utils::base64::base64_encode;
@@ -163,7 +162,7 @@ fn string_array_to_json_array(array: &str, delimiter: &str) -> JsonValue {
 pub fn proxy_to_singbox(
     nodes: &mut Vec<Proxy>,
     base_conf: &str,
-    ruleset_content_array: &mut Vec<RulesetContent>,
+    _ruleset_content_array: &mut Vec<RulesetContent>,
     extra_proxy_group: &ProxyGroupConfigs,
     ext: &mut ExtraSettings,
 ) -> String {
@@ -787,3 +786,14 @@ pub fn proxy_to_singbox(
 //     // Placeholder implementation - to be properly implemented later
 //     warn!("ruleset_to_singbox is not fully implemented yet");
 // }
+
+/// Generate a Sing-Box configuration
+pub fn generate_singbox(
+    _proxies: &[Proxy],
+    _group_config: &ProxyGroupConfigs,
+    _ruleset_content_array: &mut Vec<RulesetContent>,
+    _config: &str,
+    _extra_settings: &ExtraSettings,
+) -> String {
+    String::new()
+}

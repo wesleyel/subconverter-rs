@@ -2,8 +2,7 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType,
-    RulesetContent,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
 use crate::settings;
 use crate::utils::ini_reader::IniReader;
@@ -159,22 +158,22 @@ pub fn proxy_to_surge(
         scv = node.allow_insecure.define(scv);
         tls13 = node.tls13.define(tls13);
 
-        let mut proxy = String::new();
-        let mut section = String::new();
-        let mut real_section = String::new();
-        let mut args = Vec::new();
+        let mut _proxy = String::new();
+        let mut _section = String::new();
+        let mut _real_section = String::new();
+        let mut _args = Vec::new();
         let mut headers = Vec::new();
 
         // Build proxy string based on type
         match node.proxy_type {
             ProxyType::Shadowsocks => {
                 if surge_ver >= 3 || surge_ver == -3 {
-                    proxy = format!(
+                    _proxy = format!(
                         "ss, {}, {}, encrypt-method={}, password={}",
                         hostname, port, method, password
                     );
                 } else {
-                    proxy = format!("custom, {}, {}, {}, {}, https://github.com/pobizhe/SSEncrypt/raw/master/SSEncrypt.module", 
+                    _proxy = format!("custom, {}, {}, {}, {}, https://github.com/pobizhe/SSEncrypt/raw/master/SSEncrypt.module", 
                                    hostname, port, method, password);
                 }
 
@@ -182,7 +181,7 @@ pub fn proxy_to_surge(
                     match plugin {
                         "simple-obfs" | "obfs-local" => {
                             if !pluginopts.is_empty() {
-                                proxy.push_str(&format!(",{}", pluginopts.replace(';', ",")));
+                                _proxy.push_str(&format!(",{}", pluginopts.replace(';', ",")));
                             }
                         }
                         _ => continue,
@@ -194,7 +193,7 @@ pub fn proxy_to_surge(
                     continue;
                 }
 
-                proxy = format!(
+                _proxy = format!(
                     "vmess, {}, {}, username={}, tls={}, vmess-aead={}",
                     hostname,
                     port,
@@ -204,7 +203,7 @@ pub fn proxy_to_surge(
                 );
 
                 if tls_secure && !tls13.is_undef() {
-                    proxy.push_str(&format!(
+                    _proxy.push_str(&format!(
                         ", tls13={}",
                         if tls13.unwrap_or(false) {
                             "true"
@@ -218,12 +217,12 @@ pub fn proxy_to_surge(
                     "tcp" => {}
                     "ws" => {
                         if host.is_empty() {
-                            proxy.push_str(&format!(
+                            _proxy.push_str(&format!(
                                 ", ws=true, ws-path={}, sni={}",
                                 path, hostname
                             ));
                         } else {
-                            proxy.push_str(&format!(", ws=true, ws-path={}, sni={}", path, host));
+                            _proxy.push_str(&format!(", ws=true, ws-path={}, sni={}", path, host));
                         }
 
                         if !host.is_empty() {
@@ -235,14 +234,14 @@ pub fn proxy_to_surge(
                         }
 
                         if !headers.is_empty() {
-                            proxy.push_str(&format!(", ws-headers={}", join(&headers, "|")));
+                            _proxy.push_str(&format!(", ws-headers={}", join(&headers, "|")));
                         }
                     }
                     _ => continue,
                 }
 
                 if scv.is_some() {
-                    proxy.push_str(&format!(
+                    _proxy.push_str(&format!(
                         ", skip-cert-verify={}",
                         if scv.unwrap_or(false) {
                             "true"
@@ -257,8 +256,8 @@ pub fn proxy_to_surge(
                     continue;
                 }
 
-                proxy = format!("external, exec=\"{}\", args=\"", ext.surge_ssr_path);
-                args = vec![
+                _proxy = format!("external, exec=\"{}\", args=\"", ext.surge_ssr_path);
+                _args = vec![
                     "-l".to_string(),
                     local_port.to_string(),
                     "-s".to_string(),
@@ -276,41 +275,41 @@ pub fn proxy_to_surge(
                 ];
 
                 if !obfsparam.is_empty() {
-                    args.push("-g".to_string());
-                    args.push(obfsparam.to_string());
+                    _args.push("-g".to_string());
+                    _args.push(obfsparam.to_string());
                 }
 
                 if !protoparam.is_empty() {
-                    args.push("-G".to_string());
-                    args.push(protoparam.to_string());
+                    _args.push("-G".to_string());
+                    _args.push(protoparam.to_string());
                 }
 
-                proxy.push_str(&join(&args, "\", args=\""));
-                proxy.push_str(&format!("\", local-port={}", local_port));
+                _proxy.push_str(&join(&_args, "\", args=\""));
+                _proxy.push_str(&format!("\", local-port={}", local_port));
 
                 if is_ipv4(hostname) || is_ipv6(hostname) {
-                    proxy.push_str(&format!(", addresses={}", hostname));
+                    _proxy.push_str(&format!(", addresses={}", hostname));
                 } else if global.surge_resolve_hostname {
                     if let Some(ip) = hostname_to_ip_addr(hostname) {
-                        proxy.push_str(&format!(", addresses={}", ip));
+                        _proxy.push_str(&format!(", addresses={}", ip));
                     }
                 }
 
                 local_port += 1;
             }
             ProxyType::Socks5 => {
-                proxy = format!("socks5, {}, {}", hostname, port);
+                _proxy = format!("socks5, {}, {}", hostname, port);
 
                 if !username.is_empty() {
-                    proxy.push_str(&format!(", username={}", username));
+                    _proxy.push_str(&format!(", username={}", username));
                 }
 
                 if !password.is_empty() {
-                    proxy.push_str(&format!(", password={}", password));
+                    _proxy.push_str(&format!(", password={}", password));
                 }
 
                 if scv.is_some() {
-                    proxy.push_str(&format!(
+                    _proxy.push_str(&format!(
                         ", skip-cert-verify={}",
                         if scv.unwrap_or(false) {
                             "true"
@@ -322,10 +321,10 @@ pub fn proxy_to_surge(
             }
             ProxyType::HTTPS => {
                 if surge_ver == -3 {
-                    proxy = format!("https, {}, {}, {}, {}", hostname, port, username, password);
+                    _proxy = format!("https, {}, {}, {}, {}", hostname, port, username, password);
 
                     if scv.is_some() {
-                        proxy.push_str(&format!(
+                        _proxy.push_str(&format!(
                             ", skip-cert-verify={}",
                             if scv.unwrap_or(false) {
                                 "true"
@@ -337,23 +336,23 @@ pub fn proxy_to_surge(
                     break;
                 }
                 // Fall through to HTTP case for non -3 versions
-                proxy = format!("http, {}, {}", hostname, port);
+                _proxy = format!("http, {}, {}", hostname, port);
 
                 if !username.is_empty() {
-                    proxy.push_str(&format!(", username={}", username));
+                    _proxy.push_str(&format!(", username={}", username));
                 }
 
                 if !password.is_empty() {
-                    proxy.push_str(&format!(", password={}", password));
+                    _proxy.push_str(&format!(", password={}", password));
                 }
 
-                proxy.push_str(&format!(
+                _proxy.push_str(&format!(
                     ", tls={}",
                     if tls_secure { "true" } else { "false" }
                 ));
 
                 if scv.is_some() {
-                    proxy.push_str(&format!(
+                    _proxy.push_str(&format!(
                         ", skip-cert-verify={}",
                         if scv.unwrap_or(false) {
                             "true"
@@ -364,23 +363,23 @@ pub fn proxy_to_surge(
                 }
             }
             ProxyType::HTTP => {
-                proxy = format!("http, {}, {}", hostname, port);
+                _proxy = format!("http, {}, {}", hostname, port);
 
                 if !username.is_empty() {
-                    proxy.push_str(&format!(", username={}", username));
+                    _proxy.push_str(&format!(", username={}", username));
                 }
 
                 if !password.is_empty() {
-                    proxy.push_str(&format!(", password={}", password));
+                    _proxy.push_str(&format!(", password={}", password));
                 }
 
-                proxy.push_str(&format!(
+                _proxy.push_str(&format!(
                     ", tls={}",
                     if tls_secure { "true" } else { "false" }
                 ));
 
                 if scv.is_some() {
-                    proxy.push_str(&format!(
+                    _proxy.push_str(&format!(
                         ", skip-cert-verify={}",
                         if scv.unwrap_or(false) {
                             "true"
@@ -395,18 +394,18 @@ pub fn proxy_to_surge(
                     continue;
                 }
 
-                proxy = format!("trojan, {}, {}, password={}", hostname, port, password);
+                _proxy = format!("trojan, {}, {}, password={}", hostname, port, password);
 
                 if node.snell_version != 0 {
-                    proxy.push_str(&format!(", version={}", node.snell_version));
+                    _proxy.push_str(&format!(", version={}", node.snell_version));
                 }
 
                 if !host.is_empty() {
-                    proxy.push_str(&format!(", sni={}", host));
+                    _proxy.push_str(&format!(", sni={}", host));
                 }
 
                 if scv.is_some() {
-                    proxy.push_str(&format!(
+                    _proxy.push_str(&format!(
                         ", skip-cert-verify={}",
                         if scv.unwrap_or(false) {
                             "true"
@@ -417,18 +416,18 @@ pub fn proxy_to_surge(
                 }
             }
             ProxyType::Snell => {
-                proxy = format!("snell, {}, {}, psk={}", hostname, port, password);
+                _proxy = format!("snell, {}, {}, psk={}", hostname, port, password);
 
                 if !obfs.is_empty() {
-                    proxy.push_str(&format!(", obfs={}", obfs));
+                    _proxy.push_str(&format!(", obfs={}", obfs));
 
                     if !host.is_empty() {
-                        proxy.push_str(&format!(", obfs-host={}", host));
+                        _proxy.push_str(&format!(", obfs-host={}", host));
                     }
                 }
 
                 if node.snell_version != 0 {
-                    proxy.push_str(&format!(", version={}", node.snell_version));
+                    _proxy.push_str(&format!(", version={}", node.snell_version));
                 }
             }
             ProxyType::WireGuard => {
@@ -437,57 +436,57 @@ pub fn proxy_to_surge(
                 }
 
                 let hash_val = hash(&remark);
-                section = format!("{:05x}", hash_val);
-                real_section = format!("WireGuard {}", section);
-                proxy = format!("wireguard, section-name={}", section);
+                _section = format!("{:05x}", hash_val);
+                _real_section = format!("WireGuard {}", _section);
+                _proxy = format!("wireguard, section-name={}", _section);
 
                 if let Some(test_url) = &node.test_url {
                     if !test_url.is_empty() {
-                        proxy.push_str(&format!(", test-url={}", test_url));
+                        _proxy.push_str(&format!(", test-url={}", test_url));
                     }
                 }
 
                 if let Some(private_key) = &node.private_key {
-                    ini.set(&real_section, "private-key", private_key)
+                    ini.set(&_real_section, "private-key", private_key)
                         .unwrap_or(());
                 }
 
                 if let Some(self_ip) = &node.self_ip {
-                    ini.set(&real_section, "self-ip", self_ip).unwrap_or(());
+                    ini.set(&_real_section, "self-ip", self_ip).unwrap_or(());
                 }
 
                 if let Some(self_ipv6) = &node.self_ipv6 {
                     if !self_ipv6.is_empty() {
-                        ini.set(&real_section, "self-ip-v6", self_ipv6)
+                        ini.set(&_real_section, "self-ip-v6", self_ipv6)
                             .unwrap_or(());
                     }
                 }
 
                 if let Some(pre_shared_key) = &node.pre_shared_key {
                     if !pre_shared_key.is_empty() {
-                        ini.set(&real_section, "preshared-key", pre_shared_key)
+                        ini.set(&_real_section, "preshared-key", pre_shared_key)
                             .unwrap_or(());
                     }
                 }
 
                 if !node.dns_servers.is_empty() {
                     let dns_list: Vec<String> = node.dns_servers.iter().cloned().collect();
-                    ini.set(&real_section, "dns-server", &join(&dns_list, ","))
+                    ini.set(&_real_section, "dns-server", &join(&dns_list, ","))
                         .unwrap_or(());
                 }
 
                 if node.mtu > 0 {
-                    ini.set(&real_section, "mtu", &node.mtu.to_string())
+                    ini.set(&_real_section, "mtu", &node.mtu.to_string())
                         .unwrap_or(());
                 }
 
                 if node.keep_alive > 0 {
-                    ini.set(&real_section, "keepalive", &node.keep_alive.to_string())
+                    ini.set(&_real_section, "keepalive", &node.keep_alive.to_string())
                         .unwrap_or(());
                 }
 
                 ini.set(
-                    &real_section,
+                    &_real_section,
                     "peer",
                     &format!("({})", generate_peer(node, false)),
                 )
@@ -498,14 +497,14 @@ pub fn proxy_to_surge(
                     continue;
                 }
 
-                proxy = format!("hysteria, {}, {}, password={}", hostname, port, password);
+                _proxy = format!("hysteria, {}, {}, password={}", hostname, port, password);
 
                 if node.down_speed > 0 {
-                    proxy.push_str(&format!(", download-bandwidth={}", node.down_speed));
+                    _proxy.push_str(&format!(", download-bandwidth={}", node.down_speed));
                 }
 
                 if scv.is_some() {
-                    proxy.push_str(&format!(
+                    _proxy.push_str(&format!(
                         ",skip-cert-verify={}",
                         if scv.unwrap_or(false) {
                             "true"
@@ -517,13 +516,14 @@ pub fn proxy_to_surge(
 
                 if let Some(fingerprint) = &node.fingerprint {
                     if !fingerprint.is_empty() {
-                        proxy.push_str(&format!(",server-cert-fingerprint-sha256={}", fingerprint));
+                        _proxy
+                            .push_str(&format!(",server-cert-fingerprint-sha256={}", fingerprint));
                     }
                 }
 
                 if let Some(sni) = &node.sni {
                     if !sni.is_empty() {
-                        proxy.push_str(&format!(",sni={}", sni));
+                        _proxy.push_str(&format!(",sni={}", sni));
                     }
                 }
             }
@@ -532,7 +532,7 @@ pub fn proxy_to_surge(
 
         // Add common options
         if !tfo.is_undef() {
-            proxy.push_str(&format!(
+            _proxy.push_str(&format!(
                 ", tfo={}",
                 if tfo.unwrap_or(false) {
                     "true"
@@ -543,7 +543,7 @@ pub fn proxy_to_surge(
         }
 
         if !udp.is_undef() {
-            proxy.push_str(&format!(
+            _proxy.push_str(&format!(
                 ", udp-relay={}",
                 if udp.unwrap_or(false) {
                     "true"
@@ -554,14 +554,14 @@ pub fn proxy_to_surge(
         }
 
         if !underlying_proxy.is_empty() {
-            proxy.push_str(&format!(", underlying-proxy={}", underlying_proxy));
+            _proxy.push_str(&format!(", underlying-proxy={}", underlying_proxy));
         }
 
         // Add to nodelist or INI
         if ext.nodelist {
-            output_nodelist.push_str(&format!("{} = {}\n", remark, proxy));
+            output_nodelist.push_str(&format!("{} = {}\n", remark, _proxy));
         } else {
-            ini.set("{NONAME}", &format!("{} = {}", remark, proxy), "")
+            ini.set("{NONAME}", &format!("{} = {}", remark, _proxy), "")
                 .unwrap_or(());
             nodelist.push(node.clone());
         }
@@ -579,7 +579,7 @@ pub fn proxy_to_surge(
 
     for group in extra_proxy_group {
         let mut filtered_nodelist = Vec::new();
-        let mut group_str = String::new();
+        let mut _group_str = String::new();
 
         match group.group_type {
             ProxyGroupType::Select
@@ -594,9 +594,9 @@ pub fn proxy_to_surge(
                 }
             }
             ProxyGroupType::SSID => {
-                group_str = format!("{},default={},", group.type_str(), group.proxies[0]);
-                group_str.push_str(&join(&group.proxies[1..], ","));
-                ini.set("{NONAME}", &format!("{} = {}", group.name, group_str), "")
+                _group_str = format!("{},default={},", group.type_str(), group.proxies[0]);
+                _group_str.push_str(&join(&group.proxies[1..], ","));
+                ini.set("{NONAME}", &format!("{} = {}", group.name, _group_str), "")
                     .unwrap_or(());
                 continue;
             }
@@ -629,35 +629,35 @@ pub fn proxy_to_surge(
         }
 
         // Build group string
-        group_str = format!("{},", group.type_str());
-        group_str.push_str(&join(&filtered_nodelist, ","));
+        _group_str = format!("{},", group.type_str());
+        _group_str.push_str(&join(&filtered_nodelist, ","));
 
         if group.group_type == ProxyGroupType::URLTest
             || group.group_type == ProxyGroupType::Fallback
             || group.group_type == ProxyGroupType::LoadBalance
         {
-            group_str.push_str(&format!(",url={},interval={}", group.url, group.interval));
+            _group_str.push_str(&format!(",url={},interval={}", group.url, group.interval));
 
             if group.tolerance > 0 {
-                group_str.push_str(&format!(",tolerance={}", group.tolerance));
+                _group_str.push_str(&format!(",tolerance={}", group.tolerance));
             }
 
             if group.timeout > 0 {
-                group_str.push_str(&format!(",timeout={}", group.timeout));
+                _group_str.push_str(&format!(",timeout={}", group.timeout));
             }
 
             // Handle persistent field directly
             if group.persistent {
-                group_str.push_str(",persistent=true");
+                _group_str.push_str(",persistent=true");
             }
 
             // Handle evaluate_before_use field directly
             if group.evaluate_before_use {
-                group_str.push_str(",evaluate-before-use=true");
+                _group_str.push_str(",evaluate-before-use=true");
             }
         }
 
-        ini.set("{NONAME}", &format!("{} = {}", group.name, group_str), "")
+        ini.set("{NONAME}", &format!("{} = {}", group.name, _group_str), "")
             .unwrap_or(());
     }
 

@@ -1,4 +1,5 @@
 use crate::Proxy;
+use regex::Regex;
 use std::collections::HashMap;
 use url::Url;
 
@@ -90,126 +91,68 @@ pub fn explode_wireguard(wireguard: &str, node: &mut Proxy) -> bool {
         None,
         None,
     );
+    parse_peers(wireguard, node);
 
     true
 }
 
 /// Parse WireGuard peers from configuration text
-pub fn parse_peers(config: &str, node: &mut Proxy) -> bool {
-    if !config.contains("[Interface]") && !config.contains("[Peer]") {
+pub fn parse_peers(data: &str, node: &mut Proxy) -> bool {
+    // Find peers enclosed in parentheses
+    let peer_regex = Regex::new(r"\((.*?)\)").unwrap();
+    let peers: Vec<&str> = peer_regex
+        .captures_iter(data)
+        .filter_map(|cap| cap.get(1))
+        .map(|m| m.as_str())
+        .collect();
+
+    if peers.is_empty() {
         return false;
     }
 
-    let mut section = "";
-    let mut self_ip = String::new();
-    let mut self_ipv6 = String::new();
-    let mut private_key = String::new();
-    let mut public_key = String::new();
-    let mut preshared_key = String::new();
-    let mut dns_servers = Vec::new();
-    let mut mtu = None;
-    let mut keep_alive = None;
-    let mut host = String::new();
-    let mut port = 51820u16; // Default WireGuard port
+    // Take the first peer
+    let peer = peers[0];
 
-    for line in config.lines() {
-        let line = line.trim();
+    // Extract key-value pairs
+    let pair_regex = Regex::new(r#"([a-z-]+) ?= ?([^" ),]+|".*?"),? ?"#).unwrap();
+    let pairs: Vec<(String, String)> = pair_regex
+        .captures_iter(peer)
+        .filter_map(|cap| {
+            if let (Some(key), Some(val)) = (cap.get(1), cap.get(2)) {
+                Some((key.as_str().to_string(), val.as_str().to_string()))
+            } else {
+                None
+            }
+        })
+        .collect();
 
-        // Skip empty lines and comments
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
+    if pairs.is_empty() {
+        return false;
+    }
 
-        // Check section headers
-        if line.starts_with('[') && line.ends_with(']') {
-            section = line;
-            continue;
-        }
-
-        // Split by '='
-        let parts: Vec<&str> = line.split('=').collect();
-        if parts.len() < 2 {
-            continue;
-        }
-
-        let key = parts[0].trim();
-        let value = parts[1..].join("=").trim().to_string();
-
-        match section {
-            "[Interface]" => {
-                match key {
-                    "PrivateKey" => private_key = value,
-                    "Address" => {
-                        // Address can contain IPv4 and IPv6 separated by comma
-                        let addresses: Vec<&str> = value.split(',').collect();
-                        for addr in addresses {
-                            let addr = addr.trim();
-                            if addr.contains(':') {
-                                self_ipv6 = addr.to_string();
-                            } else {
-                                self_ip = addr.to_string();
-                            }
-                        }
+    // Process key-value pairs
+    for (key, val) in pairs {
+        match key.as_str() {
+            "public-key" => {
+                node.public_key = Some(val);
+            }
+            "endpoint" => {
+                if let Some(idx) = val.rfind(':') {
+                    node.hostname = val[..idx].to_string();
+                    if let Ok(port) = val[idx + 1..].parse::<u16>() {
+                        node.port = port;
                     }
-                    "DNS" => {
-                        // DNS can be comma separated
-                        for dns in value.split(',') {
-                            dns_servers.push(dns.trim().to_string());
-                        }
-                    }
-                    "MTU" => mtu = value.parse::<u16>().ok(),
-                    _ => {}
                 }
             }
-            "[Peer]" => {
-                match key {
-                    "PublicKey" => public_key = value,
-                    "PresharedKey" => preshared_key = value,
-                    "Endpoint" => {
-                        // Endpoint is usually in format host:port
-                        let endpoint_parts: Vec<&str> = value.split(':').collect();
-                        if endpoint_parts.len() >= 1 {
-                            host = endpoint_parts[0].to_string();
-                        }
-                        if endpoint_parts.len() >= 2 {
-                            port = endpoint_parts[1].parse::<u16>().unwrap_or(51820);
-                        }
-                    }
-                    "PersistentKeepalive" => keep_alive = value.parse::<u16>().ok(),
-                    _ => {}
-                }
+            "client-id" => {
+                node.client_id = Some(val);
+            }
+            "allowed-ips" => {
+                node.allowed_ips = val.trim_matches('"').to_string();
             }
             _ => {}
         }
     }
-
-    // Validate required fields
-    if public_key.is_empty() || private_key.is_empty() || self_ip.is_empty() {
-        return false;
-    }
-
-    // Create remark
-    let remark = format!("{} ({})", host, port);
-
-    // Create the proxy object
-    *node = Proxy::wireguard_construct(
-        "WireGuard".to_string(),
-        remark,
-        host,
-        port,
-        self_ip,
-        self_ipv6,
-        private_key,
-        public_key,
-        preshared_key,
-        dns_servers,
-        mtu,
-        keep_alive,
-        "".to_string(), // test_url
-        "".to_string(), // client_id
-        None,           // udp
-        None,           // underlying_proxy
-    );
 
     true
 }

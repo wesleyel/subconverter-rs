@@ -2,8 +2,7 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
-    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType,
-    RulesetContent,
+    ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
 use crate::utils::ini_reader::IniReader;
 use crate::utils::string::{hash, join, replace_all_distinct, trim};
@@ -147,7 +146,7 @@ fn proxy_to_quanx_internal(
         scv = node.allow_insecure.as_ref().map_or(scv, |val| Some(*val));
         tls13 = node.tls13.as_ref().map_or(tls13, |val| Some(*val));
 
-        let mut proxy_str = String::new();
+        let mut _proxy_str = String::new();
 
         // Format proxy string based on proxy type
         match node.proxy_type {
@@ -157,7 +156,7 @@ fn proxy_to_quanx_internal(
                     actual_method = "chacha20-ietf-poly1305";
                 }
 
-                proxy_str = format!(
+                _proxy_str = format!(
                     "vmess = {}:{}, method={}, password={}",
                     hostname, port, actual_method, id
                 );
@@ -165,11 +164,11 @@ fn proxy_to_quanx_internal(
                 if node.alter_id == 0 {
                     // AEAD is enabled when alter_id is 0
                 } else {
-                    proxy_str.push_str(", aead=false");
+                    _proxy_str.push_str(", aead=false");
                 }
 
                 if tls_secure && !tls13.is_undef() {
-                    proxy_str.push_str(&format!(
+                    _proxy_str.push_str(&format!(
                         ", tls13={}",
                         if tls13.unwrap_or(false) {
                             "true"
@@ -181,17 +180,17 @@ fn proxy_to_quanx_internal(
 
                 if transproto == "ws" {
                     if tls_secure {
-                        proxy_str.push_str(", obfs=wss");
+                        _proxy_str.push_str(", obfs=wss");
                     } else {
-                        proxy_str.push_str(", obfs=ws");
+                        _proxy_str.push_str(", obfs=ws");
                     }
-                    proxy_str.push_str(&format!(", obfs-host={}, obfs-uri={}", host, path));
+                    _proxy_str.push_str(&format!(", obfs-host={}, obfs-uri={}", host, path));
                 } else if tls_secure {
-                    proxy_str.push_str(&format!(", obfs=over-tls, obfs-host={}", host));
+                    _proxy_str.push_str(&format!(", obfs=over-tls, obfs-host={}", host));
                 }
             }
             ProxyType::Shadowsocks => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "shadowsocks = {}:{}, method={}, password={}",
                     hostname, port, method, password
                 );
@@ -202,7 +201,7 @@ fn proxy_to_quanx_internal(
 
                     if plugin_hash == hash("simple-obfs") || plugin_hash == hash("obfs-local") {
                         if !pluginopts.is_empty() {
-                            proxy_str.push_str(&format!(
+                            _proxy_str.push_str(&format!(
                                 ", {}",
                                 replace_all_distinct(pluginopts, ";", ", ")
                             ));
@@ -219,7 +218,7 @@ fn proxy_to_quanx_internal(
                         if is_tls && plugin_type == "ws" {
                             plugin_type.push('s');
                             if !tls13.is_undef() {
-                                proxy_str.push_str(&format!(
+                                _proxy_str.push_str(&format!(
                                     ", tls13={}",
                                     if tls13.unwrap_or(false) {
                                         "true"
@@ -230,14 +229,14 @@ fn proxy_to_quanx_internal(
                             }
                         }
 
-                        proxy_str.push_str(&format!(", obfs={}", plugin_type));
+                        _proxy_str.push_str(&format!(", obfs={}", plugin_type));
 
                         if !plugin_host.is_empty() {
-                            proxy_str.push_str(&format!(", obfs-host={}", plugin_host));
+                            _proxy_str.push_str(&format!(", obfs-host={}", plugin_host));
                         }
 
                         if !plugin_path.is_empty() {
-                            proxy_str.push_str(&format!(", obfs-uri={}", plugin_path));
+                            _proxy_str.push_str(&format!(", obfs-uri={}", plugin_path));
                         }
                     } else {
                         continue; // Skip unsupported plugin
@@ -245,23 +244,23 @@ fn proxy_to_quanx_internal(
                 }
             }
             ProxyType::ShadowsocksR => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "shadowsocks = {}:{}, method={}, password={}, ssr-protocol={}",
                     hostname, port, method, password, protocol
                 );
 
                 if !protoparam.is_empty() {
-                    proxy_str.push_str(&format!(", ssr-protocol-param={}", protoparam));
+                    _proxy_str.push_str(&format!(", ssr-protocol-param={}", protoparam));
                 }
 
-                proxy_str.push_str(&format!(", obfs={}", obfs));
+                _proxy_str.push_str(&format!(", obfs={}", obfs));
 
                 if !obfsparam.is_empty() {
-                    proxy_str.push_str(&format!(", obfs-host={}", obfsparam));
+                    _proxy_str.push_str(&format!(", obfs-host={}", obfsparam));
                 }
             }
             ProxyType::HTTP | ProxyType::HTTPS => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "http = {}:{}, username={}, password={}",
                     hostname,
                     port,
@@ -278,9 +277,9 @@ fn proxy_to_quanx_internal(
                 );
 
                 if tls_secure {
-                    proxy_str.push_str(", over-tls=true");
+                    _proxy_str.push_str(", over-tls=true");
                     if !tls13.is_undef() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             ", tls13={}",
                             if tls13.unwrap_or(false) {
                                 "true"
@@ -290,16 +289,16 @@ fn proxy_to_quanx_internal(
                         ));
                     }
                 } else {
-                    proxy_str.push_str(", over-tls=false");
+                    _proxy_str.push_str(", over-tls=false");
                 }
             }
             ProxyType::Trojan => {
-                proxy_str = format!("trojan = {}:{}, password={}", hostname, port, password);
+                _proxy_str = format!("trojan = {}:{}, password={}", hostname, port, password);
 
                 if tls_secure {
-                    proxy_str.push_str(&format!(", over-tls=true, tls-host={}", host));
+                    _proxy_str.push_str(&format!(", over-tls=true, tls-host={}", host));
                     if !tls13.is_undef() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             ", tls13={}",
                             if tls13.unwrap_or(false) {
                                 "true"
@@ -309,19 +308,19 @@ fn proxy_to_quanx_internal(
                         ));
                     }
                 } else {
-                    proxy_str.push_str(", over-tls=false");
+                    _proxy_str.push_str(", over-tls=false");
                 }
             }
             ProxyType::Socks5 => {
-                proxy_str = format!("socks5 = {}:{}", hostname, port);
+                _proxy_str = format!("socks5 = {}:{}", hostname, port);
 
                 if !username.is_empty() && !password.is_empty() {
-                    proxy_str.push_str(&format!(", username={}, password={}", username, password));
+                    _proxy_str.push_str(&format!(", username={}, password={}", username, password));
 
                     if tls_secure {
-                        proxy_str.push_str(&format!(", over-tls=true, tls-host={}", host));
+                        _proxy_str.push_str(&format!(", over-tls=true, tls-host={}", host));
                         if !tls13.is_undef() {
-                            proxy_str.push_str(&format!(
+                            _proxy_str.push_str(&format!(
                                 ", tls13={}",
                                 if tls13.unwrap_or(false) {
                                     "true"
@@ -331,7 +330,7 @@ fn proxy_to_quanx_internal(
                             ));
                         }
                     } else {
-                        proxy_str.push_str(", over-tls=false");
+                        _proxy_str.push_str(", over-tls=false");
                     }
                 }
             }
@@ -340,7 +339,7 @@ fn proxy_to_quanx_internal(
 
         // Add common options
         if !tfo.is_undef() {
-            proxy_str.push_str(&format!(
+            _proxy_str.push_str(&format!(
                 ", fast-open={}",
                 if tfo.unwrap_or(false) {
                     "true"
@@ -351,7 +350,7 @@ fn proxy_to_quanx_internal(
         }
 
         if !udp.is_undef() {
-            proxy_str.push_str(&format!(
+            _proxy_str.push_str(&format!(
                 ", udp-relay={}",
                 if udp.unwrap_or(false) {
                     "true"
@@ -367,7 +366,7 @@ fn proxy_to_quanx_internal(
             && node.proxy_type != ProxyType::Shadowsocks
             && node.proxy_type != ProxyType::ShadowsocksR
         {
-            proxy_str.push_str(&format!(
+            _proxy_str.push_str(&format!(
                 ", tls-verification={}",
                 if scv.unwrap_or(false) {
                     "false"
@@ -378,10 +377,10 @@ fn proxy_to_quanx_internal(
         }
 
         // Add tag
-        proxy_str.push_str(&format!(", tag={}", node.remark));
+        _proxy_str.push_str(&format!(", tag={}", node.remark));
 
         // Add to INI
-        ini.set("{NONAME}", &proxy_str, "").unwrap_or(());
+        ini.set("{NONAME}", &_proxy_str, "").unwrap_or(());
         remarks_list.push(node.remark.clone());
         nodelist.push(node.clone());
     }
@@ -401,25 +400,25 @@ fn proxy_to_quanx_internal(
 
     // Process proxy groups
     for group in extra_proxy_group {
-        let mut type_str = String::new();
+        let mut _type_str = String::new();
         let mut filtered_nodelist = Vec::new();
 
         // Determine group type
         match group.group_type {
             ProxyGroupType::Select => {
-                type_str = "static".to_string();
+                _type_str = "static".to_string();
             }
             ProxyGroupType::URLTest => {
-                type_str = "url-latency-benchmark".to_string();
+                _type_str = "url-latency-benchmark".to_string();
             }
             ProxyGroupType::Fallback => {
-                type_str = "available".to_string();
+                _type_str = "available".to_string();
             }
             ProxyGroupType::LoadBalance => {
-                type_str = "round-robin".to_string();
+                _type_str = "round-robin".to_string();
             }
             ProxyGroupType::SSID => {
-                type_str = "ssid".to_string();
+                _type_str = "ssid".to_string();
 
                 // Special handling for SSID groups
                 for proxy in &group.proxies {
@@ -441,7 +440,7 @@ fn proxy_to_quanx_internal(
 
             // Force groups with 1 node to be static
             if filtered_nodelist.len() < 2 {
-                type_str = "static".to_string();
+                _type_str = "static".to_string();
             }
         }
 
@@ -466,7 +465,7 @@ fn proxy_to_quanx_internal(
         let proxies = join(&filtered_nodelist, ", ");
 
         // Create group string
-        let mut single_group = format!("{}={}, {}", type_str, group.name, proxies);
+        let mut single_group = format!("{}={}, {}", _type_str, group.name, proxies);
 
         // Add type-specific options
         if group.group_type != ProxyGroupType::Select && group.group_type != ProxyGroupType::SSID {

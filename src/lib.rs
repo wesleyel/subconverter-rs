@@ -14,10 +14,13 @@ pub use models::{Proxy, ProxyType};
 pub use parser::types::ConfType;
 
 // Re-export settings
-pub use settings::{get_settings, global, import_items, update_settings, ExternalConfig, Settings};
+pub use settings::{get_settings, update_settings, ExternalConfig, Settings};
 
 // Re-export ruleset types
 pub use models::ruleset::RulesetType;
+
+// Re-export SubconverterTarget
+pub use models::SubconverterTarget;
 
 // Re-export interfaces
 pub use interfaces::*;

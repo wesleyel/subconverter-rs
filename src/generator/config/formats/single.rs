@@ -100,13 +100,13 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
         let alter_id = node.alter_id;
         let group = node.group.as_ref();
 
-        let mut proxy_str = String::new();
+        let mut _proxy_str = String::new();
 
         match node.proxy_type {
             ProxyType::Shadowsocks => {
                 if ss {
                     // SS format
-                    proxy_str = format!(
+                    _proxy_str = format!(
                         "ss://{}@{}:{}",
                         url_safe_base64_encode(&format!("{}:{}", method, password)),
                         hostname,
@@ -114,17 +114,17 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                     );
 
                     if !plugin.is_empty() && !plugin_opts.is_empty() {
-                        proxy_str.push_str(&format!(
+                        _proxy_str.push_str(&format!(
                             "/?plugin={}",
                             url_encode(&format!("{};{}", plugin, plugin_opts))
                         ));
                     }
 
-                    proxy_str.push_str(&format!("#{}", url_encode(remark)));
+                    _proxy_str.push_str(&format!("#{}", url_encode(remark)));
                 } else if ssr {
                     // Convert SS to SSR if compatible
                     if SSR_CIPHERS.contains(&method) && plugin.is_empty() {
-                        proxy_str = format!(
+                        _proxy_str = format!(
                             "ssr://{}",
                             url_safe_base64_encode(&format!(
                                 "{}:{}:origin:{}:plain:{}/?group={}&remarks={}",
@@ -146,7 +146,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
             ProxyType::ShadowsocksR => {
                 if ssr {
                     // SSR format
-                    proxy_str = format!(
+                    _proxy_str = format!(
                         "ssr://{}",
                         url_safe_base64_encode(&format!(
                             "{}:{}:{}:{}:{}:{}/?group={}&remarks={}&obfsparam={}&protoparam={}",
@@ -165,7 +165,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                 } else if ss {
                     // Convert SSR to SS if compatible
                     if SS_CIPHERS.contains(&method) && protocol == "origin" && obfs == "plain" {
-                        proxy_str = format!(
+                        _proxy_str = format!(
                             "ss://{}@{}:{}#{}",
                             url_safe_base64_encode(&format!("{}:{}", method, password)),
                             hostname,
@@ -198,7 +198,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                     if tls_secure { "tls" } else { "" },
                 );
 
-                proxy_str = format!("vmess://{}", base64_encode(&vmess_json));
+                _proxy_str = format!("vmess://{}", base64_encode(&vmess_json));
             }
             ProxyType::Trojan => {
                 if !trojan {
@@ -206,7 +206,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                 }
 
                 // Trojan format
-                proxy_str = format!(
+                _proxy_str = format!(
                     "trojan://{}@{}:{}?allowInsecure={}",
                     password,
                     hostname,
@@ -219,22 +219,22 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                 );
 
                 if !host.is_empty() {
-                    proxy_str.push_str(&format!("&sni={}", host));
+                    _proxy_str.push_str(&format!("&sni={}", host));
                 }
 
                 if transfer_protocol == "ws" {
-                    proxy_str.push_str("&ws=1");
+                    _proxy_str.push_str("&ws=1");
                     if !path.is_empty() {
-                        proxy_str.push_str(&format!("&wspath={}", url_encode(path)));
+                        _proxy_str.push_str(&format!("&wspath={}", url_encode(path)));
                     }
                 }
 
-                proxy_str.push_str(&format!("#{}", url_encode(remark)));
+                _proxy_str.push_str(&format!("#{}", url_encode(remark)));
             }
             _ => continue,
         }
 
-        all_links.push_str(&proxy_str);
+        all_links.push_str(&_proxy_str);
         all_links.push('\n');
     }
 

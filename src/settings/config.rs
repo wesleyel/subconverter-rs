@@ -279,6 +279,10 @@ pub struct Settings {
     // Cron system
     #[serde(default)]
     pub enable_cron: bool,
+
+    // Custom rulesets
+    #[serde(default)]
+    pub custom_rulesets: Vec<String>,
 }
 
 // Default value functions for serde
@@ -417,6 +421,9 @@ impl Default for Settings {
 
             // Cron system
             enable_cron: false,
+
+            // Custom rulesets
+            custom_rulesets: Vec::new(),
         }
     }
 }
@@ -429,19 +436,19 @@ impl Settings {
 
     /// Load settings from file or URL
     pub fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut content = String::new();
+        let mut _content = String::new();
 
         // Try to load the content from file or URL
         if path.starts_with("http://") || path.starts_with("https://") {
             let (data, _) = web_get(path, None, None)?;
-            content = data;
+            _content = data;
         } else {
-            content = std::fs::read_to_string(path)?;
+            _content = std::fs::read_to_string(path)?;
         }
 
         // Try to parse as YAML first
-        if content.contains("common:") {
-            let mut settings: Settings = serde_yml::from_str(&content)?;
+        if _content.contains("common:") {
+            let mut settings: Settings = serde_yml::from_str(&_content)?;
             settings.pref_path = path.to_string();
 
             // Ensure listen_address is not empty
@@ -453,8 +460,8 @@ impl Settings {
         }
 
         // Try to parse as TOML
-        if let Ok(_) = toml::from_str::<toml::Value>(&content) {
-            let mut settings: Settings = toml::from_str(&content)?;
+        if let Ok(_) = toml::from_str::<toml::Value>(&_content) {
+            let mut settings: Settings = toml::from_str(&_content)?;
             settings.pref_path = path.to_string();
 
             // Ensure listen_address is not empty
@@ -467,7 +474,7 @@ impl Settings {
 
         // Default to INI
         let mut settings = Settings::default();
-        settings.load_from_ini(&content)?;
+        settings.load_from_ini(&_content)?;
         settings.pref_path = path.to_string();
 
         // Ensure listen_address is not empty
@@ -524,6 +531,10 @@ impl Settings {
                         "proxy_config" => self.proxy_config = value.to_string(),
                         "proxy_ruleset" => self.proxy_ruleset = value.to_string(),
                         "proxy_subscription" => self.proxy_subscription = value.to_string(),
+                        // Also handle ruleset entries in common section
+                        "ruleset" | "surge_ruleset" => {
+                            self.custom_rulesets.push(value.to_string());
+                        }
                         _ => {}
                     },
                     "node_pref" => match key {
@@ -641,6 +652,29 @@ impl Settings {
                         }
                         "skip_failed_links" => {
                             self.skip_failed_links = value.to_lowercase() == "true" || value == "1"
+                        }
+                        _ => {}
+                    },
+                    "rulesets" | "ruleset" => match key {
+                        "enabled" => {
+                            self.enable_rule_gen = value.to_lowercase() == "true" || value == "1"
+                        }
+                        "overwrite_original_rules" => {
+                            self.overwrite_original_rules =
+                                value.to_lowercase() == "true" || value == "1"
+                        }
+                        "update_ruleset_on_request" => {
+                            self.update_ruleset_on_request =
+                                value.to_lowercase() == "true" || value == "1"
+                        }
+                        "ruleset" | "surge_ruleset" => {
+                            self.custom_rulesets.push(value.to_string());
+                        }
+                        _ => {}
+                    },
+                    "custom" => match key {
+                        "ruleset" | "surge_ruleset" => {
+                            self.custom_rulesets.push(value.to_string());
                         }
                         _ => {}
                     },

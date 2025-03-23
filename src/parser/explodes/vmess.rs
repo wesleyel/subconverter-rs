@@ -583,7 +583,7 @@ pub fn explode_vmess_conf(content: &str, nodes: &mut Vec<Proxy>) -> bool {
         let vmess_entries = json["vmess"].as_array().unwrap();
         let mut nodes_added = false;
 
-        for (idx, entry) in vmess_entries.iter().enumerate() {
+        for (_, entry) in vmess_entries.iter().enumerate() {
             // Skip invalid entries
             if entry["address"].is_null() || entry["port"].is_null() || entry["id"].is_null() {
                 continue;

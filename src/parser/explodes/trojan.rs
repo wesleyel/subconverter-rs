@@ -1,4 +1,4 @@
-use crate::{models::TROJAN_DEFAULT_GROUP, Proxy};
+use crate::{models::TROJAN_DEFAULT_GROUP, utils::url_decode, Proxy};
 use std::collections::HashMap;
 use url::Url;
 
@@ -81,7 +81,7 @@ pub fn explode_trojan(trojan: &str, node: &mut Proxy) -> bool {
     }
 
     // Extract remark from the fragment
-    let remark = url.fragment().unwrap_or("");
+    let remark = url_decode(&url.fragment().unwrap_or(""));
     let formatted_remark = if remark.is_empty() {
         format!("{} ({})", host, port)
     } else {
@@ -107,33 +107,6 @@ pub fn explode_trojan(trojan: &str, node: &mut Proxy) -> bool {
     );
 
     true
-}
-
-/// Simple URL decoding function
-fn url_decode(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let mut i = 0;
-    let bytes = input.as_bytes();
-
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(hex) = u8::from_str_radix(&input[i + 1..i + 3], 16) {
-                result.push(hex as char);
-                i += 3;
-            } else {
-                result.push('%');
-                i += 1;
-            }
-        } else if bytes[i] == b'+' {
-            result.push(' ');
-            i += 1;
-        } else {
-            result.push(bytes[i] as char);
-            i += 1;
-        }
-    }
-
-    result
 }
 
 /// Parse a Trojan-Go link into a Proxy object

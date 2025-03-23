@@ -43,7 +43,7 @@ pub fn process_remark(remark: &mut String, remarks_list: &Vec<String>, proc_comm
 }
 
 /// Process filters in the remark string
-fn process_filters(remark: &mut String, remarks_list: &Vec<String>) {
+pub fn process_filters(remark: &mut String, remarks_list: &Vec<String>) {
     lazy_static! {
         static ref SCRIPT_REGEX: Regex = Regex::new(r"\s*\[([^\]]*?)\]$").unwrap();
     }
@@ -61,12 +61,12 @@ fn process_filters(remark: &mut String, remarks_list: &Vec<String>) {
 
             // Match against the remark
             if arguments.starts_with("script:") {
-                // Script-based filter (not fully implemented here)
-                let script_arg = &arguments[7..];
+                // TODO: Script-based filter (not fully implemented here)
+                let _script_arg = &arguments[7..];
                 // In C++ this would use a script engine
                 // Here we'll simulate by just capturing any text in brackets
                 if let Some(captures) = SCRIPT_REGEX.captures(remark) {
-                    if let Some(m) = captures.get(1) {
+                    if let Some(_) = captures.get(1) {
                         // Remove the matched script section
                         *remark = remark[..remark.len() - captures.get(0).unwrap().as_str().len()]
                             .trim()

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-use crate::interfaces::subconverter::SubconverterTarget;
 use crate::settings::Settings;
+
+use crate::models::SubconverterTarget;
 
 /// Application state structure for the web server
 #[derive(Debug)]
@@ -49,7 +50,7 @@ impl AppState {
         configs.clear();
 
         // Read base path from settings
-        let base_path = &self.config.base_path;
+        // let base_path = &self.config.base_path;
 
         // Load Clash base config
         if !self.config.clash_base.is_empty() {

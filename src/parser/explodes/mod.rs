@@ -30,7 +30,7 @@ pub use ss::{explode_ss, explode_ss_android, explode_ss_conf, explode_ssd};
 pub use ssr::{explode_ssr, explode_ssr_conf};
 pub use sstap::explode_sstap;
 pub use surge::explode_surge;
-pub use trojan::explode_trojan;
+pub use trojan::{explode_trojan, explode_trojan_go};
 pub use vmess::{
     explode_kitsunebi, explode_shadowrocket, explode_std_vmess, explode_vmess, explode_vmess_conf,
 };

@@ -24,18 +24,18 @@ pub fn explode_ssr(ssr: &str, node: &mut Proxy) -> bool {
     decoded = decoded.replace('\r', "");
 
     // Extract query parameters if present
-    let mut strobfs = String::new();
+    let mut _strobfs = String::new();
     let mut group = String::new();
     let mut remarks = String::new();
     let mut obfsparam = String::new();
     let mut protoparam = String::new();
 
     if let Some(query_pos) = decoded.find("/?") {
-        strobfs = decoded[query_pos + 2..].to_string();
+        _strobfs = decoded[query_pos + 2..].to_string();
         decoded = decoded[..query_pos].to_string();
 
         // Parse query parameters
-        let url_str = format!("http://localhost/?{}", strobfs);
+        let url_str = format!("http://localhost/?{}", _strobfs);
         if let Ok(url) = Url::parse(&url_str) {
             for (key, value) in url.query_pairs() {
                 let decoded_value = url_safe_base64_decode(&value);

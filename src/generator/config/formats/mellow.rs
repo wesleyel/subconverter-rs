@@ -116,7 +116,7 @@ fn proxy_to_mellow_internal(
         tfo = node.tcp_fast_open.as_ref().map_or(tfo, |val| Some(*val));
         scv = node.allow_insecure.as_ref().map_or(scv, |val| Some(*val));
 
-        let mut proxy_str = String::new();
+        let mut _proxy_str: String = String::new();
 
         // Format proxy string based on proxy type
         match node.proxy_type {
@@ -126,7 +126,7 @@ fn proxy_to_mellow_internal(
                     continue;
                 }
 
-                proxy_str = format!(
+                _proxy_str = format!(
                     "{}, ss, ss://{}/{}:{}",
                     node.remark,
                     url_safe_base64_encode(&format!("{}:{}", method, password)),
@@ -135,32 +135,32 @@ fn proxy_to_mellow_internal(
                 );
             }
             ProxyType::VMess => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "{}, vmess1, vmess1://{}@{}:{}",
                     node.remark, id, hostname, port
                 );
 
                 // Add path if not empty
                 if !path.is_empty() {
-                    proxy_str.push_str(path);
+                    _proxy_str.push_str(path);
                 }
 
                 // Add network type
-                proxy_str.push_str(&format!("?network={}", transproto));
+                _proxy_str.push_str(&format!("?network={}", transproto));
 
                 // Add protocol-specific options
                 match hash(transproto) {
                     h if h == hash("ws") => {
-                        proxy_str.push_str(&format!("&ws.host={}", url_encode(host)));
+                        _proxy_str.push_str(&format!("&ws.host={}", url_encode(host)));
                     }
                     h if h == hash("http") => {
                         if !host.is_empty() {
-                            proxy_str.push_str(&format!("&http.host={}", url_encode(host)));
+                            _proxy_str.push_str(&format!("&http.host={}", url_encode(host)));
                         }
                     }
                     h if h == hash("quic") => {
                         if !quicsecure.is_empty() {
-                            proxy_str.push_str(&format!(
+                            _proxy_str.push_str(&format!(
                                 "&quic.security={}&quic.key={}",
                                 quicsecure, quicsecret
                             ));
@@ -173,17 +173,17 @@ fn proxy_to_mellow_internal(
                 }
 
                 // Add TLS settings
-                proxy_str.push_str(&format!("&tls={}", tls_secure));
+                _proxy_str.push_str(&format!("&tls={}", tls_secure));
 
                 if tls_secure == "true" {
                     if !host.is_empty() {
-                        proxy_str.push_str(&format!("&tls.servername={}", url_encode(host)));
+                        _proxy_str.push_str(&format!("&tls.servername={}", url_encode(host)));
                     }
                 }
 
                 // Add skip cert verify if defined
                 if !scv.is_undef() {
-                    proxy_str.push_str(&format!(
+                    _proxy_str.push_str(&format!(
                         "&tls.allowinsecure={}",
                         if scv.unwrap_or(false) {
                             "true"
@@ -195,7 +195,7 @@ fn proxy_to_mellow_internal(
 
                 // Add TCP fast open if defined
                 if !tfo.is_undef() {
-                    proxy_str.push_str(&format!(
+                    _proxy_str.push_str(&format!(
                         "&sockopt.tcpfastopen={}",
                         if tfo.unwrap_or(false) {
                             "true"
@@ -206,13 +206,13 @@ fn proxy_to_mellow_internal(
                 }
             }
             ProxyType::Socks5 => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "{}, builtin, socks, address={}, port={}, user={}, pass={}",
                     node.remark, hostname, port, username, password
                 );
             }
             ProxyType::HTTP => {
-                proxy_str = format!(
+                _proxy_str = format!(
                     "{}, builtin, http, address={}, port={}, user={}, pass={}",
                     node.remark, hostname, port, username, password
                 );
@@ -221,7 +221,7 @@ fn proxy_to_mellow_internal(
         }
 
         // Add to INI
-        ini.set("{NONAME}", &proxy_str, "").unwrap_or(());
+        ini.set("{NONAME}", &_proxy_str, "").unwrap_or(());
         remarks_list.push(node.remark.clone());
         nodelist.push(node.clone());
     }

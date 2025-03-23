@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::io::{BufRead};
 use std::str::FromStr;
 
 /// Ruleset types for different proxy clients
@@ -110,32 +109,4 @@ lazy_static::lazy_static! {
         set.insert("USER-ID");
         set
     };
-}
-
-// Utility functions
-
-/// Checks if a string is an IPv4 address
-///
-/// # Arguments
-///
-/// * `s` - The string to check
-///
-/// # Returns
-///
-/// True if the string is an IPv4 address, false otherwise
-fn is_ipv4(s: &str) -> bool {
-    let parts: Vec<&str> = s.split('.').collect();
-
-    if parts.len() != 4 {
-        return false;
-    }
-
-    for part in parts {
-        match part.parse::<u8>() {
-            Ok(_) => continue,
-            Err(_) => return false,
-        }
-    }
-
-    true
 }

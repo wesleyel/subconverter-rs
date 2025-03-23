@@ -3,6 +3,14 @@ name = "subconverter-rs"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+js_runtime = []
+
+[[example]]
+name = "subconverter"
+path = "examples/subconverter/main.rs"
+
 [dependencies]
 base64 = "0.22.1"
 configparser = "3.1.0"

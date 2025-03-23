@@ -9,7 +9,6 @@ pub mod string;
 pub mod tribool;
 pub mod url;
 pub mod useragent;
-pub mod yaml;
 // Re-export common utilities
 pub use file::{file_exists, file_get};
 pub use http::{get_sub_info_from_header, web_get};

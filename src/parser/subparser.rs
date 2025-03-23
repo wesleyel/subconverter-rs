@@ -7,7 +7,6 @@ use crate::utils::http::{get_sub_info_from_header, web_get};
 use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
-use std::collections::HashMap;
 use std::fs;
 
 /// Equivalent to ConfType enum in C++
@@ -53,7 +52,6 @@ pub fn add_nodes(
     let mut nodes: Vec<Proxy> = Vec::new();
     let mut node = Proxy::default();
     let mut custom_group = String::new();
-    let extra_headers: HashMap<String, String> = HashMap::new();
 
     // Clean up the link string - remove quotes
     link = link.replace("\"", "");

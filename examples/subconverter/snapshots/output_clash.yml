@@ -1,0 +1,91 @@
+port: 7890
+socks-port: 7891
+allow-lan: true
+mode: Rule
+log-level: info
+external-controller: 127.0.0.1:9090
+dns:
+  enable: true
+  listen: 0.0.0.0:53
+  enhanced-mode: fake-ip
+  nameserver:
+    - 114.114.114.114
+    - 223.5.5.5
+  fallback:
+    - 8.8.8.8
+    - 1.1.1.1
+    - tls://dns.rubyfish.cn:853
+
+proxies:
+  # Subscription 1 proxies
+  - name: "Server 1"
+    type: ss
+    server: server1.example.com
+    port: 443
+    cipher: chacha20-ietf-poly1305
+    password: password
+    udp: true
+  - name: "Server 2"
+    type: vmess
+    server: server2.example.com
+    port: 443
+    uuid: a3482e88-686a-4a58-8126-99c9df64b7bf
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: true
+
+  # Subscription 2 proxies
+  - name: "Server 3"
+    type: trojan
+    server: server3.example.com
+    port: 443
+    password: password123
+    udp: true
+    sni: example.com
+  - name: "Server 4"
+    type: vmess
+    server: server4.example.com
+    port: 443
+    uuid: b8cb4a99-7fe5-4205-a897-86c2a5591464
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: true
+
+  # Subscription 3 proxies
+  - name: "Server 5"
+    type: ss
+    server: server5.example.com
+    port: 443
+    cipher: chacha20-ietf-poly1305
+    password: password789
+    udp: true
+  - name: "Server 6"
+    type: trojan
+    server: server6.example.com
+    port: 443
+    password: password456
+    udp: true
+    sni: example.com
+
+proxy-groups:
+  - name: MATCH
+    type: select
+    proxies:
+      - DIRECT
+      - "Server 1"
+      - "Server 2"
+      - "Server 3"
+      - "Server 4"
+      - "Server 5"
+      - "Server 6"
+
+rules:
+  - DOMAIN-SUFFIX,local,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT
+  - IP-CIDR,10.0.0.0/8,DIRECT
+  - IP-CIDR,172.16.0.0/12,DIRECT
+  - IP-CIDR,192.168.0.0/16,DIRECT
+  - GEOIP,CN,DIRECT
+  - MATCH,MATCH 

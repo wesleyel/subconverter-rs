@@ -117,11 +117,11 @@ pub fn ruleset_to_clash_str(
         // Convert ruleset based on its type
         let processed_rules = convert_ruleset(&retrieved_rules, ruleset.rule_type);
 
-        // Get line break character for the ruleset
-        let line_break = if processed_rules.contains("\r\n") {
-            '\r'
+        // Detect line break style
+        let _line_break = if processed_rules.contains("\r\n") {
+            "\r\n"
         } else {
-            '\n'
+            "\n"
         };
 
         // Process each line in the ruleset
