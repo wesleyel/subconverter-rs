@@ -1,4 +1,7 @@
-use crate::models::{Proxy, SNELL_DEFAULT_GROUP};
+use crate::{
+    models::{Proxy, SNELL_DEFAULT_GROUP},
+    utils::url_decode,
+};
 use std::collections::HashMap;
 use url::Url;
 
@@ -34,7 +37,7 @@ pub fn explode_snell(snell: &str, node: &mut Proxy) -> bool {
     // Extract parameters from the query string
     let mut params = HashMap::new();
     for (key, value) in url.query_pairs() {
-        params.insert(key.to_string(), value.to_string());
+        params.insert(key.to_string(), url_decode(&value));
     }
 
     // Extract obfs
@@ -57,7 +60,7 @@ pub fn explode_snell(snell: &str, node: &mut Proxy) -> bool {
         .map(|s| s == "true" || s == "1");
 
     // Extract remark from the fragment
-    let remark = url.fragment().unwrap_or("");
+    let remark = url_decode(url.fragment().unwrap_or(""));
     let formatted_remark = if remark.is_empty() {
         format!("{} ({})", host, port)
     } else {

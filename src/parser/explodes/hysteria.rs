@@ -1,4 +1,4 @@
-use crate::{models::HYSTERIA_DEFAULT_GROUP, Proxy};
+use crate::{models::HYSTERIA_DEFAULT_GROUP, utils::url_decode, Proxy};
 use std::collections::HashMap;
 use url::Url;
 
@@ -25,7 +25,7 @@ pub fn explode_hysteria(hysteria: &str, node: &mut Proxy) -> bool {
     // Extract parameters from the query string
     let mut params = HashMap::new();
     for (key, value) in url.query_pairs() {
-        params.insert(key.to_string(), value.to_string());
+        params.insert(key.to_string(), url_decode(&value));
     }
 
     // Extract auth string

@@ -58,7 +58,7 @@ pub fn explode(link: &str, node: &mut Proxy) -> bool {
         super::wireguard::explode_wireguard(link, node)
     } else if link.starts_with("hysteria://") {
         super::hysteria::explode_hysteria(link, node)
-    } else if link.starts_with("hysteria2://") {
+    } else if link.starts_with("hysteria2://") || link.starts_with("hy2://") {
         super::hysteria2::explode_hysteria2(link, node)
     } else if link.starts_with("vmess+") {
         false

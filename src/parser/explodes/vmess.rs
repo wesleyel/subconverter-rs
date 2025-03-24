@@ -1,4 +1,7 @@
-use crate::models::{Proxy, SOCKS_DEFAULT_GROUP, SS_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP};
+use crate::{
+    models::{Proxy, SOCKS_DEFAULT_GROUP, SS_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP},
+    utils::url_decode,
+};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use regex::Regex;
 use serde_json::Value;
@@ -269,7 +272,7 @@ pub fn explode_shadowrocket(rocket: &str, node: &mut Proxy) -> bool {
     let mut sni = String::new();
 
     for (key, value) in url.query_pairs() {
-        let value = value.to_string();
+        let value = url_decode(&value);
         match key.as_ref() {
             "obfs" => net = value,
             "path" => path = value,
@@ -287,7 +290,7 @@ pub fn explode_shadowrocket(rocket: &str, node: &mut Proxy) -> bool {
     }
 
     // Extract remark from the fragment
-    let remark = url.fragment().unwrap_or("").to_string();
+    let remark = url_decode(url.fragment().unwrap_or(""));
     let formatted_remark = if remark.is_empty() {
         format!("{} ({})", host, port)
     } else {

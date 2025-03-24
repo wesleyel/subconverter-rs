@@ -1,4 +1,4 @@
-use crate::Proxy;
+use crate::{utils::url_decode, Proxy};
 use regex::Regex;
 use std::collections::HashMap;
 use url::Url;
@@ -19,7 +19,7 @@ pub fn explode_wireguard(wireguard: &str, node: &mut Proxy) -> bool {
     // Extract parameters from the query string
     let mut params = HashMap::new();
     for (key, value) in url.query_pairs() {
-        params.insert(key.to_string(), value.to_string());
+        params.insert(key.to_string(), url_decode(&value));
     }
 
     // Extract required fields
@@ -65,7 +65,7 @@ pub fn explode_wireguard(wireguard: &str, node: &mut Proxy) -> bool {
     };
 
     // Extract remark from the fragment
-    let remark = url.fragment().unwrap_or("");
+    let remark = url_decode(url.fragment().unwrap_or(""));
     let formatted_remark = if remark.is_empty() {
         format!("{} ({})", host, port)
     } else {

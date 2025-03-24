@@ -36,7 +36,7 @@ pub fn explode_trojan(trojan: &str, node: &mut Proxy) -> bool {
     // Extract parameters from the query string
     let mut params = HashMap::new();
     for (key, value) in url.query_pairs() {
-        params.insert(key.to_string(), value.to_string());
+        params.insert(key.to_string(), url_decode(&value));
     }
 
     // Extract SNI - check for both "sni" and "peer" parameters (like in C++)
@@ -143,7 +143,7 @@ pub fn explode_trojan_go(trojan_go: &str, node: &mut Proxy) -> bool {
     // Extract parameters from the query string
     let mut params = HashMap::new();
     for (key, value) in url.query_pairs() {
-        params.insert(key.to_string(), value.to_string());
+        params.insert(key.to_string(), url_decode(&value));
     }
 
     // Extract network, host, path
@@ -164,11 +164,10 @@ pub fn explode_trojan_go(trojan_go: &str, node: &mut Proxy) -> bool {
     // Extract group parameter
     let group = params
         .get("group")
-        .map(|s| url_decode(s))
-        .unwrap_or_else(|| TROJAN_DEFAULT_GROUP.to_string());
+        .map_or_else(|| TROJAN_DEFAULT_GROUP, |s| s);
 
     // Extract remark from the fragment
-    let remark = url.fragment().unwrap_or("");
+    let remark = url_decode(url.fragment().unwrap_or(""));
     let formatted_remark = if remark.is_empty() {
         format!("{} ({})", host, port)
     } else {
@@ -177,7 +176,7 @@ pub fn explode_trojan_go(trojan_go: &str, node: &mut Proxy) -> bool {
 
     // Create the proxy object
     *node = Proxy::trojan_construct(
-        group,
+        group.to_string(),
         formatted_remark,
         host.to_string(),
         port,

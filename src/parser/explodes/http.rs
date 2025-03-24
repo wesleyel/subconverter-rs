@@ -29,8 +29,8 @@ pub fn explode_http(link: &str, node: &mut Proxy) -> bool {
     // Parse query parameters
     for (key, value) in url.query_pairs() {
         match key.as_ref() {
-            "server" => server = value.to_string(),
-            "port" => port = value.to_string(),
+            "server" => server = url_decode(&value),
+            "port" => port = url_decode(&value),
             "user" => username = url_decode(&value),
             "pass" => password = url_decode(&value),
             "remarks" => remarks = url_decode(&value),

@@ -1,10 +1,10 @@
-use crate::{models::HYSTERIA2_DEFAULT_GROUP, Proxy};
+use crate::{models::HYSTERIA2_DEFAULT_GROUP, utils::url_decode, Proxy};
 use url::Url;
 
 /// Parse a Hysteria2 link into a Proxy object
 pub fn explode_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     // Check if the link starts with hysteria2://
-    if !hysteria2.starts_with("hysteria2://") {
+    if !hysteria2.starts_with("hysteria2://") && !hysteria2.starts_with("hy2://") {
         return false;
     }
 
@@ -39,20 +39,20 @@ pub fn explode_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
         match key.as_ref() {
             "up" => up_speed = value.parse::<u32>().ok(),
             "down" => down_speed = value.parse::<u32>().ok(),
-            "obfs" => obfs = value.to_string(),
-            "obfs-password" => obfs_param = value.to_string(),
-            "sni" => sni = value.to_string(),
+            "obfs" => obfs = url_decode(&value),
+            "obfs-password" => obfs_param = url_decode(&value),
+            "sni" => sni = url_decode(&value),
             "insecure" => {
                 allow_insecure =
                     Some(value.as_ref() == "1" || value.as_ref().to_lowercase() == "true")
             }
-            "fingerprint" => fingerprint = value.to_string(),
-            "ca" => ca = value.to_string(),
-            "caStr" => ca_str = value.to_string(),
-            "ports" => ports = value.to_string(),
+            "fingerprint" => fingerprint = url_decode(&value),
+            "ca" => ca = url_decode(&value),
+            "caStr" => ca_str = url_decode(&value),
+            "ports" => ports = url_decode(&value),
             "cwnd" => cwnd = value.parse::<u32>().ok(),
             "alpn" => {
-                for a in value.split(',') {
+                for a in url_decode(&value).split(',') {
                     alpn.push(a.to_string());
                 }
             }
@@ -61,7 +61,7 @@ pub fn explode_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     }
 
     // Extract remark from the fragment
-    let remark = url.fragment().unwrap_or("");
+    let remark = url_decode(url.fragment().unwrap_or(""));
 
     // Create formatted strings
     let remark_str = if remark.is_empty() {
@@ -131,9 +131,10 @@ pub fn explode_std_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     let mut alpn = Vec::new();
 
     for (key, value) in url.query_pairs() {
+        let value_decoded = url_decode(&value);
         match key.as_ref() {
             "bandwidth" => {
-                let parts: Vec<&str> = value.split(',').collect();
+                let parts: Vec<&str> = value_decoded.split(',').collect();
                 if parts.len() >= 1 {
                     up_speed = parts[0].parse::<u32>().ok();
                 }
@@ -141,19 +142,19 @@ pub fn explode_std_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
                     down_speed = parts[1].parse::<u32>().ok();
                 }
             }
-            "obfs" => obfs = value.to_string(),
-            "obfs-password" => obfs_param = value.to_string(),
-            "sni" => sni = value.to_string(),
+            "obfs" => obfs = value_decoded,
+            "obfs-password" => obfs_param = value_decoded,
+            "sni" => sni = value_decoded,
             "insecure" => {
                 allow_insecure =
                     Some(value.as_ref() == "1" || value.as_ref().to_lowercase() == "true")
             }
-            "pinSHA256" => fingerprint = value.to_string(),
-            "ca" => ca = value.to_string(),
-            "ports" => ports = value.to_string(),
+            "pinSHA256" => fingerprint = value_decoded,
+            "ca" => ca = value_decoded,
+            "ports" => ports = value_decoded,
             "cwnd" => cwnd = value.parse::<u32>().ok(),
             "alpn" => {
-                for a in value.split(',') {
+                for a in value_decoded.split(',') {
                     alpn.push(a.to_string());
                 }
             }
@@ -162,7 +163,7 @@ pub fn explode_std_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
     }
 
     // Extract remark from the fragment
-    let remark = url.fragment().unwrap_or("");
+    let remark = url_decode(url.fragment().unwrap_or(""));
 
     // Create formatted strings
     let remark_str = if remark.is_empty() {
