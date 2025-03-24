@@ -17,7 +17,7 @@ use crate::constants::log_level::{
 use crate::models::proxy_group_config::ProxyGroupConfig;
 use crate::settings::ruleset::RulesetConfig;
 
-use serde_yml;
+use serde_yaml;
 use toml;
 
 // Conversion from YamlSettings to Settings
@@ -120,9 +120,9 @@ impl From<YamlSettings> for Settings {
         // Process template variables
         for var in yaml_settings.template.globals {
             let value = match var.value {
-                serde_yml::Value::String(s) => s,
-                serde_yml::Value::Number(n) => n.to_string(),
-                serde_yml::Value::Bool(b) => b.to_string(),
+                serde_yaml::Value::String(s) => s,
+                serde_yaml::Value::Number(n) => n.to_string(),
+                serde_yaml::Value::Bool(b) => b.to_string(),
                 _ => continue,
             };
             settings.template_vars.insert(var.key, value);

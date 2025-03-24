@@ -1,6 +1,6 @@
 use log::debug;
 use serde::{Deserialize, Serialize};
-use serde_yml;
+use serde_yaml;
 use std::collections::HashMap;
 use std::path::Path;
 use toml;
@@ -114,7 +114,7 @@ impl ExternalSettings {
 
         // Try YAML format first
         if _content.contains("custom:") {
-            match serde_yml::from_str::<YamlExternalSettings>(&_content) {
+            match serde_yaml::from_str::<YamlExternalSettings>(&_content) {
                 Ok(yaml_settings) => {
                     // Convert to ExternalSettings
                     let mut config = Self::from(yaml_settings);

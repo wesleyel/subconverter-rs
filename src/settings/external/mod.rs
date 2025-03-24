@@ -2,7 +2,7 @@ use std::path::Path;
 
 use log::debug;
 use serde::{Deserialize, Serialize};
-use serde_yml;
+use serde_yaml;
 use toml;
 
 use super::{deserializer::*, import_items, Settings};

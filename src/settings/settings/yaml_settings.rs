@@ -11,9 +11,9 @@ use crate::{
     settings::import_items,
 };
 
-// 为serde_yml::Value添加默认值函数
-fn default_yaml_value() -> serde_yml::Value {
-    serde_yml::Value::String(String::new())
+// 为serde_yaml::Value添加默认值函数
+fn default_yaml_value() -> serde_yaml::Value {
+    serde_yaml::Value::String(String::new())
 }
 
 // 为常用默认值添加函数
@@ -339,7 +339,7 @@ pub struct ProxyGroupsSettings {
 pub struct TemplateVariable {
     pub key: String,
     #[serde(default = "default_yaml_value")]
-    pub value: serde_yml::Value,
+    pub value: serde_yaml::Value,
 }
 
 impl Default for TemplateVariable {

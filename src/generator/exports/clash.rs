@@ -10,7 +10,7 @@ use crate::utils::tribool::{OptionSetExt, TriboolExt};
 use crate::utils::url::get_url_arg;
 use log::error;
 use serde::{Deserialize, Serialize};
-use serde_yml::{self, Mapping, Sequence, Value as YamlValue};
+use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -87,7 +87,7 @@ pub fn proxy_to_clash(
     ext: &mut ExtraSettings,
 ) -> String {
     // Parse the base configuration
-    let mut yaml_node: YamlValue = match serde_yml::from_str(base_conf) {
+    let mut yaml_node: YamlValue = match serde_yaml::from_str(base_conf) {
         Ok(node) => node,
         Err(e) => {
             error!("Clash base loader failed with error: {}", e);
@@ -111,7 +111,7 @@ pub fn proxy_to_clash(
 
     // If nodelist mode is enabled, just return the YAML node
     if ext.nodelist {
-        return match serde_yml::to_string(&yaml_node) {
+        return match serde_yaml::to_string(&yaml_node) {
             Ok(result) => result,
             Err(_) => String::new(),
         };
@@ -119,7 +119,7 @@ pub fn proxy_to_clash(
 
     // Handle rule generation if enabled
     if !ext.enable_rule_generator {
-        return match serde_yml::to_string(&yaml_node) {
+        return match serde_yaml::to_string(&yaml_node) {
             Ok(result) => result,
             Err(_) => String::new(),
         };
@@ -154,7 +154,7 @@ pub fn proxy_to_clash(
 
         // TODO: Implement renderClashScript
         // For now, just return the YAML
-        return match serde_yml::to_string(&yaml_node) {
+        return match serde_yaml::to_string(&yaml_node) {
             Ok(result) => result,
             Err(_) => String::new(),
         };
@@ -168,7 +168,7 @@ pub fn proxy_to_clash(
         ext.clash_new_field_name,
     );
 
-    let yaml_output = match serde_yml::to_string(&yaml_node) {
+    let yaml_output = match serde_yaml::to_string(&yaml_node) {
         Ok(result) => result,
         Err(_) => String::new(),
     };
@@ -190,7 +190,7 @@ pub fn proxy_to_clash(
 /// * `ext` - Extra settings for conversion
 pub fn proxy_to_clash_yaml(
     nodes: &mut Vec<Proxy>,
-    yaml_node: &mut serde_yml::Value,
+    yaml_node: &mut serde_yaml::Value,
     _ruleset_content_array: &Vec<RulesetContent>,
     extra_proxy_group: &ProxyGroupConfigs,
     clash_r: bool,
@@ -257,7 +257,7 @@ pub fn proxy_to_clash_yaml(
     if ext.nodelist {
         let mut provider = YamlValue::Mapping(Mapping::new());
         provider["proxies"] =
-            serde_yml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
+            serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
         *yaml_node = provider;
         return;
     }
@@ -266,7 +266,7 @@ pub fn proxy_to_clash_yaml(
     if let Some(ref mut map) = yaml_node.as_mapping_mut() {
         // Convert JSON proxies array to YAML
         let proxies_yaml_value =
-            serde_yml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
+            serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
         if ext.clash_new_field_name {
             map.insert(YamlValue::String("proxies".to_string()), proxies_yaml_value);
         } else {
@@ -569,9 +569,9 @@ fn handle_shadowsocks(
                 let obfs_mode = get_url_arg(&plugin_options, "obfs");
                 let obfs_host = get_url_arg(&plugin_options, "obfs-host");
 
-                opts.insert("mode".to_string(), serde_yml::Value::String(obfs_mode));
+                opts.insert("mode".to_string(), serde_yaml::Value::String(obfs_mode));
                 if !obfs_host.is_empty() {
-                    opts.insert("host".to_string(), serde_yml::Value::String(obfs_host));
+                    opts.insert("host".to_string(), serde_yaml::Value::String(obfs_host));
                 }
                 *plugin_opts = Some(opts);
             }
@@ -580,31 +580,31 @@ fn handle_shadowsocks(
 
                 let mode = get_url_arg(&plugin_options, "mode");
                 if !mode.is_empty() {
-                    opts.insert("mode".to_string(), serde_yml::Value::String(mode));
+                    opts.insert("mode".to_string(), serde_yaml::Value::String(mode));
                 }
 
                 let host = get_url_arg(&plugin_options, "host");
                 if !host.is_empty() {
-                    opts.insert("host".to_string(), serde_yml::Value::String(host));
+                    opts.insert("host".to_string(), serde_yaml::Value::String(host));
                 }
 
                 let path = get_url_arg(&plugin_options, "path");
                 if !path.is_empty() {
-                    opts.insert("path".to_string(), serde_yml::Value::String(path));
+                    opts.insert("path".to_string(), serde_yaml::Value::String(path));
                 }
 
                 if plugin_options.contains("tls") {
-                    opts.insert("tls".to_string(), serde_yml::Value::Bool(true));
+                    opts.insert("tls".to_string(), serde_yaml::Value::Bool(true));
                 }
 
                 if plugin_options.contains("mux") {
-                    opts.insert("mux".to_string(), serde_yml::Value::Bool(true));
+                    opts.insert("mux".to_string(), serde_yaml::Value::Bool(true));
                 }
 
                 if let Some(skip_cert_verify) = scv {
                     opts.insert(
                         "skip-cert-verify".to_string(),
-                        serde_yml::Value::Bool(*skip_cert_verify),
+                        serde_yaml::Value::Bool(*skip_cert_verify),
                     );
                 }
                 *plugin_opts = Some(opts);
@@ -718,28 +718,28 @@ fn handle_vmess(
                 *network = Some("ws".to_string());
                 let mut opts = HashMap::new();
                 if let Some(path) = &node.path {
-                    opts.insert("path".to_string(), serde_yml::Value::String(path.clone()));
+                    opts.insert("path".to_string(), serde_yaml::Value::String(path.clone()));
                     *ws_path = Some(path.clone());
                 }
-                let mut headers = serde_yml::mapping::Mapping::new();
+                let mut headers = serde_yaml::mapping::Mapping::new();
                 if let Some(host) = &node.host {
                     headers.insert(
-                        serde_yml::Value::String("Host".to_string()),
-                        serde_yml::Value::String(host.clone()),
+                        serde_yaml::Value::String("Host".to_string()),
+                        serde_yaml::Value::String(host.clone()),
                     );
                 }
                 if let Some(edge) = &node.edge {
                     headers.insert(
-                        serde_yml::Value::String("Edge".to_string()),
-                        serde_yml::Value::String(edge.clone()),
+                        serde_yaml::Value::String("Edge".to_string()),
+                        serde_yaml::Value::String(edge.clone()),
                     );
                 }
                 if !headers.is_empty() {
                     opts.insert(
                         "headers".to_string(),
-                        serde_yml::Value::Mapping(headers.clone()),
+                        serde_yaml::Value::Mapping(headers.clone()),
                     );
-                    *ws_headers = Some(serde_yml::Value::Mapping(headers));
+                    *ws_headers = Some(serde_yaml::Value::Mapping(headers));
                 }
                 *ws_opts = Some(opts);
             }
@@ -748,35 +748,35 @@ fn handle_vmess(
                 let mut opts = HashMap::new();
                 opts.insert(
                     "method".to_string(),
-                    serde_yml::Value::String("GET".to_string()),
+                    serde_yaml::Value::String("GET".to_string()),
                 );
                 if let Some(path) = &node.path {
-                    opts.insert("path".to_string(), serde_yml::Value::String(path.clone()));
+                    opts.insert("path".to_string(), serde_yaml::Value::String(path.clone()));
                 }
-                let mut headers = serde_yml::mapping::Mapping::new();
+                let mut headers = serde_yaml::mapping::Mapping::new();
                 if let Some(host) = &node.host {
                     headers.insert(
-                        serde_yml::Value::String("Host".to_string()),
-                        serde_yml::Value::String(host.clone()),
+                        serde_yaml::Value::String("Host".to_string()),
+                        serde_yaml::Value::String(host.clone()),
                     );
                 }
                 if let Some(edge) = &node.edge {
                     headers.insert(
-                        serde_yml::Value::String("Edge".to_string()),
-                        serde_yml::Value::String(edge.clone()),
+                        serde_yaml::Value::String("Edge".to_string()),
+                        serde_yaml::Value::String(edge.clone()),
                     );
                 }
-                opts.insert("headers".to_string(), serde_yml::Value::Mapping(headers));
+                opts.insert("headers".to_string(), serde_yaml::Value::Mapping(headers));
                 *http_opts = Some(opts);
             }
             Some("h2") => {
                 *network = Some("h2".to_string());
                 let mut opts = HashMap::new();
                 if let Some(path) = &node.path {
-                    opts.insert("path".to_string(), serde_yml::Value::String(path.clone()));
+                    opts.insert("path".to_string(), serde_yaml::Value::String(path.clone()));
                 }
                 if let Some(host) = &node.host {
-                    opts.insert("host".to_string(), serde_yml::Value::String(host.clone()));
+                    opts.insert("host".to_string(), serde_yaml::Value::String(host.clone()));
                 }
 
                 *h2_opts = Some(opts);
@@ -788,7 +788,7 @@ fn handle_vmess(
                 if let Some(path) = &node.path {
                     opts.insert(
                         "grpc-service-name".to_string(),
-                        serde_yml::Value::String(path.clone()),
+                        serde_yaml::Value::String(path.clone()),
                     );
                 }
                 *grpc_opts = Some(opts);
@@ -823,7 +823,7 @@ fn handle_trojan(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Clash
                 if let Some(path) = &node.path {
                     *grpc_opts = Some(HashMap::from([(
                         "grpc-service-name".to_string(),
-                        serde_yml::Value::String(path.clone()),
+                        serde_yaml::Value::String(path.clone()),
                     )]));
                 }
             }
@@ -844,7 +844,7 @@ fn handle_trojan(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Clash
                 if let Some(host) = &node.host {
                     opts.headers = Some(HashMap::from([("Host".to_string(), host.clone())]));
                 }
-                *ws_opts = Some(serde_yml::to_value(opts).unwrap());
+                *ws_opts = Some(serde_yaml::to_value(opts).unwrap());
             }
             _ => {}
         }
@@ -914,12 +914,12 @@ fn handle_snell(node: &Proxy, remark: &str) -> Option<ClashProxy> {
         let mut opts = HashMap::new();
 
         if let Some(obfs) = &node.obfs {
-            opts.insert("mode".to_string(), serde_yml::Value::String(obfs.clone()));
+            opts.insert("mode".to_string(), serde_yaml::Value::String(obfs.clone()));
         }
         if let Some(obfs_host) = &node.host {
             opts.insert(
                 "host".to_string(),
-                serde_yml::Value::String(obfs_host.clone()),
+                serde_yaml::Value::String(obfs_host.clone()),
             );
         }
         *obfs_opts = Some(opts);

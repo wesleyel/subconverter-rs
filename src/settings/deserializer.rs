@@ -31,7 +31,7 @@ where
             if import.ends_with(".yaml") || import.ends_with(".yml") {
                 let content = file_get(&import, None).unwrap_or_default();
                 let rulesets =
-                    serde_yml::from_str::<Vec<ImportableRuleSet>>(&content).unwrap_or_default();
+                    serde_yaml::from_str::<Vec<ImportableRuleSet>>(&content).unwrap_or_default();
                 source_vec.extend(rulesets);
             }
             result_vec.push(format!("!!import:{}", import));

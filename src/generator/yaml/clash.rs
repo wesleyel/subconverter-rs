@@ -49,7 +49,7 @@ pub struct ClashYamlOutput {
     pub profile: Option<ClashProfile>,
 
     #[serde(flatten)]
-    pub extra_options: HashMap<String, serde_yml::Value>,
+    pub extra_options: HashMap<String, serde_yaml::Value>,
 }
 
 /// DNS configuration for Clash
@@ -69,7 +69,7 @@ pub struct ClashDns {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fallback_filter: Option<ClashDnsFallbackFilter>,
     #[serde(flatten)]
-    pub extra_options: HashMap<String, serde_yml::Value>,
+    pub extra_options: HashMap<String, serde_yaml::Value>,
 }
 
 /// DNS fallback filter configuration
@@ -83,7 +83,7 @@ pub struct ClashDnsFallbackFilter {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<Vec<String>>,
     #[serde(flatten)]
-    pub extra_options: HashMap<String, serde_yml::Value>,
+    pub extra_options: HashMap<String, serde_yaml::Value>,
 }
 
 /// TUN configuration for Clash
@@ -103,7 +103,7 @@ pub struct ClashTun {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_detect_interface: Option<bool>,
     #[serde(flatten)]
-    pub extra_options: HashMap<String, serde_yml::Value>,
+    pub extra_options: HashMap<String, serde_yaml::Value>,
 }
 
 /// Profile settings for Clash
@@ -115,7 +115,7 @@ pub struct ClashProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_fake_ip: Option<bool>,
     #[serde(flatten)]
-    pub extra_options: HashMap<String, serde_yml::Value>,
+    pub extra_options: HashMap<String, serde_yaml::Value>,
 }
 
 /// Common proxy options that can be used across different proxy types
@@ -234,7 +234,7 @@ pub enum ClashProxy {
         #[serde(skip_serializing_if = "Option::is_none")]
         plugin: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        plugin_opts: Option<HashMap<String, serde_yml::Value>>,
+        plugin_opts: Option<HashMap<String, serde_yaml::Value>>,
     },
     #[serde(rename = "ssr")]
     ShadowsocksR {
@@ -267,15 +267,15 @@ pub enum ClashProxy {
         #[serde(skip_serializing_if = "Option::is_none")]
         ws_path: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        ws_headers: Option<serde_yml::Value>,
+        ws_headers: Option<serde_yaml::Value>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        ws_opts: Option<HashMap<String, serde_yml::Value>>,
+        ws_opts: Option<HashMap<String, serde_yaml::Value>>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        http_opts: Option<HashMap<String, serde_yml::Value>>,
+        http_opts: Option<HashMap<String, serde_yaml::Value>>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        h2_opts: Option<HashMap<String, serde_yml::Value>>,
+        h2_opts: Option<HashMap<String, serde_yaml::Value>>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        grpc_opts: Option<HashMap<String, serde_yml::Value>>,
+        grpc_opts: Option<HashMap<String, serde_yaml::Value>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         servername: Option<String>,
     },
@@ -287,9 +287,9 @@ pub enum ClashProxy {
         #[serde(skip_serializing_if = "Option::is_none")]
         network: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        ws_opts: Option<serde_yml::Value>,
+        ws_opts: Option<serde_yaml::Value>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        grpc_opts: Option<HashMap<String, serde_yml::Value>>,
+        grpc_opts: Option<HashMap<String, serde_yaml::Value>>,
     },
     #[serde(rename = "http")]
     Http {
@@ -319,7 +319,7 @@ pub enum ClashProxy {
         #[serde(skip_serializing_if = "Option::is_none")]
         obfs: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        obfs_opts: Option<HashMap<String, serde_yml::Value>>,
+        obfs_opts: Option<HashMap<String, serde_yaml::Value>>,
     },
     #[serde(rename = "wireguard")]
     WireGuard {
@@ -747,7 +747,7 @@ pub enum ClashProxyGroup {
     },
     // Support for generic proxy groups with extra fields
     // #[serde(other)]
-    // Other(HashMap<String, serde_yml::Value>),
+    // Other(HashMap<String, serde_yaml::Value>),
 }
 
 // Implement Default trait for ClashYamlOutput

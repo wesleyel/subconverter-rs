@@ -7,7 +7,7 @@ use crate::utils::tribool::TriboolExt;
 use crate::utils::url::get_url_arg;
 use log::error;
 use serde_json::{self, json, Map, Value as JsonValue};
-use serde_yml::{self, Mapping, Sequence, Value as YamlValue};
+use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::HashSet;
 
 // Lists of supported protocols and encryption methods for filtering in ClashR
@@ -249,7 +249,7 @@ pub fn proxy_to_clash_yaml(
     if ext.nodelist {
         let mut provider = YamlValue::Mapping(Mapping::new());
         provider["proxies"] =
-            serde_yml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
+            serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
         yaml_node.value = provider;
         return;
     }
@@ -258,7 +258,7 @@ pub fn proxy_to_clash_yaml(
     if let YamlValue::Mapping(ref mut map) = yaml_node.value {
         // Convert JSON proxies array to YAML
         let proxies_yaml_value =
-            serde_yml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
+            serde_yaml::to_value(&proxies_json).unwrap_or(YamlValue::Sequence(Vec::new()));
         if ext.clash_new_field_name {
             map.insert(YamlValue::String("proxies".to_string()), proxies_yaml_value);
         } else {

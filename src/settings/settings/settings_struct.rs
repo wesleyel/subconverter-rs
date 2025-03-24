@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
-use serde_yml;
+use serde_yaml;
 use toml;
 
 use crate::models::cron::CronTaskConfigs;
@@ -294,7 +294,7 @@ impl Settings {
         // Try to parse as YAML first
         if content.contains("common:") {
             let mut yaml_settings: crate::settings::settings::yaml_settings::YamlSettings =
-                serde_yml::from_str(&content)?;
+                serde_yaml::from_str(&content)?;
             yaml_settings.process_imports_and_inis()?;
 
             let mut settings = Settings::from(yaml_settings);

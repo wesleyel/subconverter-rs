@@ -3,12 +3,12 @@ use crate::models::{
     SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
     TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP, WG_DEFAULT_GROUP,
 };
-use serde_yml::Value;
+use serde_yaml::Value;
 
 /// Parse a Clash YAML configuration into a vector of Proxy objects
 pub fn explode_clash(content: &str, nodes: &mut Vec<Proxy>) -> bool {
     // Parse the YAML content
-    let yaml: Value = match serde_yml::from_str(content) {
+    let yaml: Value = match serde_yaml::from_str(content) {
         Ok(y) => y,
         Err(_) => return false,
     };
