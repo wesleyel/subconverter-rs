@@ -11,6 +11,9 @@ use super::settings_struct::{
 use super::toml_settings::TomlSettings;
 use super::yaml_settings::YamlSettings;
 
+use crate::constants::log_level::{
+    LOG_LEVEL_DEBUG, LOG_LEVEL_ERROR, LOG_LEVEL_INFO, LOG_LEVEL_VERBOSE, LOG_LEVEL_WARNING,
+};
 use crate::models::proxy_group_config::ProxyGroupConfig;
 use crate::settings::ruleset::RulesetConfig;
 
@@ -89,14 +92,16 @@ impl From<YamlSettings> for Settings {
 
         // Advanced
         settings.log_level = match yaml_settings.advanced.log_level.as_str() {
-            "debug" => 0,
-            "info" => 1,
-            "warning" => 2,
-            "error" => 3,
-            "critical" => 4,
-            _ => 1,
+            "debug" => LOG_LEVEL_DEBUG,
+            "info" => LOG_LEVEL_INFO,
+            "warning" => LOG_LEVEL_WARNING,
+            "error" => LOG_LEVEL_ERROR,
+            "verbose" => LOG_LEVEL_VERBOSE,
+            _ => LOG_LEVEL_INFO,
         };
-        settings.print_dbg_info = yaml_settings.advanced.print_debug_info;
+        if yaml_settings.advanced.print_debug_info {
+            settings.log_level = LOG_LEVEL_VERBOSE;
+        }
         settings.max_pending_conns = yaml_settings.advanced.max_pending_connections;
         settings.max_concur_threads = yaml_settings.advanced.max_concurrent_threads;
         settings.max_allowed_rulesets = yaml_settings.advanced.max_allowed_rulesets;
@@ -217,15 +222,16 @@ impl From<TomlSettings> for Settings {
         // Advanced
         let log_level = &toml_settings.advanced.log_level;
         settings.log_level = match log_level.as_str() {
-            "debug" => 0,
-            "info" => 1,
-            "warning" => 2,
-            "error" => 3,
-            "critical" => 4,
-            _ => 1,
+            "debug" => LOG_LEVEL_DEBUG,
+            "info" => LOG_LEVEL_INFO,
+            "warning" => LOG_LEVEL_WARNING,
+            "error" => LOG_LEVEL_ERROR,
+            "verbose" => LOG_LEVEL_VERBOSE,
+            _ => LOG_LEVEL_INFO,
         };
-
-        settings.print_dbg_info = toml_settings.advanced.print_debug_info;
+        if toml_settings.advanced.print_debug_info {
+            settings.log_level = LOG_LEVEL_VERBOSE;
+        }
         settings.max_pending_conns = toml_settings.advanced.max_pending_connections;
         settings.max_concur_threads = toml_settings.advanced.max_concurrent_threads;
         settings.max_allowed_rulesets = toml_settings.advanced.max_allowed_rulesets;
@@ -361,11 +367,15 @@ impl From<IniSettings> for Settings {
 
         // RULESET SECTION
         settings.enable_rule_gen = ini_settings.enable_rule_gen;
-        settings.overwrite_original_rules = ini_settings.overwrite_original_rules;
-        settings.update_ruleset_on_request = ini_settings.update_ruleset_on_request;
-        // Convert string rulesets to RulesetConfig
-        settings.custom_rulesets = ini_settings.parsed_ruleset;
-
+        if ini_settings.enable_rule_gen {
+            settings.overwrite_original_rules = ini_settings.overwrite_original_rules;
+            settings.update_ruleset_on_request = ini_settings.update_ruleset_on_request;
+            // Convert string rulesets to RulesetConfig
+            settings.custom_rulesets = ini_settings.parsed_ruleset;
+        } else {
+            settings.overwrite_original_rules = false;
+            settings.update_ruleset_on_request = false;
+        }
         // PROXY GROUP SECTION
         settings.custom_proxy_groups = ini_settings.parsed_proxy_group;
 
@@ -388,16 +398,25 @@ impl From<IniSettings> for Settings {
 
         // ADVANCED SECTION
         settings.log_level = ini_settings.log_level;
-        settings.print_dbg_info = ini_settings.print_dbg_info;
+        if ini_settings.print_dbg_info {
+            settings.log_level = LOG_LEVEL_VERBOSE;
+        }
         settings.max_pending_conns = ini_settings.max_pending_conns;
         settings.max_concur_threads = ini_settings.max_concur_threads;
         settings.max_allowed_rulesets = ini_settings.max_allowed_rulesets;
         settings.max_allowed_rules = ini_settings.max_allowed_rules;
         settings.max_allowed_download_size = ini_settings.max_allowed_download_size;
-        settings.cache_subscription = ini_settings.cache_subscription;
-        settings.cache_config = ini_settings.cache_config;
-        settings.cache_ruleset = ini_settings.cache_ruleset;
-        settings.serve_cache_on_fetch_fail = ini_settings.serve_cache_on_fetch_fail;
+        if ini_settings.enable_cache {
+            settings.cache_subscription = ini_settings.cache_subscription;
+            settings.cache_config = ini_settings.cache_config;
+            settings.cache_ruleset = ini_settings.cache_ruleset;
+            settings.serve_cache_on_fetch_fail = ini_settings.serve_cache_on_fetch_fail;
+        } else {
+            settings.cache_subscription = 0;
+            settings.cache_config = 0;
+            settings.cache_ruleset = 0;
+            settings.serve_cache_on_fetch_fail = false;
+        }
         settings.script_clean_context = ini_settings.script_clean_context;
         settings.async_fetch_ruleset = ini_settings.async_fetch_ruleset;
         settings.skip_failed_links = ini_settings.skip_failed_links;

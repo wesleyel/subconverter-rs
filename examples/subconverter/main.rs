@@ -5,11 +5,11 @@ use std::path::Path;
 
 use log::error;
 use log::info;
-use subconverter_rs::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
-use subconverter_rs::models::ProxyGroupConfigs;
-use subconverter_rs::settings::update_settings_from_file;
-use subconverter_rs::Settings;
-use subconverter_rs::SubconverterTarget;
+use subconverter::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
+use subconverter::models::ProxyGroupConfigs;
+use subconverter::settings::update_settings_from_file;
+use subconverter::Settings;
+use subconverter::SubconverterTarget;
 
 fn main() {
     // Parse command line arguments

@@ -6,10 +6,10 @@ use actix_web::{web, App, HttpServer};
 use env_logger::Env;
 use log::{error, info};
 
-use subconverter_rs::models::AppState;
-use subconverter_rs::settings::update_settings_from_file;
-use subconverter_rs::web_handlers::interfaces;
-use subconverter_rs::Settings;
+use subconverter::models::AppState;
+use subconverter::settings::update_settings_from_file;
+use subconverter::web_handlers::interfaces;
+use subconverter::Settings;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -22,7 +22,7 @@ async fn main() -> std::io::Result<()> {
     // Load settings from file if it exists
     if Path::new(config_path).exists() {
         info!("Loading settings from {}", config_path);
-        update_settings_from_file(config_path);
+        update_settings_from_file(config_path).unwrap();
     }
 
     // Get the current settings

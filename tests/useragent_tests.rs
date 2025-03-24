@@ -1,4 +1,4 @@
-use subconverter_rs::{
+use subconverter::{
     utils::useragent::{match_user_agent, ver_greater_equal},
     SubconverterTarget,
 };

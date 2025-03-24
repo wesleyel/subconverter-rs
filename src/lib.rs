@@ -14,6 +14,8 @@ pub use models::{Proxy, ProxyType};
 pub use parser::types::ConfType;
 
 // Re-export settings
+pub use settings::settings::settings_struct::update_settings_from_content;
+pub use settings::settings::settings_struct::update_settings_from_file;
 pub use settings::{ExternalSettings, Settings};
 
 // Re-export ruleset types

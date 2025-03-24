@@ -148,6 +148,8 @@ pub struct IniSettings {
 
     // Cache system
     #[serde(default)]
+    pub enable_cache: bool,
+    #[serde(default)]
     pub serve_cache_on_fetch_fail: bool,
     #[serde(default = "default_cache_subscription")]
     pub cache_subscription: i32,
@@ -582,7 +584,9 @@ impl IniSettings {
                     self.max_allowed_download_size = val
                 }
             }
-            "enable_cache" => {} // TODO: 实现cache相关字段
+            "enable_cache" => {
+                self.enable_cache = parse_bool(value);
+            }
             "cache_subscription" => {
                 if let Ok(val) = value.parse() {
                     self.cache_subscription = val
