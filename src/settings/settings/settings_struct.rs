@@ -395,7 +395,7 @@ pub fn update_settings_from_file(
 pub fn update_settings_from_content(
     content: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let content = content.to_owned();
+    let content = content.to_string();
     let handle = std::thread::spawn(move || {
         let settings = Settings::load_from_content(&content).unwrap();
         *global.write().unwrap() = Arc::new(settings);
