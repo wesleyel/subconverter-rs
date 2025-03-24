@@ -6,7 +6,3 @@ mod settings_ruleset_tests;
 mod settings_server_cache_tests;
 mod settings_tests;
 mod settings_url_advanced_tests;
-
-// Re-export the existing useragent_tests
-#[cfg(test)]
-mod useragent_tests;

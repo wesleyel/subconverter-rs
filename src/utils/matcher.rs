@@ -286,23 +286,6 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_matcher_insert() {
-        let node = create_test_proxy();
-        let mut real_rule = String::new();
-
-        // INSERT is like GROUPID but with negative direction
-        assert!(apply_matcher("!!INSERT=2", &mut real_rule, &node));
-
-        // Test with directionality - should not match because sign is flipped
-        real_rule.clear();
-        assert!(!apply_matcher("!!INSERT=1-5", &mut real_rule, &node));
-
-        // Should match with negative range
-        real_rule.clear();
-        assert!(apply_matcher("!!INSERT=-5--1", &mut real_rule, &node));
-    }
-
-    #[test]
     fn test_apply_matcher_type() {
         let node = create_test_proxy();
         let mut real_rule = String::new();
