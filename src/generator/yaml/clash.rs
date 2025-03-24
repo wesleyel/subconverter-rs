@@ -267,7 +267,7 @@ pub enum ClashProxy {
         #[serde(skip_serializing_if = "Option::is_none")]
         ws_path: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        ws_headers: Option<HashMap<String, String>>,
+        ws_headers: Option<serde_yml::Value>,
         #[serde(skip_serializing_if = "Option::is_none")]
         ws_opts: Option<HashMap<String, serde_yml::Value>>,
         #[serde(skip_serializing_if = "Option::is_none")]

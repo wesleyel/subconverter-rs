@@ -2,15 +2,15 @@
 //!
 //! This module contains all the configuration settings and utilities
 
-pub mod config;
+pub mod deserializer;
 pub mod external;
 pub mod import;
 pub mod ruleset;
-pub mod unified;
+pub mod settings;
+pub mod utils;
 
 // Re-export settings struct and functions
-pub use config::{get_settings, refresh_configuration, update_settings, Settings};
-pub use external::{load_external_config, ExternalConfig};
+pub use external::{load_external_config, ExternalSettings};
 pub use import::*;
 pub use ruleset::*;
-pub use unified::{MergedSettings, UnifiedSettings};
+pub use settings::settings_struct::{refresh_configuration, update_settings_from_file, Settings};

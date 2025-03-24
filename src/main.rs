@@ -7,8 +7,9 @@ use env_logger::Env;
 use log::{error, info};
 
 use subconverter_rs::models::AppState;
-use subconverter_rs::settings::unified::{get_instance, init_settings};
+use subconverter_rs::settings::update_settings_from_file;
 use subconverter_rs::web_handlers::interfaces;
+use subconverter_rs::Settings;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -18,17 +19,14 @@ async fn main() -> std::io::Result<()> {
     // Check for a config file path from command line
     let args: Vec<String> = env::args().collect();
     let config_path = if args.len() > 1 { &args[1] } else { "pref.ini" };
-
     // Load settings from file if it exists
     if Path::new(config_path).exists() {
         info!("Loading settings from {}", config_path);
-        if let Err(e) = init_settings(config_path) {
-            error!("Error loading settings: {}", e);
-        }
+        update_settings_from_file(config_path);
     }
 
     // Get the current settings
-    let settings = get_instance().get_global();
+    let settings = Settings::current();
 
     // Ensure we have a valid listen address
     let listen_address = if settings.listen_address.trim().is_empty() {
@@ -48,7 +46,7 @@ async fn main() -> std::io::Result<()> {
     info!("Subconverter starting on {}", listen_address);
 
     // Create app state with settings
-    let app_state = Arc::new(AppState::new(settings.clone()));
+    let app_state = Arc::new(AppState::new());
 
     // Load base configurations
     app_state.load_base_configs();

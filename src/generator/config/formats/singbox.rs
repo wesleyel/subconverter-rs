@@ -3,8 +3,8 @@ use crate::generator::config::remark::process_remark;
 use crate::models::{
     ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
-use crate::settings;
 use crate::utils::base64::base64_encode;
+use crate::{settings, Settings};
 use log::error;
 use serde_json::{json, Map, Value as JsonValue};
 
@@ -428,22 +428,18 @@ pub fn proxy_to_singbox(
                 add_singbox_common_members(&mut obj, node, "hysteria");
 
                 // Add Hysteria specific fields
-                if let Some(up) = &node.up {
-                    if !up.is_empty() {
-                        obj.insert(
-                            "up_mbps".to_string(),
-                            JsonValue::Number(node.up_speed.into()),
-                        );
-                    }
+                if node.up_speed > 0 {
+                    obj.insert(
+                        "up_mbps".to_string(),
+                        JsonValue::Number(node.up_speed.into()),
+                    );
                 }
 
-                if let Some(down) = &node.down {
-                    if !down.is_empty() {
-                        obj.insert(
-                            "down_mbps".to_string(),
-                            JsonValue::Number(node.down_speed.into()),
-                        );
-                    }
+                if node.down_speed > 0 {
+                    obj.insert(
+                        "down_mbps".to_string(),
+                        JsonValue::Number(node.down_speed.into()),
+                    );
                 }
 
                 if let Some(obfs) = &node.obfs {
@@ -519,22 +515,18 @@ pub fn proxy_to_singbox(
                 add_singbox_common_members(&mut obj, node, "hysteria2");
 
                 // Add Hysteria2 specific fields
-                if let Some(up) = &node.up {
-                    if !up.is_empty() {
-                        obj.insert(
-                            "up_mbps".to_string(),
-                            JsonValue::Number(node.up_speed.into()),
-                        );
-                    }
+                if node.up_speed > 0 {
+                    obj.insert(
+                        "up_mbps".to_string(),
+                        JsonValue::Number(node.up_speed.into()),
+                    );
                 }
 
-                if let Some(down) = &node.down {
-                    if !down.is_empty() {
-                        obj.insert(
-                            "down_mbps".to_string(),
-                            JsonValue::Number(node.down_speed.into()),
-                        );
-                    }
+                if node.down_speed > 0 {
+                    obj.insert(
+                        "down_mbps".to_string(),
+                        JsonValue::Number(node.down_speed.into()),
+                    );
                 }
 
                 if let Some(obfs) = &node.obfs {
@@ -735,7 +727,7 @@ pub fn proxy_to_singbox(
         outbounds.push(JsonValue::Object(group_obj));
     }
 
-    let global = settings::get_settings();
+    let global = Settings::current();
 
     // Add global group if enabled
     if global.singbox_add_clash_modes {

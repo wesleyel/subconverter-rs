@@ -1,4 +1,4 @@
-use crate::settings::external::ExternalConfig;
+use crate::settings::external::ExternalSettings;
 
 /// The output format for subconverter
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
@@ -87,7 +87,7 @@ impl SubconverterTarget {
     }
 
     /// Gets the base content for this target from the external config
-    pub fn get_base_content_from_external(&self, external: &ExternalConfig) -> Option<String> {
+    pub fn get_base_content_from_external(&self, external: &ExternalSettings) -> Option<String> {
         match self {
             SubconverterTarget::Clash | SubconverterTarget::ClashR => {
                 if !external.clash_rule_base.is_empty() {

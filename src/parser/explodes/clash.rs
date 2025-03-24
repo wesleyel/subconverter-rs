@@ -837,52 +837,70 @@ fn parse_clash_hysteria2(
     skip_cert_verify: Option<bool>,
 ) -> Option<Proxy> {
     // Extract Hysteria2-specific fields
-    let password = proxy.get("password").and_then(|v| v.as_str()).unwrap_or("");
+    let password = proxy
+        .get("password")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_owned();
 
     // Extract underlying proxy
-    let underlying_proxy = proxy
-        .get("underlying-proxy")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let underlying_proxy = match proxy.get("underlying-proxy").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
+    };
 
     // Get obfs settings
-    let obfs = proxy.get("obfs").and_then(|v| v.as_str()).unwrap_or("");
-    let obfs_password = proxy
-        .get("obfs-password")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let obfs = match proxy.get("obfs").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
+    };
+    let obfs_password = match proxy.get("obfs-password").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
+    };
 
     // Get ports range if specified
-    let ports = proxy.get("ports").and_then(|v| v.as_str()).unwrap_or("");
-
-    // Get up/down speeds
-    let up_mbps = proxy.get("up").and_then(|v| v.as_u64()).unwrap_or(0);
-    let down_mbps = proxy.get("down").and_then(|v| v.as_u64()).unwrap_or(0);
-    let up_speed = if up_mbps > 0 {
-        Some(up_mbps as u32)
-    } else {
-        None
+    let ports = match proxy.get("ports").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
     };
-    let down_speed = if down_mbps > 0 {
-        Some(down_mbps as u32)
-    } else {
-        None
+    // Get up/down speeds
+    let up_mbps = match proxy.get("up").and_then(|v| v.as_u64()) {
+        Some(v) => Some(v as u32),
+        None => None,
+    };
+    let down_mbps = match proxy.get("down").and_then(|v| v.as_u64()) {
+        Some(v) => Some(v as u32),
+        None => None,
     };
 
     // Get TLS settings
-    let sni = proxy.get("sni").and_then(|v| v.as_str()).unwrap_or("");
-    let alpn_value = proxy.get("alpn").and_then(|v| v.as_str()).unwrap_or("");
-    let mut alpn = Vec::new();
-    if !alpn_value.is_empty() {
-        alpn.push(alpn_value.to_string());
-    }
+    let sni = match proxy.get("sni").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
+    };
+    let alpn = proxy
+        .get("alpn")
+        .and_then(|v| v.as_sequence())
+        .map(|v| {
+            v.iter()
+                .map(|v| v.as_str().unwrap_or("").to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
 
-    let fingerprint = proxy
-        .get("fingerprint")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let ca = proxy.get("ca").and_then(|v| v.as_str()).unwrap_or("");
-    let ca_str = proxy.get("ca-str").and_then(|v| v.as_str()).unwrap_or("");
+    let fingerprint = match proxy.get("fingerprint").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
+    };
+    let ca = match proxy.get("ca").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
+    };
+    let ca_str = match proxy.get("ca-str").and_then(|v| v.as_str()) {
+        Some(v) => Some(v.to_owned()),
+        None => None,
+    };
 
     // Get congestion window
     let cwnd_value = proxy.get("cwnd").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -897,21 +915,21 @@ fn parse_clash_hysteria2(
         name.to_string(),
         server.to_string(),
         port,
-        ports.to_string(),
-        up_speed,
-        down_speed,
-        password.to_string(),
-        obfs.to_string(),
-        obfs_password.to_string(),
-        sni.to_string(),
-        fingerprint.to_string(),
+        ports,
+        up_mbps,
+        down_mbps,
+        password,
+        obfs,
+        obfs_password,
+        sni,
+        fingerprint,
         alpn,
-        ca.to_string(),
-        ca_str.to_string(),
+        ca,
+        ca_str,
         cwnd,
         tfo,
         skip_cert_verify,
-        Some(underlying_proxy.to_string()),
+        underlying_proxy,
     ))
 }
 

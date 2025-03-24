@@ -5,14 +5,10 @@ use std::path::Path;
 
 use log::error;
 use log::info;
-use subconverter_rs::interfaces::subconverter::{
-    subconverter, SubconverterConfigBuilder,
-};
-use subconverter_rs::models::ExtraSettings;
+use subconverter_rs::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
 use subconverter_rs::models::ProxyGroupConfigs;
-// use subconverter_rs::settings::config::Settings;
-use subconverter_rs::settings::unified::get_instance;
-use subconverter_rs::settings::unified::init_settings;
+use subconverter_rs::settings::update_settings_from_file;
+use subconverter_rs::Settings;
 use subconverter_rs::SubconverterTarget;
 
 fn main() {
@@ -37,36 +33,12 @@ fn main() {
     // Load settings from file if it exists
     if Path::new(config_path).exists() {
         info!("Loading settings from {}", config_path);
-        if let Err(e) = init_settings(config_path) {
-            error!("Error loading settings: {}", e);
-        }
+        update_settings_from_file(config_path).unwrap_or_else(|e| {
+            error!("Failed to update settings from {}: {}", config_path, e);
+        });
     }
 
-    let settings = get_instance().get_global();
-
-    // Set up extra settings from config
-    let mut extra_settings = ExtraSettings::default();
-
-    // Parse emojis from config
-    let emoji_patterns = Vec::new();
-    // Emoji patterns would be handled separately in a real setup
-    // This is a placeholder for how you might extract the emoji patterns
-
-    // Apply settings from the loaded configuration
-    extra_settings.add_emoji = settings.add_emoji;
-    extra_settings.remove_emoji = settings.remove_emoji;
-    extra_settings.udp = settings.udp_flag;
-    extra_settings.tfo = settings.tfo_flag;
-    extra_settings.skip_cert_verify = settings.skip_cert_verify;
-    extra_settings.tls13 = settings.tls13_flag;
-    extra_settings.enable_rule_generator = settings.enable_rule_gen;
-    extra_settings.overwrite_original_rules = settings.overwrite_original_rules;
-
-    // Parse ruleset settings
-    let ruleset_content = Vec::new();
-    // Ruleset content would be handled separately in a real setup
-    // This is a placeholder for how you might load ruleset content
-
+    let global = Settings::current();
     // Parse proxy groups
     let proxy_groups = ProxyGroupConfigs::new();
     // Proxy groups would be handled separately in a real setup
@@ -85,15 +57,16 @@ fn main() {
         }
         _ => String::new(),
     };
+    let ruleset_content = global.rulesets_content.clone();
 
     // Create config builder
     let builder = SubconverterConfigBuilder::new()
         .target(target.clone())
         .add_url(url)
-        .emoji_patterns(emoji_patterns)
+        // .emoji_patterns(global_settings.)
         .ruleset_content(ruleset_content)
-        .proxy_groups(proxy_groups)
-        .extra(extra_settings);
+        .proxy_groups(proxy_groups);
+    // .extra(extra_settings);
 
     // Add base content if available
     let builder = if !base_content.is_empty() {

@@ -99,9 +99,9 @@ pub struct Proxy {
     pub client_id: Option<String>,
 
     pub ports: Option<String>,
-    pub up: Option<String>,
+    /// upload speed in Mbps
     pub up_speed: u32,
-    pub down: Option<String>,
+    /// download speed in Mbps
     pub down_speed: u32,
     pub auth_str: Option<String>,
     pub sni: Option<String>,
@@ -166,9 +166,7 @@ impl Default for Proxy {
             test_url: None,
             client_id: None,
             ports: None,
-            up: None,
             up_speed: 0,
-            down: None,
             down_speed: 0,
             auth_str: None,
             sni: None,

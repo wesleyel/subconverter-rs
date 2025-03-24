@@ -3,12 +3,12 @@
 //! This module provides functionality to convert rulesets to Surge format.
 
 use crate::models::RulesetContent;
-use crate::settings::get_settings;
 use crate::utils::base64::url_safe_base64_encode;
 use crate::utils::ini_reader::IniReader;
 use crate::utils::network::is_link;
 use crate::utils::string::{find_str, starts_with};
 use crate::utils::{file_exists, trim};
+use crate::Settings;
 use lazy_static::lazy_static;
 use log::warn;
 use std::collections::HashSet;
@@ -125,7 +125,7 @@ pub fn ruleset_to_surge(
     remote_path_prefix: &str,
 ) {
     // Get global settings
-    let settings = get_settings();
+    let settings = Settings::current();
 
     // Set the appropriate section based on surge_ver
     match surge_ver {

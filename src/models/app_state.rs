@@ -4,13 +4,11 @@ use std::sync::RwLock;
 use crate::settings::Settings;
 
 use crate::models::SubconverterTarget;
+use crate::utils::file_get;
 
 /// Application state structure for the web server
 #[derive(Debug)]
 pub struct AppState {
-    /// Global application settings
-    pub config: Settings,
-
     /// Base configuration content for different targets
     base_configs: RwLock<HashMap<SubconverterTarget, String>>,
 
@@ -23,9 +21,8 @@ pub struct AppState {
 
 impl AppState {
     /// Create a new AppState instance
-    pub fn new(config: Settings) -> Self {
+    pub fn new() -> Self {
         Self {
-            config,
             base_configs: RwLock::new(HashMap::new()),
             emoji_map: None,
             runtime_vars: RwLock::new(HashMap::new()),
@@ -49,64 +46,65 @@ impl AppState {
         // Clear existing configs
         configs.clear();
 
+        let global = Settings::current();
         // Read base path from settings
-        // let base_path = &self.config.base_path;
+        let base_path = global.base_path.clone();
 
         // Load Clash base config
-        if !self.config.clash_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.clash_base) {
+        if !global.clash_base.is_empty() {
+            if let Ok(content) = file_get(&global.clash_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::Clash, content.clone());
                 configs.insert(SubconverterTarget::ClashR, content);
             }
         }
 
         // Load Surge base configs
-        if !self.config.surge_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.surge_base) {
+        if !global.surge_base.is_empty() {
+            if let Ok(content) = file_get(&global.surge_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::Surge(3), content.clone());
                 configs.insert(SubconverterTarget::Surge(4), content);
             }
         }
 
         // Load other base configs
-        if !self.config.surfboard_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.surfboard_base) {
+        if !global.surfboard_base.is_empty() {
+            if let Ok(content) = file_get(&global.surfboard_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::Surfboard, content);
             }
         }
 
-        if !self.config.mellow_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.mellow_base) {
+        if !global.mellow_base.is_empty() {
+            if let Ok(content) = file_get(&global.mellow_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::Mellow, content);
             }
         }
 
-        if !self.config.quan_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.quan_base) {
+        if !global.quan_base.is_empty() {
+            if let Ok(content) = file_get(&global.quan_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::Quantumult, content);
             }
         }
 
-        if !self.config.quanx_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.quanx_base) {
+        if !global.quanx_base.is_empty() {
+            if let Ok(content) = file_get(&global.quanx_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::QuantumultX, content);
             }
         }
 
-        if !self.config.loon_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.loon_base) {
+        if !global.loon_base.is_empty() {
+            if let Ok(content) = file_get(&global.loon_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::Loon, content);
             }
         }
 
-        if !self.config.ssub_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.ssub_base) {
+        if !global.ssub_base.is_empty() {
+            if let Ok(content) = file_get(&global.ssub_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::SSSub, content);
             }
         }
 
-        if !self.config.singbox_base.is_empty() {
-            if let Ok(content) = std::fs::read_to_string(&self.config.singbox_base) {
+        if !global.singbox_base.is_empty() {
+            if let Ok(content) = file_get(&global.singbox_base, Some(&base_path)) {
                 configs.insert(SubconverterTarget::SingBox, content);
             }
         }
@@ -114,7 +112,7 @@ impl AppState {
 
     /// Load emoji mapping from file
     pub fn load_emoji_map(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let content = std::fs::read_to_string(path)?;
+        let content = file_get(path, None)?;
         let mut emoji_map = HashMap::new();
 
         for line in content.lines() {

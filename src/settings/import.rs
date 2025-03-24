@@ -1,77 +1,79 @@
-use log::{error, info};
+use crate::utils::file_get;
 
-use crate::settings::config::global;
-use crate::utils::http::web_get;
-use crate::utils::{file_exists, file_get, is_link};
+/// Import items from external files or URLs
+///
+/// This function processes configuration items that start with "!!import:"
+/// and replaces them with the content from the specified file or URL.
+pub fn import_items(
+    target: &mut Vec<String>,
+    scope_limit: bool,
+    proxy_config: &str,
+    base_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut result = Vec::new();
+    let mut item_count = 0;
 
-/// Import items from a file or URL into a target vector
-///
-/// This function imports configuration items from either a local file or remote URL
-/// and adds them to the provided target vector.
-///
-/// # Arguments
-/// * `target` - Vector to add the imported items to
-/// * `scope_limit` - Whether to limit the scope of imports for security
-///
-/// # Returns
-/// * `i32` - Number of items imported, or -1 on failure
-pub fn import_items(target: &mut Vec<String>, _scope_limit: bool) -> i32 {
-    let mut result: Vec<String> = Vec::new();
-    let mut count = 0;
-
-    for url in target.iter() {
-        // Skip comment lines
-        if url.starts_with("//") || url.starts_with('#') {
+    for item in target.iter() {
+        if !item.starts_with("!!import:") {
+            result.push(item.clone());
             continue;
         }
 
-        let mut _content = String::new();
-        if file_exists(url) {
-            match file_get(url) {
-                Ok(data) => _content = data,
-                Err(e) => {
-                    error!("Error reading file '{}': {}", url, e);
-                    continue;
-                }
-            }
-        } else if is_link(url) {
-            // Parse proxy from config
-            let settings = global.read().unwrap();
-            let proxy = if settings.proxy_config.is_empty() {
-                None
-            } else {
-                Some(settings.proxy_config.clone())
-            };
-            drop(settings);
+        let path = item[9..].to_string(); // Extract path after "!!import:"
+        log::info!("Trying to import items from {}", path);
 
+        // Function to determine content line breaks
+        let get_line_break = |content: &str| -> char {
+            if content.contains("\r\n") {
+                '\n' // Windows style but we normalize to '\n'
+            } else if content.contains('\r') {
+                '\r' // Old Mac style
+            } else {
+                '\n' // Unix style
+            }
+        };
+
+        let content = if path.starts_with("http://") || path.starts_with("https://") {
             // Fetch from URL
-            match web_get(url, proxy.as_deref(), None) {
-                Ok((data, _)) => _content = data,
-                Err(e) => {
-                    error!("Error fetching URL '{}': {}", url, e);
-                    continue;
-                }
+            let (data, _) = crate::utils::http::web_get(&path, Some(proxy_config), None)?;
+            data
+        } else if std::path::Path::new(&path).exists() {
+            // Read from file
+            if scope_limit {
+                file_get(&path, Some(base_path))?
+            } else {
+                file_get(&path, None)?
             }
         } else {
-            // Not a file or URL, add directly to result
-            result.push(url.clone());
-            count += 1;
-            continue;
+            log::error!("File not found or not a valid URL: {}", path);
+            return Err(format!("File not found or not a valid URL: {}", path).into());
+        };
+
+        if content.is_empty() {
+            return Err("Empty content from import source".into());
         }
 
         // Process content line by line
-        for line in _content.lines() {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with("//") && !trimmed.starts_with('#') {
-                result.push(trimmed.to_string());
-                count += 1;
+        let delimiter = get_line_break(&content);
+        for line in content.split(delimiter) {
+            let line = line.trim();
+
+            // Skip empty lines and comments
+            if line.is_empty()
+                || line.starts_with(';')
+                || line.starts_with('#')
+                || (line.len() >= 2 && line.starts_with("//"))
+            {
+                continue;
             }
+
+            result.push(line.to_string());
+            item_count += 1;
         }
     }
 
-    // Replace target with result
     *target = result;
+    log::info!("Imported {} item(s).", item_count);
 
-    info!("Imported {} item(s)", count);
-    count as i32
+    Ok(())
 }

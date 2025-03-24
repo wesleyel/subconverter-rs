@@ -3,9 +3,9 @@
 //! This module provides functionality to convert rulesets to Sing-Box format.
 
 use crate::models::RulesetContent;
-use crate::settings::get_settings;
 use crate::utils::string::{find_str, starts_with, to_lower};
 use crate::utils::trim;
+use crate::Settings;
 use log::warn;
 use serde_json::{json, Map, Value};
 
@@ -25,7 +25,7 @@ pub fn ruleset_to_sing_box(
     overwrite_original_rules: bool,
 ) {
     // Get global settings
-    let settings = get_settings();
+    let settings = Settings::current();
 
     // Create rules array
     let mut rules = Value::Array(Vec::new());

@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
-use crate::models::{AppState, SubconverterTarget};
-use crate::settings::external::ExternalConfig;
+use crate::models::{AppState, ExtraSettings, SubconverterTarget};
+use crate::settings::external::ExternalSettings;
 use crate::settings::refresh_configuration;
-use crate::settings::unified::get_instance;
+use crate::Settings;
 /// Query parameters for subscription conversion
 #[derive(Deserialize, Debug, Default)]
 pub struct SubconverterQuery {
@@ -89,21 +89,19 @@ pub async fn sub_handler(
 ) -> HttpResponse {
     debug!("Received subconverter request: {:?}", query);
 
+    let global = Settings::current();
     // Check if we should reload the config
-    if app_state.config.reload_conf_on_request && !app_state.config.api_mode {
+    if global.reload_conf_on_request && !global.api_mode {
         // Try to refresh the configuration
-        if let Err(e) = refresh_configuration() {
-            error!("Failed to reload configuration: {}", e);
-            // Continue with the existing configuration
-        }
+        refresh_configuration();
     }
 
     // Process external config if provided
-    let mut external_config = None;
     if let Some(conf_url) = &query.config {
-        match ExternalConfig::load_from_file(conf_url) {
+        match ExternalSettings::load_from_file_sync(conf_url) {
             Ok(config) => {
-                external_config = Some(config);
+                if let Some(include) = &query.include {}
+                if let Some(exclude) = &query.exclude {}
             }
             Err(e) => {
                 error!("Failed to load external config from {}: {}", conf_url, e);
@@ -112,14 +110,10 @@ pub async fn sub_handler(
         }
     }
 
-    // Create merged settings from global and external configs
-    let merged_settings = get_instance().create_merged(external_config);
-
     // Start building configuration
     let mut builder = SubconverterConfigBuilder::new();
 
-    // Add extra settings from the merged configuration
-    builder = builder.extra(merged_settings.extra.clone());
+    let extra = ExtraSettings::default();
 
     // Process target parameter
     if let Some(target) = &query.target {
@@ -153,23 +147,6 @@ pub async fn sub_handler(
         builder = builder.group_name(Some(group.clone()));
     }
 
-    // Process include/exclude remarks
-    if let Some(include) = &query.include {
-        builder = builder.add_include_remark(include);
-    } else if !merged_settings.external.include.is_empty() {
-        for remark in &merged_settings.external.include {
-            builder = builder.add_include_remark(remark);
-        }
-    }
-
-    if let Some(exclude) = &query.exclude {
-        builder = builder.add_exclude_remark(exclude);
-    } else if !merged_settings.external.exclude.is_empty() {
-        for remark in &merged_settings.external.exclude {
-            builder = builder.add_exclude_remark(remark);
-        }
-    }
-
     // Process rename patterns
     if let Some(rename) = &query.rename {
         // Parse rename patterns from format "pattern1@replacement1|pattern2@replacement2"
@@ -184,9 +161,7 @@ pub async fn sub_handler(
     // Process emoji setting
     if let Some(emoji) = query.emoji {
         // Create a copy of the current extra settings
-        let mut extra = merged_settings.extra.clone();
-        extra.add_emoji = emoji;
-        builder = builder.extra(extra);
+        // extra.add_emoji = emoji;
     }
 
     // Process other extra settings
@@ -246,28 +221,28 @@ pub async fn sub_handler(
     // Process authorization
     if let Some(token) = &query.token {
         builder = builder.token(Some(token.clone()));
-        builder = builder.authorized(token == &app_state.config.api_access_token);
+        builder = builder.authorized(token == &global.api_access_token);
     }
 
     // Add base configuration from merged settings or global settings
-    if let Ok(cfg) = builder.clone().build() {
-        let target = cfg.target;
+    // if let Ok(cfg) = builder.clone().build() {
+    //     let target = cfg.target;
 
-        // Get base content from external config using the helper method
-        let base_content = target.get_base_content_from_external(&merged_settings.external);
+    //     // Get base content from external config using the helper method
+    //     let base_content = target.get_base_content_from_external(&external_config);
 
-        // If external config has a base, use it
-        if let Some(base) = base_content {
-            builder = builder.add_base_content(target, base);
-        } else if let Some(base_conf) = app_state.get_base_config(&target) {
-            // Otherwise fall back to app_state's base config
-            builder = builder.add_base_content(target, base_conf);
-        }
-    }
+    //     // If external config has a base, use it
+    //     if let Some(base) = base_content {
+    //         builder = builder.add_base_content(target, base);
+    //     } else if let Some(base_conf) = app_state.get_base_config(&target) {
+    //         // Otherwise fall back to app_state's base config
+    //         builder = builder.add_base_content(target, base_conf);
+    //     }
+    // }
 
     // Set managed config prefix from global settings
-    if !app_state.config.managed_config_prefix.is_empty() {
-        builder = builder.managed_config_prefix(app_state.config.managed_config_prefix.clone());
+    if !global.managed_config_prefix.is_empty() {
+        builder = builder.managed_config_prefix(global.managed_config_prefix.clone());
     }
 
     // Set emoji patterns from global settings

@@ -1,7 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::models::Proxy;
-use crate::parser::parse_settings::RegexMatchConfigs;
+use crate::models::{Proxy, RegexMatchConfigs};
 use crate::utils::base64::url_safe_base64_decode;
 use crate::utils::url::get_url_arg;
 use regex::Regex;
@@ -110,7 +109,7 @@ pub fn get_sub_info_from_nodes(
         // Extract stream info if not already found
         if stream_info.is_empty() {
             for rule in stream_rules {
-                let re = Regex::new(&rule.match_pattern).ok()?;
+                let re = Regex::new(&rule._match).ok()?;
                 if re.is_match(remarks) {
                     let new_remark = re.replace(remarks, &rule.replace).to_string();
                     if new_remark != *remarks {
@@ -124,7 +123,7 @@ pub fn get_sub_info_from_nodes(
         // Extract time info if not already found
         if time_info.is_empty() {
             for rule in time_rules {
-                let re = Regex::new(&rule.match_pattern).ok()?;
+                let re = Regex::new(&rule._match).ok()?;
                 if re.is_match(remarks) {
                     let new_remark = re.replace(remarks, &rule.replace).to_string();
                     if new_remark != *remarks {

@@ -697,6 +697,7 @@ fn handle_vmess(
         alter_id,
         cipher,
         network,
+        ws_opts,
         ws_path,
         ws_headers,
         http_opts,
@@ -715,15 +716,32 @@ fn handle_vmess(
             Some("tcp") => {}
             Some("ws") => {
                 *network = Some("ws".to_string());
-                *ws_path = node.path.clone();
-                let mut headers = HashMap::new();
+                let mut opts = HashMap::new();
+                if let Some(path) = &node.path {
+                    opts.insert("path".to_string(), serde_yml::Value::String(path.clone()));
+                    *ws_path = Some(path.clone());
+                }
+                let mut headers = serde_yml::mapping::Mapping::new();
                 if let Some(host) = &node.host {
-                    headers.insert("Host".to_string(), host.clone());
+                    headers.insert(
+                        serde_yml::Value::String("Host".to_string()),
+                        serde_yml::Value::String(host.clone()),
+                    );
                 }
                 if let Some(edge) = &node.edge {
-                    headers.insert("Edge".to_string(), edge.clone());
+                    headers.insert(
+                        serde_yml::Value::String("Edge".to_string()),
+                        serde_yml::Value::String(edge.clone()),
+                    );
                 }
-                *ws_headers = Some(headers);
+                if !headers.is_empty() {
+                    opts.insert(
+                        "headers".to_string(),
+                        serde_yml::Value::Mapping(headers.clone()),
+                    );
+                    *ws_headers = Some(serde_yml::Value::Mapping(headers));
+                }
+                *ws_opts = Some(opts);
             }
             Some("http") => {
                 *network = Some("http".to_string());
@@ -961,9 +979,7 @@ fn handle_hysteria(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Cla
         ports,
         protocol,
         obfs_protocol,
-        up,
         up_speed,
-        down,
         down_speed,
         auth,
         auth_str,
@@ -982,9 +998,7 @@ fn handle_hysteria(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Cla
         *ports = node.ports.clone();
         *protocol = node.protocol.clone();
         *obfs_protocol = node.obfs.clone();
-        *up = node.up.clone();
         *up_speed = Some(node.up_speed);
-        *down = node.down.clone();
         *down_speed = Some(node.down_speed);
         if let Some(auth_str) = &node.auth_str {
             *auth = Some(base64_encode(&auth_str));
@@ -1038,8 +1052,12 @@ fn handle_hysteria2(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Cl
     } = &mut proxy
     {
         *ports = node.ports.clone();
-        *up = node.up.clone();
-        *down = node.down.clone();
+        if node.up_speed > 0 {
+            *up = Some(format!("{}Mbps", node.up_speed));
+        }
+        if node.down_speed > 0 {
+            *down = Some(format!("{}Mbps", node.down_speed));
+        }
         *password = node.password.clone();
         *obfs = node.obfs.clone();
         *obfs_password = node.obfs_param.clone();

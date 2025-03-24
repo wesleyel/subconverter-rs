@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use crate::settings::get_settings;
+use crate::models::RegexMatchConfigs;
+use crate::Settings;
 
 /// Case-insensitive string for use as HashMap keys
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -26,17 +27,6 @@ impl PartialEq<str> for CaseInsensitiveString {
         self.0.eq_ignore_ascii_case(other)
     }
 }
-
-/// Rust equivalent of RegexMatchConfig in C++
-#[derive(Debug, Clone)]
-pub struct RegexMatchConfig {
-    pub match_pattern: String,
-    pub replace: String,
-    pub script: String,
-}
-
-/// Represents a collection of RegexMatchConfig
-pub type RegexMatchConfigs = Vec<RegexMatchConfig>;
 
 /// Rust equivalent of the parse_settings struct in C++
 /// Used for controlling the behavior of parsing functions
@@ -78,19 +68,19 @@ pub struct ParseSettings {
 impl Default for ParseSettings {
     fn default() -> Self {
         // Get global settings
-        let settings = get_settings();
+        let settings = Settings::current();
 
         ParseSettings {
-            proxy: Some(settings.proxy_subscription),
+            proxy: Some(settings.proxy_subscription.clone()),
             exclude_remarks: if settings.exclude_remarks.is_empty() {
                 None
             } else {
-                Some(settings.exclude_remarks)
+                Some(settings.exclude_remarks.clone())
             },
             include_remarks: if settings.include_remarks.is_empty() {
                 None
             } else {
-                Some(settings.include_remarks)
+                Some(settings.include_remarks.clone())
             },
             stream_rules: None, // TODO: Get from global settings
             time_rules: None,   // TODO: Get from global settings

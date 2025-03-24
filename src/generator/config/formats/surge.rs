@@ -4,11 +4,11 @@ use crate::generator::ruleconvert::ruleset_to_surge::ruleset_to_surge;
 use crate::models::{
     ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
-use crate::settings;
 use crate::utils::ini_reader::IniReader;
 use crate::utils::network::{hostname_to_ip_addr, is_ipv4, is_ipv6};
 use crate::utils::string::{hash, join, to_lower};
 use crate::utils::tribool::{BoolTriboolExt, TriboolExt};
+use crate::{settings, Settings};
 use log::error;
 
 /// Generate a WireGuard peer configuration string
@@ -81,7 +81,7 @@ pub fn proxy_to_surge(
     let mut nodelist = Vec::new();
     let mut local_port = 1080;
     let mut remarks_list = Vec::new();
-    let global = settings::get_settings();
+    let global = Settings::current();
 
     // Configure INI reader
     ini.store_any_line = true;

@@ -67,10 +67,22 @@ impl Proxy {
             Some(id.to_owned())
         };
         proxy.alter_id = aid;
-        proxy.encrypt_method = Some(cipher.to_owned());
+        proxy.encrypt_method = if cipher.is_empty() {
+            None
+        } else {
+            Some(cipher.to_owned())
+        };
         proxy.transfer_protocol = Some(if net.is_empty() { "tcp" } else { net }.to_owned());
-        proxy.edge = Some(edge.to_owned());
-        proxy.server_name = Some(sni.to_owned());
+        proxy.edge = if edge.is_empty() {
+            None
+        } else {
+            Some(edge.to_owned())
+        };
+        proxy.server_name = if sni.is_empty() {
+            None
+        } else {
+            Some(sni.to_owned())
+        };
         proxy.tls_secure = tls == "tls";
 
         if net == "quic" {
@@ -348,17 +360,17 @@ impl Proxy {
         remark: String,
         hostname: String,
         port: u16,
-        ports: String,
+        ports: Option<String>,
         up_speed: Option<u32>,
         down_speed: Option<u32>,
         password: String,
-        obfs: String,
-        obfs_param: String,
-        sni: String,
-        fingerprint: String,
+        obfs: Option<String>,
+        obfs_param: Option<String>,
+        sni: Option<String>,
+        fingerprint: Option<String>,
         alpn: Vec<String>,
-        ca: String,
-        ca_str: String,
+        ca: Option<String>,
+        ca_str: Option<String>,
         cwnd: Option<u32>,
         tcp_fast_open: Option<bool>,
         allow_insecure: Option<bool>,
@@ -375,17 +387,17 @@ impl Proxy {
             remark,
             hostname,
             port,
-            ports: Some(ports),
+            ports,
             up_speed: up_speed.unwrap_or(0),
             down_speed: down_speed.unwrap_or(0),
             password: Some(password),
-            obfs: Some(obfs),
-            obfs_param: Some(obfs_param),
-            sni: Some(sni),
-            fingerprint: Some(fingerprint),
+            obfs: obfs,
+            obfs_param: obfs_param,
+            sni: sni,
+            fingerprint: fingerprint,
             alpn: alpn_set,
-            ca: Some(ca),
-            ca_str: Some(ca_str),
+            ca: ca,
+            ca_str: ca_str,
             cwnd: cwnd.unwrap_or(0),
             tcp_fast_open,
             allow_insecure,

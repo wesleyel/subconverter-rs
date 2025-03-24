@@ -1,12 +1,4 @@
-/// Configuration for regex-based matching operations
-#[derive(Debug, Clone)]
-pub struct RegexMatchConfig {
-    pub regex: String,
-    pub replacement: String,
-}
-
-/// Collection of regex match configurations
-pub type RegexMatchConfigs = Vec<RegexMatchConfig>;
+use super::RegexMatchConfigs;
 
 /// Settings for subscription export operations
 #[derive(Debug, Clone)]
@@ -76,7 +68,7 @@ impl Default for ExtraSettings {
             nodelist: false,
             sort_flag: false,
             filter_deprecated: false,
-            clash_new_field_name: false,
+            clash_new_field_name: true,
             clash_script: false,
             surge_ssr_path: String::new(),
             managed_config_prefix: String::new(),

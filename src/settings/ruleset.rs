@@ -2,13 +2,16 @@ use std::fs::read_to_string as read_file;
 use std::path::Path;
 
 use log::{error, info, warn};
+use serde::Deserialize;
 
 use crate::models::ruleset::{get_ruleset_type_from_url, RulesetContent, RulesetType};
-use crate::settings::config::get_settings;
 use crate::utils::http::web_get;
 
+use super::Settings;
+
 /// Ruleset configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
 pub struct RulesetConfig {
     pub group: String,
     pub url: String,
@@ -80,7 +83,7 @@ pub fn refresh_rulesets(
     ruleset_content_array.clear();
 
     // Get global settings
-    let settings = get_settings();
+    let settings = Settings::current();
     let proxy = if settings.proxy_ruleset.is_empty() {
         None
     } else {

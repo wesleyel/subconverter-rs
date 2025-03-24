@@ -3,8 +3,8 @@
 //! This module provides functionality to convert rulesets to Clash YAML string format.
 
 use crate::models::RulesetContent;
-use crate::settings::get_settings;
 use crate::utils::string::{find_str, starts_with, trim};
+use crate::Settings;
 use lazy_static::lazy_static;
 use log::warn;
 use serde_yml::Value as YamlValue;
@@ -53,7 +53,7 @@ pub fn ruleset_to_clash_str(
     new_field_name: bool,
 ) -> String {
     // Get global settings
-    let settings = get_settings();
+    let settings = Settings::current();
 
     // Set field name based on parameter
     let field_name = if new_field_name { "rules" } else { "Rule" };

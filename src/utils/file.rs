@@ -23,6 +23,24 @@ pub fn file_exists(path: &str) -> bool {
 /// # Returns
 /// * `Ok(String)` - The file contents
 /// * `Err(io::Error)` - If the file can't be read
-pub fn file_get<P: AsRef<Path>>(path: P) -> io::Result<String> {
+pub fn file_get<P: AsRef<Path>>(path: P, base_path: Option<&str>) -> io::Result<String> {
+    if let Some(base_path) = base_path {
+        match path.as_ref().to_str() {
+            Some(path_str) => {
+                if !path_str.starts_with(base_path) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "File path is not within the base path",
+                    ));
+                }
+            }
+            None => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "File path is not a valid UTF-8 string",
+                ));
+            }
+        }
+    }
     fs::read_to_string(path)
 }

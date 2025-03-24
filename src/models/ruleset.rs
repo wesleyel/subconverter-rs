@@ -47,6 +47,15 @@ pub fn get_ruleset_type_from_url(url: &str) -> Option<RulesetType> {
     None
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct RulesetConfig {
+    pub group: String,
+    pub url: String,
+    pub interval: u32,
+}
+
+pub type RulesetConfigs = Vec<RulesetConfig>;
+
 /// Represents a ruleset with its metadata and content
 /// Matches the C++ struct RulesetContent:
 /// ```cpp
