@@ -313,8 +313,8 @@ impl From<IniSettings> for Settings {
             Vec::new()
         };
         settings.prepend_insert = ini_settings.prepend_insert_url;
-        settings.exclude_remarks = vec![ini_settings.exclude_remarks];
-        settings.include_remarks = vec![ini_settings.include_remarks];
+        settings.exclude_remarks = ini_settings.exclude_remarks;
+        settings.include_remarks = ini_settings.include_remarks;
         settings.filter_script = ini_settings.filter_script.clone();
         settings.base_path = ini_settings.base_path.clone();
         settings.clash_base = ini_settings.clash_base.clone();

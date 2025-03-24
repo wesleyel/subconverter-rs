@@ -288,7 +288,7 @@ impl Settings {
     }
 
     pub fn current() -> Arc<Settings> {
-        global.read().unwrap().clone()
+        GLOBAL.read().unwrap().clone()
     }
 
     fn load_from_content(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
@@ -298,9 +298,9 @@ impl Settings {
                 serde_yaml::from_str(&content)?;
             yaml_settings.process_imports_and_inis()?;
 
-            let mut settings = Settings::from(yaml_settings);
+            let mut _settings = Settings::from(yaml_settings);
 
-            return Ok(settings);
+            return Ok(_settings);
         }
 
         // Try to parse as TOML
@@ -337,34 +337,34 @@ impl Settings {
 
     /// Load settings from file or URL
     fn load_from_file_sync(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut content = String::new();
+        let mut _content = String::new();
 
         // Try to load the content from file or URL
         if path.starts_with("http://") || path.starts_with("https://") {
             let (data, _) = web_get(path, &ProxyConfig::default(), None)?;
-            content = data;
+            _content = data;
         } else {
-            content = file_get(path, None)?;
+            _content = file_get(path, None)?;
         }
-        let mut settings = Settings::load_from_content(&content)?;
+        let mut settings = Settings::load_from_content(&_content)?;
         settings.pref_path = path.to_owned();
         Ok(settings)
     }
 }
 
 // Global settings instance
-pub static global: LazyLock<RwLock<Arc<Settings>>> =
+pub static GLOBAL: LazyLock<RwLock<Arc<Settings>>> =
     LazyLock::new(|| RwLock::new(Arc::new(Settings::new())));
 
 /// Refresh the configuration
 pub fn refresh_configuration() {
-    let settings = global.read().unwrap();
+    let settings = GLOBAL.read().unwrap();
     let path = settings.pref_path.clone();
     drop(settings); // Release the lock before potential long operation
 
     std::thread::spawn(move || match Settings::load_from_file_sync(&path) {
         Ok(new_settings) => {
-            *global.write().unwrap() = Arc::new(new_settings);
+            *GLOBAL.write().unwrap() = Arc::new(new_settings);
         }
         Err(err) => {
             eprintln!("Failed to refresh configuration from '{}': {}", path, err);
@@ -381,7 +381,7 @@ pub fn update_settings_from_file(
     let path = path.to_owned();
     std::thread::spawn(move || match Settings::load_from_file_sync(&path) {
         Ok(new_settings) => {
-            *global.write().unwrap() = Arc::new(new_settings);
+            *GLOBAL.write().unwrap() = Arc::new(new_settings);
             Ok(())
         }
         Err(err) => {
@@ -399,7 +399,7 @@ pub fn update_settings_from_content(
     let content = content.to_string();
     let handle = std::thread::spawn(move || {
         let settings = Settings::load_from_content(&content).unwrap();
-        *global.write().unwrap() = Arc::new(settings);
+        *GLOBAL.write().unwrap() = Arc::new(settings);
     });
     handle.join().map_err(|_| "Failed to join thread".into())
 }

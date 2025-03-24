@@ -1,6 +1,18 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+fn is_empty_option_string(s: &Option<String>) -> bool {
+    s.is_none() || s.as_ref().unwrap().is_empty()
+}
+
+fn is_u32_option_zero(u: &Option<u32>) -> bool {
+    if let Some(u) = u {
+        *u == 0
+    } else {
+        true
+    }
+}
+
 /// Represents a complete Clash configuration output
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -18,11 +30,11 @@ pub struct ClashYamlOutput {
     pub mixed_port: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_lan: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub bind_address: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub mode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub log_level: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ipv6: Option<bool>,
@@ -58,9 +70,9 @@ pub struct ClashYamlOutput {
 pub struct ClashDns {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub listen: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub enhanced_mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nameserver: Option<Vec<String>>,
@@ -92,9 +104,9 @@ pub struct ClashDnsFallbackFilter {
 pub struct ClashTun {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub device: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub stack: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dns_hijack: Option<Vec<String>>,
@@ -117,7 +129,6 @@ pub struct ClashProfile {
     #[serde(flatten)]
     pub extra_options: HashMap<String, serde_yaml::Value>,
 }
-
 /// Common proxy options that can be used across different proxy types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -133,11 +144,11 @@ pub struct CommonProxyOptions {
     pub skip_cert_verify: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tls: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub fingerprint: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub client_fingerprint: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub sni: Option<String>,
 }
 
@@ -393,31 +404,31 @@ pub enum ClashProxy {
     Hysteria2 {
         #[serde(flatten)]
         common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        password: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ports: Option<String>,
+        #[serde(skip_serializing_if = "String::is_empty")]
+        password: String,
+        #[serde(skip_serializing_if = "String::is_empty")]
+        ports: String,
         #[serde(rename = "hop-interval", skip_serializing_if = "Option::is_none")]
         hop_interval: Option<u32>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        up: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        down: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        obfs: Option<String>,
-        #[serde(rename = "obfs-password", skip_serializing_if = "Option::is_none")]
-        obfs_password: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        fingerprint: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        alpn: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ca: Option<String>,
-        #[serde(rename = "ca-str", skip_serializing_if = "Option::is_none")]
-        ca_str: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "String::is_empty")]
+        up: String,
+        #[serde(skip_serializing_if = "String::is_empty")]
+        down: String,
+        #[serde(skip_serializing_if = "String::is_empty")]
+        obfs: String,
+        #[serde(rename = "obfs-password", skip_serializing_if = "String::is_empty")]
+        obfs_password: String,
+        #[serde(skip_serializing_if = "String::is_empty")]
+        fingerprint: String,
+        #[serde(skip_serializing_if = "String::is_empty")]
+        alpn: String,
+        #[serde(skip_serializing_if = "String::is_empty")]
+        ca: String,
+        #[serde(rename = "ca-str", skip_serializing_if = "String::is_empty")]
+        ca_str: String,
+        #[serde(skip_serializing_if = "is_u32_option_zero")]
         cwnd: Option<u32>,
-        #[serde(rename = "udp-mtu", skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "udp-mtu", skip_serializing_if = "is_u32_option_zero")]
         udp_mtu: Option<u32>,
 
         // quic-go special config
@@ -579,17 +590,17 @@ impl ClashProxy {
     pub fn new_hysteria2(common: CommonProxyOptions) -> Self {
         ClashProxy::Hysteria2 {
             common,
-            password: None,
-            ports: None,
+            password: String::new(),
+            ports: String::new(),
             hop_interval: None,
-            up: None,
-            down: None,
-            obfs: None,
-            obfs_password: None,
-            fingerprint: None,
-            alpn: None,
-            ca: None,
-            ca_str: None,
+            up: String::new(),
+            down: String::new(),
+            obfs: String::new(),
+            obfs_password: String::new(),
+            fingerprint: String::new(),
+            alpn: String::new(),
+            ca: String::new(),
+            ca_str: String::new(),
             cwnd: None,
             udp_mtu: None,
             initial_stream_receive_window: None,

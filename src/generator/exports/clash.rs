@@ -1051,20 +1051,20 @@ fn handle_hysteria2(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Cl
         ..
     } = &mut proxy
     {
-        *ports = node.ports.clone();
+        *ports = node.ports.clone().unwrap_or_default();
         if node.up_speed > 0 {
-            *up = Some(format!("{}Mbps", node.up_speed));
+            *up = format!("{}Mbps", node.up_speed);
         }
         if node.down_speed > 0 {
-            *down = Some(format!("{}Mbps", node.down_speed));
+            *down = format!("{}Mbps", node.down_speed);
         }
-        *password = node.password.clone();
-        *obfs = node.obfs.clone();
-        *obfs_password = node.obfs_param.clone();
-        *fingerprint = node.fingerprint.clone();
-        *alpn = Some(node.alpn.iter().map(|s| s.clone()).collect());
-        *ca = node.ca.clone();
-        *ca_str = node.ca_str.clone();
+        *password = node.password.clone().unwrap_or_default();
+        *obfs = node.obfs.clone().unwrap_or_default();
+        *obfs_password = node.obfs_param.clone().unwrap_or_default();
+        *fingerprint = node.fingerprint.clone().unwrap_or_default();
+        *alpn = node.alpn.iter().map(|s| s.clone()).collect();
+        *ca = node.ca.clone().unwrap_or_default();
+        *ca_str = node.ca_str.clone().unwrap_or_default();
         *cwnd = Some(node.cwnd);
 
         if node.hop_interval > 0 {

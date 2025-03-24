@@ -9,8 +9,8 @@ pub mod yaml_settings;
 pub use conversions::*;
 pub use ini_settings::IniSettings;
 pub use settings_struct::{
-    global, refresh_configuration, update_settings_from_content, update_settings_from_file,
-    Settings,
+    refresh_configuration, update_settings_from_content, update_settings_from_file, Settings,
+    GLOBAL,
 };
 pub use toml_settings::TomlSettings;
 pub use yaml_settings::YamlSettings;

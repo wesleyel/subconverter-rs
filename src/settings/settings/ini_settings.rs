@@ -38,9 +38,9 @@ pub struct IniSettings {
     pub prepend_insert_url: bool,
 
     #[serde(default)]
-    pub include_remarks: String,
+    pub include_remarks: Vec<String>,
     #[serde(default)]
-    pub exclude_remarks: String,
+    pub exclude_remarks: Vec<String>,
     #[serde(default)]
     pub default_ext_config: String,
 
@@ -372,8 +372,8 @@ impl IniSettings {
             "enable_insert" => self.enable_insert = parse_bool(value),
             "insert_url" => self.insert_url = value.to_string(),
             "prepend_insert_url" => self.prepend_insert = parse_bool(value),
-            "exclude_remarks" => self.exclude_remarks = value.to_owned(),
-            "include_remarks" => self.include_remarks = value.to_owned(),
+            "exclude_remarks" => self.exclude_remarks.push(value.to_owned()),
+            "include_remarks" => self.include_remarks.push(value.to_owned()),
             "enable_filter" => self.enable_filter = parse_bool(value),
             "filter_script" => self.filter_script = value.to_string(),
             "base_path" => self.base_path = value.to_string(),
