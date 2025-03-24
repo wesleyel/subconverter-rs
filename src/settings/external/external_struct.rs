@@ -10,7 +10,7 @@ use crate::settings::deserializer::*;
 use crate::settings::ruleset::RulesetConfig;
 use crate::settings::{import_items, Settings};
 use crate::utils::file::read_file;
-use crate::utils::http::web_get;
+use crate::utils::http::{parse_proxy, web_get};
 // TODO: Implement template rendering module similar to C++ render_template function
 
 use super::ini_external::IniExternalSettings;
@@ -63,11 +63,12 @@ impl ExternalSettings {
     /// Process imports in the configuration
     pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let settings = Settings::current();
+        let proxy_config = parse_proxy(&settings.proxy_config);
         // Process imports for rulesets
         import_items(
             &mut self.rulesets,
             settings.api_mode,
-            &settings.proxy_config,
+            &proxy_config,
             &settings.base_path,
         )?;
 
@@ -75,7 +76,7 @@ impl ExternalSettings {
         import_items(
             &mut self.custom_proxy_groups,
             settings.api_mode,
-            &settings.proxy_config,
+            &proxy_config,
             &settings.base_path,
         )?;
 
@@ -88,14 +89,7 @@ impl ExternalSettings {
 
         // Try to load content from file or URL
         if path.starts_with("http://") || path.starts_with("https://") {
-            let settings = Settings::current();
-            let proxy = if settings.proxy_config.is_empty() {
-                None
-            } else {
-                Some(settings.proxy_config.as_str())
-            };
-
-            match web_get(path, proxy, None) {
+            match web_get(path, &parse_proxy(&Settings::current().proxy_config), None) {
                 Ok((data, _)) => _content = data,
                 Err(e) => return Err(format!("Failed to fetch external config: {}", e).into()),
             }

@@ -9,6 +9,7 @@ use crate::{
         RegexMatchConfigs,
     },
     settings::import_items,
+    utils::http::parse_proxy,
 };
 
 // 为toml::Value添加默认值函数
@@ -372,6 +373,7 @@ pub struct TomlSettings {
 
 impl TomlSettings {
     pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let proxy_config = &parse_proxy(&self.common.proxy_config);
         // Process rename nodes
         let mut rename_nodes = Vec::new();
         for rule in &self.node_pref.rename_node {
@@ -390,7 +392,7 @@ impl TomlSettings {
         import_items(
             &mut rename_nodes,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
         self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&rename_nodes, "@");
@@ -413,7 +415,7 @@ impl TomlSettings {
         import_items(
             &mut stream_rules,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
         self.parsed_stream_rule = RegexMatchConfigs::from_ini_with_delimiter(&stream_rules, "|");
@@ -433,12 +435,7 @@ impl TomlSettings {
                 time_rules.push(format!("!!script:{}", script));
             }
         }
-        import_items(
-            &mut time_rules,
-            false,
-            &self.common.proxy_config,
-            &self.common.base_path,
-        )?;
+        import_items(&mut time_rules, false, proxy_config, &self.common.base_path)?;
         self.parsed_time_rule = RegexMatchConfigs::from_ini_with_delimiter(&time_rules, "|");
 
         // Process emoji rules
@@ -459,7 +456,7 @@ impl TomlSettings {
         import_items(
             &mut emoji_rules,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
         self.parsed_emoji_rules = RegexMatchConfigs::from_ini_with_delimiter(&emoji_rules, ",");
@@ -488,12 +485,7 @@ impl TomlSettings {
                 }
             }
         }
-        import_items(
-            &mut rulesets,
-            false,
-            &self.common.proxy_config,
-            &self.common.base_path,
-        )?;
+        import_items(&mut rulesets, false, proxy_config, &self.common.base_path)?;
         self.parsed_ruleset = RulesetConfigs::from_ini(&rulesets);
 
         // Process proxy groups
@@ -534,7 +526,7 @@ impl TomlSettings {
         import_items(
             &mut proxy_groups,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
         self.parsed_proxy_group = ProxyGroupConfigs::from_ini(&proxy_groups);
@@ -551,12 +543,7 @@ impl TomlSettings {
                 ));
             }
         }
-        import_items(
-            &mut tasks,
-            false,
-            &self.common.proxy_config,
-            &self.common.base_path,
-        )?;
+        import_items(&mut tasks, false, proxy_config, &self.common.base_path)?;
         self.parsed_tasks = CronTaskConfigs::from_ini(&tasks);
 
         Ok(())

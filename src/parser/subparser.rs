@@ -39,7 +39,7 @@ pub fn add_nodes(
     parse_settings: &mut ParseSettings,
 ) -> Result<(), String> {
     // Extract references to settings for easier access
-    let proxy = parse_settings.proxy.as_deref();
+    let proxy = &parse_settings.proxy;
     let exclude_remarks = parse_settings.exclude_remarks.as_ref();
     let include_remarks = parse_settings.include_remarks.as_ref();
     let stream_rules = parse_settings.stream_rules.as_ref();

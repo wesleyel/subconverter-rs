@@ -17,6 +17,7 @@ use crate::models::RulesetConfig;
 use crate::settings::import_items;
 use crate::utils::file_get;
 use crate::utils::http::web_get;
+use crate::utils::http::ProxyConfig;
 
 /// Settings structure to hold global configuration
 #[derive(Debug, Clone)]
@@ -340,7 +341,7 @@ impl Settings {
 
         // Try to load the content from file or URL
         if path.starts_with("http://") || path.starts_with("https://") {
-            let (data, _) = web_get(path, None, None)?;
+            let (data, _) = web_get(path, &ProxyConfig::default(), None)?;
             content = data;
         } else {
             content = file_get(path, None)?;

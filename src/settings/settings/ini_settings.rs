@@ -6,6 +6,7 @@ use std::io;
 use std::sync::Arc;
 use std::sync::RwLock;
 
+use crate::utils::http::parse_proxy;
 use crate::utils::web_get;
 use crate::{
     models::{
@@ -260,69 +261,40 @@ impl IniSettings {
 
     /// Process imports in configuration
     pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let proxy_config = parse_proxy(&self.proxy_config);
         // Process rename nodes
-        import_items(
-            &mut self.rename_node,
-            false,
-            &self.proxy_config,
-            &self.base_path,
-        )?;
+        import_items(&mut self.rename_node, false, &proxy_config, &self.base_path)?;
         self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&self.rename_node, "@");
 
         // Process stream rules
-        import_items(
-            &mut self.stream_rule,
-            false,
-            &self.proxy_config,
-            &self.base_path,
-        )?;
+        import_items(&mut self.stream_rule, false, &proxy_config, &self.base_path)?;
         self.parsed_stream_rule =
             RegexMatchConfigs::from_ini_with_delimiter(&self.stream_rule, "|");
 
         // Process time rules
-        import_items(
-            &mut self.time_rule,
-            false,
-            &self.proxy_config,
-            &self.base_path,
-        )?;
+        import_items(&mut self.time_rule, false, &proxy_config, &self.base_path)?;
         self.parsed_time_rule = RegexMatchConfigs::from_ini_with_delimiter(&self.time_rule, "|");
 
         // Process emoji rules
-        import_items(
-            &mut self.emoji_rules,
-            false,
-            &self.proxy_config,
-            &self.base_path,
-        )?;
+        import_items(&mut self.emoji_rules, false, &proxy_config, &self.base_path)?;
         self.parsed_emoji_rules =
             RegexMatchConfigs::from_ini_with_delimiter(&self.emoji_rules, ",");
 
         // Process rulesets
-        import_items(
-            &mut self.rulesets,
-            false,
-            &self.proxy_ruleset,
-            &self.base_path,
-        )?;
+        import_items(&mut self.rulesets, false, &proxy_config, &self.base_path)?;
         self.parsed_ruleset = RulesetConfigs::from_ini(&self.rulesets);
 
         // Process proxy groups
         import_items(
             &mut self.custom_proxy_group,
             false,
-            &self.proxy_config,
+            &proxy_config,
             &self.base_path,
         )?;
         self.parsed_proxy_group = ProxyGroupConfigs::from_ini(&self.custom_proxy_group);
 
         // Process tasks
-        import_items(
-            &mut self.cron_tasks,
-            false,
-            &self.proxy_config,
-            &self.base_path,
-        )?;
+        import_items(&mut self.cron_tasks, false, &proxy_config, &self.base_path)?;
         self.parsed_tasks = CronTaskConfigs::from_ini(&self.cron_tasks);
 
         Ok(())

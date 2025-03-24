@@ -1,4 +1,4 @@
-use crate::utils::file_get;
+use crate::utils::{file_get, http::ProxyConfig};
 
 /// Import items from external files or URLs
 ///
@@ -7,7 +7,7 @@ use crate::utils::file_get;
 pub fn import_items(
     target: &mut Vec<String>,
     scope_limit: bool,
-    proxy_config: &str,
+    proxy_config: &ProxyConfig,
     base_path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut result = Vec::new();
@@ -35,7 +35,7 @@ pub fn import_items(
 
         let content = if path.starts_with("http://") || path.starts_with("https://") {
             // Fetch from URL
-            let (data, _) = crate::utils::http::web_get(&path, Some(proxy_config), None)?;
+            let (data, _) = crate::utils::http::web_get(&path, &proxy_config, None)?;
             data
         } else if std::path::Path::new(&path).exists() {
             // Read from file

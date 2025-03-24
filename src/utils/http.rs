@@ -1,10 +1,37 @@
 use crate::parser::parse_settings::CaseInsensitiveString;
+use crate::utils::system::get_system_proxy;
 use reqwest::{Client, Proxy, StatusCode};
 use std::collections::HashMap;
 use std::time::Duration;
 
 /// Default timeout for HTTP requests in seconds
 const DEFAULT_TIMEOUT: u64 = 15;
+
+#[derive(Debug, Clone)]
+pub struct ProxyConfig {
+    proxy: Option<String>,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        ProxyConfig { proxy: None }
+    }
+}
+
+pub fn parse_proxy(proxy_str: &str) -> ProxyConfig {
+    if proxy_str == "SYSTEM" {
+        return ProxyConfig {
+            proxy: Some(get_system_proxy()),
+        };
+    } else if proxy_str == "NONE" {
+        return ProxyConfig { proxy: None };
+    } else if !proxy_str.is_empty() {
+        return ProxyConfig {
+            proxy: Some(proxy_str.to_string()),
+        };
+    }
+    ProxyConfig { proxy: None }
+}
 
 /// Makes an HTTP request to the specified URL
 ///
@@ -18,7 +45,7 @@ const DEFAULT_TIMEOUT: u64 = 15;
 /// * `Err(String)` - Error message if the request failed
 pub async fn web_get_async(
     url: &str,
-    proxy_str: Option<&str>,
+    proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
 ) -> Result<(String, HashMap<String, String>), String> {
     // Build client with proxy if specified
@@ -26,7 +53,7 @@ pub async fn web_get_async(
         .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
         .user_agent("subconverter-rs");
 
-    if let Some(proxy) = proxy_str {
+    if let Some(proxy) = &proxy_config.proxy {
         if !proxy.is_empty() {
             match Proxy::all(proxy) {
                 Ok(proxy) => {
@@ -87,7 +114,7 @@ pub async fn web_get_async(
 /// This function is provided for compatibility with the existing codebase.
 pub fn web_get(
     url: &str,
-    proxy_str: Option<&str>,
+    proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
 ) -> Result<(String, HashMap<String, String>), String> {
     // Create a tokio runtime for running the async function
@@ -99,17 +126,17 @@ pub fn web_get(
     };
 
     // Run the async function in the runtime
-    rt.block_on(web_get_async(url, proxy_str, headers))
+    rt.block_on(web_get_async(url, proxy_config, headers))
 }
 
 /// Version of web_get that returns only the body content
 /// This is for backward compatibility where headers are not needed
 pub fn web_get_content(
     url: &str,
-    proxy_str: Option<&str>,
+    proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
 ) -> Result<String, String> {
-    match web_get(url, proxy_str, headers) {
+    match web_get(url, proxy_config, headers) {
         Ok((body, _)) => Ok(body),
         Err(e) => Err(e),
     }

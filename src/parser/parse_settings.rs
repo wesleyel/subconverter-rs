@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::models::RegexMatchConfigs;
+use crate::utils::http::{parse_proxy, ProxyConfig};
 use crate::Settings;
 
 /// Case-insensitive string for use as HashMap keys
@@ -33,7 +34,7 @@ impl PartialEq<str> for CaseInsensitiveString {
 #[derive(Debug, Clone)]
 pub struct ParseSettings {
     /// Proxy to use for downloading subscriptions
-    pub proxy: Option<String>,
+    pub proxy: ProxyConfig,
 
     /// Array of remarks to exclude
     pub exclude_remarks: Option<Vec<String>>,
@@ -71,7 +72,7 @@ impl Default for ParseSettings {
         let settings = Settings::current();
 
         ParseSettings {
-            proxy: Some(settings.proxy_subscription.clone()),
+            proxy: parse_proxy(&settings.proxy_subscription),
             exclude_remarks: if settings.exclude_remarks.is_empty() {
                 None
             } else {

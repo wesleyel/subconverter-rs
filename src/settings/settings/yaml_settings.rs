@@ -9,6 +9,7 @@ use crate::{
         ProxyGroupConfig, ProxyGroupConfigs, RegexMatchConfigs,
     },
     settings::import_items,
+    utils::http::parse_proxy,
 };
 
 // 为serde_yaml::Value添加默认值函数
@@ -461,6 +462,7 @@ pub struct YamlSettings {
 
 impl YamlSettings {
     pub fn process_imports_and_inis(self: &mut Self) -> Result<(), Box<dyn std::error::Error>> {
+        let proxy_config = &parse_proxy(&self.common.proxy_config);
         // read renames
         let mut rename_nodes = self
             .node_pref
@@ -472,7 +474,7 @@ impl YamlSettings {
         import_items(
             &mut rename_nodes,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
         self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&rename_nodes, "@");
@@ -488,7 +490,7 @@ impl YamlSettings {
         import_items(
             &mut stream_rules,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
         self.parsed_stream_rule = RegexMatchConfigs::from_ini_with_delimiter(&stream_rules, "|");
@@ -500,12 +502,7 @@ impl YamlSettings {
             .iter()
             .map(|rule| rule.to_ini_with_delimiter("|"))
             .collect::<Vec<String>>();
-        import_items(
-            &mut time_rules,
-            false,
-            &self.common.proxy_config,
-            &self.common.base_path,
-        )?;
+        import_items(&mut time_rules, false, proxy_config, &self.common.base_path)?;
         self.parsed_time_rule = RegexMatchConfigs::from_ini_with_delimiter(&time_rules, "|");
 
         // read emojis
@@ -518,7 +515,7 @@ impl YamlSettings {
         import_items(
             &mut emoji_rules,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
         self.parsed_emoji_rules = RegexMatchConfigs::from_ini_with_delimiter(&emoji_rules, ",");
@@ -530,12 +527,7 @@ impl YamlSettings {
             .iter()
             .map(|rule| rule.to_ini())
             .collect::<Vec<String>>();
-        import_items(
-            &mut rulesets,
-            false,
-            &self.common.proxy_config,
-            &self.common.base_path,
-        )?;
+        import_items(&mut rulesets, false, proxy_config, &self.common.base_path)?;
         self.parsed_ruleset = RulesetConfigs::from_ini(&rulesets);
 
         // read proxy groups
@@ -543,7 +535,7 @@ impl YamlSettings {
         import_items(
             &mut proxy_groups,
             false,
-            &self.common.proxy_config,
+            proxy_config,
             &self.common.base_path,
         )?;
 
@@ -554,12 +546,7 @@ impl YamlSettings {
             .iter()
             .map(|task| task.to_ini())
             .collect::<Vec<String>>();
-        import_items(
-            &mut tasks,
-            false,
-            &self.common.proxy_config,
-            &self.common.base_path,
-        )?;
+        import_items(&mut tasks, false, proxy_config, &self.common.base_path)?;
         self.parsed_tasks = CronTaskConfigs::from_ini(&tasks);
         Ok(())
     }

@@ -5,7 +5,7 @@ use log::{error, info, warn};
 use serde::Deserialize;
 
 use crate::models::ruleset::{get_ruleset_type_from_url, RulesetContent, RulesetType};
-use crate::utils::http::web_get;
+use crate::utils::http::{parse_proxy, web_get, ProxyConfig};
 
 use super::Settings;
 
@@ -50,7 +50,7 @@ impl RulesetConfig {
 /// Fetch ruleset content from file or URL
 pub fn fetch_ruleset(
     url: &str,
-    proxy: Option<&str>,
+    proxy: &ProxyConfig,
     _cache_timeout: i32,
     _async_fetch: bool,
 ) -> Result<String, String> {
@@ -84,11 +84,7 @@ pub fn refresh_rulesets(
 
     // Get global settings
     let settings = Settings::current();
-    let proxy = if settings.proxy_ruleset.is_empty() {
-        None
-    } else {
-        Some(settings.proxy_ruleset.as_str())
-    };
+    let proxy = parse_proxy(&settings.proxy_ruleset);
 
     for ruleset_config in ruleset_list {
         let rule_group = &ruleset_config.group;
@@ -132,7 +128,7 @@ pub fn refresh_rulesets(
                     // Fetch the content
                     match fetch_ruleset(
                         rule_url_without_prefix,
-                        proxy,
+                        &proxy,
                         settings.cache_ruleset,
                         settings.async_fetch_ruleset,
                     ) {
@@ -165,7 +161,7 @@ pub fn refresh_rulesets(
             // Fetch the content
             match fetch_ruleset(
                 rule_url,
-                proxy,
+                &proxy,
                 settings.cache_ruleset,
                 settings.async_fetch_ruleset,
             ) {
