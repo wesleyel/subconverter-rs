@@ -55,13 +55,13 @@ jobs:
             cd /workdir && \
             apt-get update && \
             apt-get install -y pkg-config libssl-dev && \
-            cargo build --release --example subconverter
+            cargo build --release
           "
         
     - name: Prepare artifact
       run: |
         mkdir -p subconverter/
-        cp target/release/examples/subconverter subconverter/
+        cp target/release/subconverter subconverter/
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -111,12 +111,12 @@ jobs:
         sed -i -e "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
         
     - name: Build
-      run: cargo build --release --example subconverter --target ${{ matrix.target }}
+      run: cargo build --release --target ${{ matrix.target }}
       
     - name: Prepare artifact
       run: |
         mkdir -p subconverter/
-        cp target/${{ matrix.target }}/release/examples/subconverter subconverter/
+        cp target/${{ matrix.target }}/release/subconverter subconverter/
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -165,13 +165,13 @@ jobs:
         sed -i "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
         
     - name: Build
-      run: cargo build --release --example subconverter --target ${{ matrix.target }}
+      run: cargo build --release --target ${{ matrix.target }}
       
     - name: Prepare artifact
       shell: bash
       run: |
         mkdir -p subconverter/
-        cp target/${{ matrix.target }}/release/examples/subconverter.exe subconverter/
+        cp target/${{ matrix.target }}/release/subconverter.exe subconverter/
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4

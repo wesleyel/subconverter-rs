@@ -10,7 +10,7 @@ default = []
 js_runtime = []
 
 [[example]]
-name = "subconverter"
+name = "subconverter-example1"
 path = "examples/subconverter/main.rs"
 
 [dependencies]
