@@ -4,8 +4,8 @@ use std::env;
 use std::thread;
 use std::time::Duration;
 
-use winapi::shared::winerror::IS_ERROR;
 #[cfg(target_os = "windows")]
+use winapi::shared::winerror::IS_ERROR;
 use winapi::{
     shared::minwindef::{BYTE, DWORD, HKEY},
     um::{
