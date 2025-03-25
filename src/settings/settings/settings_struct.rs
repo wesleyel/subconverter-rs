@@ -63,6 +63,7 @@ pub struct Settings {
     pub max_allowed_download_size: i64,
     pub template_path: String,
     pub template_vars: HashMap<String, String>,
+    pub prepend_proxy_direct_ruleset: bool,
 
     pub aliases: HashMap<String, String>,
 
@@ -219,6 +220,7 @@ impl Default for Settings {
             // Generator settings
             generator_mode: false,
             generate_profiles: String::new(),
+            prepend_proxy_direct_ruleset: true,
 
             // Preferences
             reload_conf_on_request: false,

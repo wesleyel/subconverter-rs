@@ -14,7 +14,6 @@ use crate::utils::{file_get, web_get};
 use crate::Settings;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
-use std::path::Path;
 
 #[derive(Debug, Clone, Default)]
 pub struct RuleBases {
@@ -562,6 +561,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
         "Processing subscription conversion request to {}",
         config.target.to_str()
     );
+
     // Load rule base content
     let base_content = config.rule_bases.load_content();
     let mut config = config;
@@ -644,11 +644,11 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
     }
 
     // Apply filter script if available
-    // if let Some(script) = &config.filter_script {
-    //     info!("Applying filter script");
-    //     // In the real implementation, this would involve running a JavaScript engine
-    //     // to filter nodes based on the script. Left as placeholder.
-    // }
+    if let Some(script) = &config.filter_script {
+        info!("Applying filter script");
+        // In a real implementation, this would involve running a JavaScript engine
+        // to filter nodes based on the script. Left as placeholder for future implementation.
+    }
 
     // Process nodes (rename, emoji, sort, etc.)
     preprocess_nodes(
@@ -663,11 +663,24 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
         response_headers.insert("Subscription-UserInfo".to_string(), sub_info.clone());
     }
 
-    let mut ruleset_content;
-    if config.ruleset_configs == global.custom_rulesets {
-        ruleset_content = global.rulesets_content.clone();
-    } else {
-        ruleset_content = vec![];
+    // Refresh rulesets if needed
+    let mut ruleset_content = Vec::new();
+    if config.extra.enable_rule_generator {
+        // Check if we're using custom rulesets or global rulesets
+        if config.ruleset_configs == global.custom_rulesets {
+            // Use global ruleset content if it's the same configuration
+            ruleset_content = global.rulesets_content.clone();
+        } else {
+            // Refresh rulesets with custom configuration
+            info!("Refreshing rulesets with custom configuration");
+            use crate::rulesets::ruleset::refresh_rulesets;
+            refresh_rulesets(&config.ruleset_configs, &mut ruleset_content);
+        }
+
+        // Prepend proxy direct ruleset if needed
+        if global.prepend_proxy_direct_ruleset {
+            prepend_proxy_direct_ruleset(&mut ruleset_content, &nodes);
+        }
     }
 
     // Generate output based on target
@@ -932,7 +945,6 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
         if let Some(upload_path) = &config.upload_path {
             info!("Uploading result to path: {}", upload_path);
             // Implement upload functionality here
-            // This is typically a separate function like `upload_gist`
         }
     }
 
@@ -992,6 +1004,34 @@ pub fn preprocess_nodes(
             nodes.sort_by(|a, b| a.remark.cmp(&b.remark));
         }
     }
+}
+
+/// Prepend proxy direct ruleset to ruleset content
+fn prepend_proxy_direct_ruleset(ruleset_content: &mut Vec<RulesetContent>, nodes: &[Proxy]) {
+    use crate::models::ruleset::RulesetType;
+    use crate::utils::network::{is_ipv4, is_ipv6};
+
+    info!("Prepending proxy direct ruleset");
+
+    // Create content for the ruleset
+    let mut content = String::new();
+    for node in nodes {
+        if is_ipv6(&node.hostname) {
+            content.push_str(&format!("IP-CIDR6,{}/128,no-resolve\n", node.hostname));
+        } else if is_ipv4(&node.hostname) {
+            content.push_str(&format!("IP-CIDR,{}/32,no-resolve\n", node.hostname));
+        } else {
+            content.push_str(&format!("DOMAIN,{}\n", node.hostname));
+        }
+    }
+
+    // Create the ruleset
+    let mut ruleset = RulesetContent::new("", "DIRECT");
+    ruleset.rule_type = RulesetType::Surge;
+    ruleset.set_rule_content(&content);
+
+    // Insert at the beginning
+    ruleset_content.insert(0, ruleset);
 }
 
 impl RuleBases {
