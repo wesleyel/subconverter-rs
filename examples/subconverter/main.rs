@@ -49,31 +49,14 @@ fn main() {
 
     // Read base content for the target format
     let base_path = Path::new("examples/subconverter");
-    let base_content = match target {
-        SubconverterTarget::Clash => {
-            let clash_base_path = base_path.join("clash_base.yml");
-            // target.get_base_content_from_external(&settings.external);
-            fs::read_to_string(clash_base_path).unwrap_or_default()
-        }
-        _ => String::new(),
-    };
-    let ruleset_content = global.rulesets_content.clone();
-
     // Create config builder
-    let builder = SubconverterConfigBuilder::new()
-        .target(target.clone())
-        .add_url(url)
-        // .emoji_patterns(global_settings.)
-        .ruleset_content(ruleset_content)
-        .proxy_groups(proxy_groups);
+    let mut builder = SubconverterConfigBuilder::new();
+    builder.target(target.clone());
+    builder.add_url(url);
+    builder.clash_rule_base("clash_base.yml");
+    // .emoji_patterns(global_settings.)
+    builder.proxy_groups(proxy_groups);
     // .extra(extra_settings);
-
-    // Add base content if available
-    let builder = if !base_content.is_empty() {
-        builder.add_base_content(target.clone(), base_content)
-    } else {
-        builder
-    };
 
     // Build the configuration
     match builder.build() {
