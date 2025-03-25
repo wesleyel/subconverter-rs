@@ -19,37 +19,25 @@ jobs:
           - arch: x86
             artifact: subconverter-linux-x86
             os: ubuntu-latest
-            target: i686-unknown-linux-gnu
+            docker_arch: x86
           - arch: amd64
             artifact: subconverter-linux-amd64
             os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            docker_arch: amd64
           - arch: armv7
             artifact: subconverter-linux-armv7
             os: ubuntu-latest
-            target: armv7-unknown-linux-gnueabihf
+            docker_arch: armhf
           - arch: aarch64
             artifact: subconverter-linux-aarch64
             os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
+            docker_arch: aarch64
     runs-on: ${{ matrix.os }}
     name: Linux ${{ matrix.arch }} Build
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Setup Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ matrix.target }}
-        
-    - name: Install cross-compilation tools
-      if: matrix.arch != 'amd64'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-multilib
-        cargo install cross --git https://github.com/cross-rs/cross
-        
     - name: Add commit id into version
       if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       run: |
@@ -57,60 +45,23 @@ jobs:
         VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
         sed -i "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
         
-    - name: Create Cross.toml for OpenSSL
-      if: matrix.arch != 'amd64'
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Build in Docker
       run: |
-        cat > Cross.toml << 'EOF'
-        [target.armv7-unknown-linux-gnueabihf]
-        image = "ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:main"
-        
-        [target.armv7-unknown-linux-gnueabihf.env]
-        passthrough = [
-          "RUST_BACKTRACE",
-          "RUST_LOG",
-          "OPENSSL_DIR",
-          "OPENSSL_STATIC",
-        ]
-        
-        [target.aarch64-unknown-linux-gnu]
-        image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main"
-        
-        [target.aarch64-unknown-linux-gnu.env]
-        passthrough = [
-          "RUST_BACKTRACE",
-          "RUST_LOG",
-          "OPENSSL_DIR",
-          "OPENSSL_STATIC",
-        ]
-        
-        [target.i686-unknown-linux-gnu]
-        image = "ghcr.io/cross-rs/i686-unknown-linux-gnu:main"
-        
-        [target.i686-unknown-linux-gnu.env]
-        passthrough = [
-          "RUST_BACKTRACE",
-          "RUST_LOG",
-          "OPENSSL_DIR",
-          "OPENSSL_STATIC",
-        ]
-        EOF
-        
-    - name: Build
-      run: |
-        if [ "${{ matrix.arch }}" = "amd64" ]; then
-          cargo build --release --example subconverter
-        else
-          OPENSSL_STATIC=1 cross build --release --example subconverter --target ${{ matrix.target }}
-        fi
+        docker run --rm -v ${{ github.workspace }}:/workdir \
+          rust:slim /bin/bash -c "
+            cd /workdir && \
+            apt-get update && \
+            apt-get install -y pkg-config libssl-dev && \
+            cargo build --release --example subconverter
+          "
         
     - name: Prepare artifact
       run: |
         mkdir -p subconverter/
-        if [ "${{ matrix.arch }}" = "amd64" ]; then
-          cp target/release/examples/subconverter subconverter/
-        else
-          cp target/${{ matrix.target }}/release/examples/subconverter subconverter/
-        fi
+        cp target/release/examples/subconverter subconverter/
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
