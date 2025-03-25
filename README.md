@@ -8,7 +8,7 @@ A more powerful utility to convert between proxy subscription format, the origin
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Status](https://img.shields.io/badge/status-beta-blue.svg)](https://github.com/lonelam/subconverter-rs)
 [![GPL-3.0+ License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/v/subconverter-rs.svg)](https://crates.io/crates/subconverter-rs)
+[![Crates.io](https://img.shields.io/crates/v/subconverter.svg)](https://crates.io/crates/subconverter)
 
 subconverter-rs takes the power of the original [subconverter](https://github.com/tindy2013/subconverter) project and reimplements it in Rust, bringing memory safety, concurrency without data races, and significantly improved performance.
 

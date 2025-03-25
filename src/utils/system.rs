@@ -62,7 +62,7 @@ pub fn get_system_proxy() -> String {
                 0,
                 KEY_ALL_ACCESS,
                 &mut hkey,
-            );
+            ) as i32;
 
             if ret != ERROR_SUCCESS {
                 return String::new();
