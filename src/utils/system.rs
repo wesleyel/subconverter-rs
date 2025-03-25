@@ -4,12 +4,10 @@ use std::env;
 use std::thread;
 use std::time::Duration;
 
+use winapi::shared::winerror::IS_ERROR;
 #[cfg(target_os = "windows")]
 use winapi::{
-    shared::{
-        minwindef::{BYTE, DWORD, HKEY},
-        winerror::ERROR_SUCCESS,
-    },
+    shared::minwindef::{BYTE, DWORD, HKEY},
     um::{
         winnt::KEY_ALL_ACCESS,
         winreg::{RegEnumValueW, RegOpenKeyExW, RegQueryInfoKeyW, HKEY_CURRENT_USER},
@@ -62,9 +60,9 @@ pub fn get_system_proxy() -> String {
                 0,
                 KEY_ALL_ACCESS,
                 &mut hkey,
-            ) as i32;
+            );
 
-            if ret != ERROR_SUCCESS {
+            if IS_ERROR(ret) {
                 return String::new();
             }
 
@@ -88,7 +86,7 @@ pub fn get_system_proxy() -> String {
                 ptr::null_mut(),
             );
 
-            if ret != ERROR_SUCCESS {
+            if IS_ERROR(ret) {
                 return String::new();
             }
 
@@ -117,7 +115,7 @@ pub fn get_system_proxy() -> String {
                     &mut value_len,
                 );
 
-                if ret != ERROR_SUCCESS {
+                if IS_ERROR(ret) {
                     continue;
                 }
 
@@ -136,7 +134,7 @@ pub fn get_system_proxy() -> String {
                     &mut value_len,
                 );
 
-                if ret != ERROR_SUCCESS {
+                if IS_ERROR(ret) {
                     continue;
                 }
 
