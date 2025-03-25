@@ -1,5 +1,5 @@
 # subconverter-rs
-A more powerful utility to convert between proxy subscription format, the original codes are transformed from the cpp version subconverter by Cursor!
+A more powerful utility to convert between proxy subscription format, the original codes are transformed from the cpp version subconverter!
 
 > Transform. Optimize. Simplify. A blazingly fast proxy subscription converter rewritten in Rust.
 
@@ -12,22 +12,40 @@ A more powerful utility to convert between proxy subscription format, the origin
 
 subconverter-rs takes the power of the original [subconverter](https://github.com/tindy2013/subconverter) project and reimplements it in Rust, bringing memory safety, concurrency without data races, and significantly improved performance.
 
-## Why Rust?
+## Why?
+The original subconverter is not easy to use and can be really hard to contribute to, with more than half of PRs being abandoned.
 
-- **Performance**: Experience comparable or better performance than C++ with Rust's zero-cost abstractions
-- **Memory Safety**: Eliminate segmentation faults and buffer overflows without sacrificing performance
-- **Concurrency**: Safe concurrent processing for handling multiple subscriptions simultaneously
-- **Modern Tooling**: Benefit from Cargo's dependency management, testing framework, and documentation generation
-- **Cross-Platform**: Easily compile for various platforms with minimal configuration
-- **Maintainability**: More readable, modular code that's easier to extend and contribute to
+However, subconverter is almost the only tool that provides compatibility across a bunch of proxy tools.
 
+## Roadmap
 
-## Why ?
-The subconverter is not easy to use and can be really hard to contribute, more than half of PRs are aborted.
+| Feature | Status | Priority | Description |
+|---------|:------:|:--------:|-------------|
+| Core Conversion Engine | ✅ | High | Basic proxy parsing and conversion between formats |
+| Node Manipulation | ✅ | High | Filtering, renaming, and preprocessing nodes |
+| VMess Protocol Support | ✅ | High | Complete support for VMess protocol |
+| Crates.io Publication | ✅ | Medium | Published as a Rust crate for easy installation |
+| HTTP Server | 🔄 | High | Server for subscription conversion |
+| Additional API Endpoints | 🔄 | Medium | Implement /surge2clash, /getprofile, etc. |
+| Template System | 🔄 | Medium | Support for customizable templates |
+| Web Interface | 🔄 | Medium | Online conversion interface |
+| RESTful API | 🔄 | Medium | Comprehensive API for integration |
+| Auto-upload to Gist | 🔄 | Low | Automatic upload of generated configurations |
+| Plugin System | 🔄 | Low | Easy extension of functionality |
+| Feature Parity | 🔄 | Ongoing | Complete feature parity with original subconverter |
+| Performance Benchmarks | 🔄 | Low | Comparison with original implementation |
+| Docker Container | 🔄 | Medium | Containerization for easy deployment |
+| CI/CD Pipelines | 🔄 | Medium | Automated testing and deployment |
 
-However, the subconverter is almost the only one tool that could provide compatibility about a bunch of proxy tools.
+Legend:
+- ✅ Completed
+- 🔄 In Progress/Planned
 
-## Supported Features
+## Implementation Status
+
+subconverter-rs has implemented the core functionality of the original C++ version, including:
+
+### Supported Features
 - Converting between various proxy subscription formats
 - Filtering nodes based on remarks and rules
 - Adding emojis to node remarks
@@ -36,7 +54,7 @@ However, the subconverter is almost the only one tool that could provide compati
 - Parsing local configuration files
 - Command line interface
 
-## Supported Proxy Types
+### Supported Proxy Types
 - VMess
 - Shadowsocks
 - ShadowsocksR
@@ -47,7 +65,7 @@ However, the subconverter is almost the only one tool that could provide compati
 - WireGuard
 - Snell
 
-## Supported Output Formats
+### Supported Output Formats
 - Clash
 - Surge
 - Quantumult
@@ -77,43 +95,7 @@ The binary will be available at `target/release/subconverter-rs`.
 
 ### Command Line
 ```bash
-subconverter-rs [options]
-```
-
-### Library
-You can use subconverter-rs as a library in your Rust projects:
-
-```rust
-use subconverter_rs::generator::config::proxy::Proxy;
-use subconverter_rs::generator::{
-    add_nodes, filter_nodes, node_rename, preprocess_nodes, ExtraSettings, ParseSettings,
-    RegexMatchConfig,
-};
-
-fn main() {
-    // Create sample nodes
-    let mut nodes = Vec::new();
-    
-    // Parse configuration files or links
-    let parse_settings = ParseSettings::default();
-    add_nodes("config.txt", &mut nodes, 1, &parse_settings);
-    
-    // Preprocess nodes with custom rules
-    let mut ext = ExtraSettings::default();
-    preprocess_nodes(&mut nodes, &ext);
-    
-    // Convert to different formats
-    let clash_config = subconverter_rs::generator::config::formats::clash::proxy_to_clash(
-        &mut nodes, "", &[], &[], false, &ext
-    );
-}
-```
-
-## Examples
-Check out the `examples` directory for more usage examples:
-
-```bash
-cargo run --example node_manip_example
+subconverter [options]
 ```
 
 ## Configuration
@@ -134,42 +116,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 For questions or discussions, you can:
 - Open an issue on GitHub
   
-### Roadmap
-
-- [x] Basic proxy parsing and conversion
-- [x] Node filtering and manipulation
-- [x] Complete VMess protocol support
-- [x] Published to crates.io
-- [ ] Web interface for online conversion
-- [ ] HTTP server for subscription conversion
-- [ ] RESTful API
-- [ ] Plugin system for easy extension
-- [ ] Complete feature parity with original subconverter
-- [ ] Performance benchmarks vs. original implementation
-- [ ] Docker container and CI/CD pipelines
-
 ## License
 This project is licensed under the GPL-3.0+ License - see the LICENSE file for details.
-
-## Architecture
-
-The project is organized into several key modules:
-
-### `models` module
-- Contains core data structures used throughout the application
-- Defines `Proxy` and `ProxyType` as the canonical type definitions
-- Separates data models from processing logic for better maintainability
-
-### `parser` module
-- **`types`**: Defines configuration types like `ConfType`
-- **`explodes`**: Contains parsers for different proxy formats (VMess, Shadowsocks, etc.)
-- **`subparser`**: High-level parsing functionality
-
-### `generator` module
-- Handles conversion between different formats
-- Contains node manipulation functions like filtering and renaming
-
-### `utils` module
-- Common utilities used across the codebase
-
-This architecture separates concerns between data models, parsing logic, and output generation, making the codebase easier to maintain and extend.
