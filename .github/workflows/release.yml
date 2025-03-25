@@ -57,12 +57,50 @@ jobs:
         VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
         sed -i "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
         
+    - name: Create Cross.toml for OpenSSL
+      if: matrix.arch != 'amd64'
+      run: |
+        cat > Cross.toml << 'EOF'
+        [target.armv7-unknown-linux-gnueabihf]
+        image = "ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:main"
+        
+        [target.armv7-unknown-linux-gnueabihf.env]
+        passthrough = [
+          "RUST_BACKTRACE",
+          "RUST_LOG",
+          "OPENSSL_DIR",
+          "OPENSSL_STATIC",
+        ]
+        
+        [target.aarch64-unknown-linux-gnu]
+        image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main"
+        
+        [target.aarch64-unknown-linux-gnu.env]
+        passthrough = [
+          "RUST_BACKTRACE",
+          "RUST_LOG",
+          "OPENSSL_DIR",
+          "OPENSSL_STATIC",
+        ]
+        
+        [target.i686-unknown-linux-gnu]
+        image = "ghcr.io/cross-rs/i686-unknown-linux-gnu:main"
+        
+        [target.i686-unknown-linux-gnu.env]
+        passthrough = [
+          "RUST_BACKTRACE",
+          "RUST_LOG",
+          "OPENSSL_DIR",
+          "OPENSSL_STATIC",
+        ]
+        EOF
+        
     - name: Build
       run: |
         if [ "${{ matrix.arch }}" = "amd64" ]; then
           cargo build --release --example subconverter
         else
-          cross build --release --example subconverter --target ${{ matrix.target }}
+          OPENSSL_STATIC=1 cross build --release --example subconverter --target ${{ matrix.target }}
         fi
         
     - name: Prepare artifact
