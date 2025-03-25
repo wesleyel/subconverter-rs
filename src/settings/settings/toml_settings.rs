@@ -1,14 +1,21 @@
-use super::ini_bindings::{FromIni, FromIniWithDelimiter};
+use super::{
+    super::ini_bindings::{FromIni, FromIniWithDelimiter},
+    Settings,
+};
 use serde::{Deserialize, Serialize};
-
-use std::collections::HashMap;
 
 use crate::{
     models::{
         cron::CronTaskConfigs, proxy_group_config::ProxyGroupConfigs, ruleset::RulesetConfigs,
         RegexMatchConfigs,
     },
-    settings::import_items,
+    settings::{
+        import_items,
+        import_toml::import_toml_items,
+        toml_deserializer::{
+            ProxyGroupConfigInToml, RegexMatchRuleInToml, RulesetConfigInToml, TaskConfigInToml,
+        },
+    },
     utils::http::parse_proxy,
 };
 
@@ -38,15 +45,15 @@ fn default_listen_address() -> String {
     "127.0.0.1".to_string()
 }
 
-fn default_listen_port() -> i32 {
+fn default_listen_port() -> u32 {
     25500
 }
 
-fn default_max_pending_conns() -> i32 {
+fn default_max_pending_conns() -> u32 {
     10240
 }
 
-fn default_max_concurrent_threads() -> i32 {
+fn default_max_concurrent_threads() -> u32 {
     4
 }
 
@@ -54,15 +61,15 @@ fn default_info_log_level() -> String {
     "info".to_string()
 }
 
-fn default_cache_subscription() -> i32 {
+fn default_cache_subscription() -> u32 {
     60
 }
 
-fn default_cache_config() -> i32 {
+fn default_cache_config() -> u32 {
     300
 }
 
-fn default_cache_ruleset() -> i32 {
+fn default_cache_ruleset() -> u32 {
     21600
 }
 
@@ -77,25 +84,12 @@ fn default_max_rules() -> usize {
 fn default_max_download_size() -> i64 {
     32 * 1024 * 1024 // 32MB
 }
-
-/// Stream rule configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default)]
-pub struct RegexMatchRule {
-    pub match_pattern: Option<String>,
-    #[serde(rename = "match")]
-    pub match_str: Option<String>,
-    pub replace: Option<String>,
-    pub script: Option<String>,
-    pub import: Option<String>,
-}
-
 /// User info settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct UserInfoSettings {
-    pub stream_rule: Vec<RegexMatchRule>,
-    pub time_rule: Vec<RegexMatchRule>,
+    pub stream_rule: Vec<RegexMatchRuleInToml>,
+    pub time_rule: Vec<RegexMatchRuleInToml>,
 }
 
 /// Common settings section
@@ -158,7 +152,7 @@ pub struct NodePreferences {
     #[serde(default = "default_empty_string")]
     pub clash_proxy_groups_style: String,
     pub singbox_add_clash_modes: bool,
-    pub rename_node: Vec<RegexMatchRule>,
+    pub rename_node: Vec<RegexMatchRuleInToml>,
 }
 
 /// Managed config settings
@@ -170,12 +164,12 @@ pub struct ManagedConfigSettings {
     #[serde(default = "default_listen_address")]
     pub managed_config_prefix: String,
     #[serde(default = "default_update_interval")]
-    pub config_update_interval: i32,
+    pub config_update_interval: u32,
     pub config_update_strict: bool,
     pub quanx_device_id: String,
 }
 
-fn default_update_interval() -> i32 {
+fn default_update_interval() -> u32 {
     86400 // 24 hours
 }
 
@@ -194,35 +188,7 @@ pub struct EmojiSettings {
     pub add_emoji: bool,
     #[serde(default = "default_true")]
     pub remove_old_emoji: bool,
-    pub emoji: Vec<RegexMatchRule>,
-}
-
-/// Proxy group configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default)]
-pub struct ProxyGroupConfig {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub group_type: String,
-    pub rule: Vec<String>,
-    #[serde(default = "default_test_url")]
-    pub url: Option<String>,
-    #[serde(default = "default_interval")]
-    pub interval: Option<i32>,
-    pub tolerance: Option<i32>,
-    pub timeout: Option<i32>,
-    pub lazy: Option<bool>,
-    pub disable_udp: Option<bool>,
-    pub strategy: Option<String>,
-    pub import: Option<String>,
-}
-
-fn default_test_url() -> Option<String> {
-    Some("http://www.gstatic.com/generate_204".to_string())
-}
-
-fn default_interval() -> Option<i32> {
-    Some(300)
+    pub emoji: Vec<RegexMatchRuleInToml>,
 }
 
 /// Ruleset settings
@@ -233,18 +199,6 @@ pub struct RulesetSettings {
     pub enabled: bool,
     pub overwrite_original_rules: bool,
     pub update_ruleset_on_request: bool,
-}
-
-/// Ruleset configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default)]
-pub struct RulesetConfig {
-    pub group: String,
-    pub ruleset: Option<String>,
-    #[serde(rename = "type")]
-    pub ruleset_type: Option<String>,
-    pub interval: Option<i32>,
-    pub import: Option<String>,
 }
 
 /// Template variable
@@ -280,17 +234,6 @@ pub struct AliasConfig {
     pub target: String,
 }
 
-/// Task configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default)]
-pub struct TaskConfig {
-    pub name: String,
-    pub cronexp: String,
-    pub path: String,
-    pub timeout: i32,
-    pub import: Option<String>,
-}
-
 /// Server settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -298,7 +241,7 @@ pub struct ServerSettings {
     #[serde(default = "default_listen_address")]
     pub listen: String,
     #[serde(default = "default_listen_port")]
-    pub port: i32,
+    pub port: u32,
     pub serve_file_root: String,
 }
 
@@ -310,9 +253,9 @@ pub struct AdvancedSettings {
     pub log_level: String,
     pub print_debug_info: bool,
     #[serde(default = "default_max_pending_conns")]
-    pub max_pending_connections: i32,
+    pub max_pending_connections: u32,
     #[serde(default = "default_max_concurrent_threads")]
-    pub max_concurrent_threads: i32,
+    pub max_concurrent_threads: u32,
     #[serde(default = "default_max_rulesets")]
     pub max_allowed_rulesets: usize,
     #[serde(default = "default_max_rules")]
@@ -321,11 +264,11 @@ pub struct AdvancedSettings {
     pub max_allowed_download_size: i64,
     pub enable_cache: bool,
     #[serde(default = "default_cache_subscription")]
-    pub cache_subscription: i32,
+    pub cache_subscription: u32,
     #[serde(default = "default_cache_config")]
-    pub cache_config: i32,
+    pub cache_config: u32,
     #[serde(default = "default_cache_ruleset")]
-    pub cache_ruleset: i32,
+    pub cache_ruleset: u32,
     pub script_clean_context: bool,
     pub async_fetch_ruleset: bool,
     pub skip_failed_links: bool,
@@ -346,12 +289,12 @@ pub struct TomlSettings {
     pub surge_external_proxy: SurgeExternalProxySettings,
     pub emojis: EmojiSettings,
     pub ruleset: RulesetSettings,
-    pub rulesets: Vec<RulesetConfig>,
+    pub rulesets: Vec<RulesetConfigInToml>,
     #[serde(rename = "custom_groups")]
-    pub custom_proxy_groups: Vec<ProxyGroupConfig>,
+    pub custom_proxy_groups: Vec<ProxyGroupConfigInToml>,
     pub template: TemplateSettings,
     pub aliases: Vec<AliasConfig>,
-    pub tasks: Vec<TaskConfig>,
+    pub tasks: Vec<TaskConfigInToml>,
     pub server: ServerSettings,
     pub advanced: AdvancedSettings,
     // Internal fields not present in TOML file
@@ -373,178 +316,107 @@ pub struct TomlSettings {
 
 impl TomlSettings {
     pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let proxy_config = &parse_proxy(&self.common.proxy_config);
+        let global = Settings::current();
+        let proxy_config = parse_proxy(&global.proxy_config);
+
         // Process rename nodes
-        let mut rename_nodes = Vec::new();
-        for rule in &self.node_pref.rename_node {
-            if let Some(import) = &rule.import {
-                rename_nodes.push(format!("!!import:{}", import));
-            } else if let (Some(match_pattern), Some(replace)) =
-                (&rule.match_pattern, &rule.replace)
-            {
-                rename_nodes.push(format!("{}@{}", match_pattern, replace));
-            } else if let (Some(match_str), Some(replace)) = (&rule.match_str, &rule.replace) {
-                rename_nodes.push(format!("{}@{}", match_str, replace));
-            } else if let Some(script) = &rule.script {
-                rename_nodes.push(format!("!!script:{}", script));
-            }
-        }
-        import_items(
-            &mut rename_nodes,
+        import_toml_items(
+            &mut self.node_pref.rename_node,
             false,
-            proxy_config,
+            "rename_node",
+            &proxy_config,
             &self.common.base_path,
         )?;
-        self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&rename_nodes, "@");
+        self.parsed_rename = self
+            .node_pref
+            .rename_node
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
 
         // Process stream rules
-        let mut stream_rules = Vec::new();
-        for rule in &self.userinfo.stream_rule {
-            if let Some(import) = &rule.import {
-                stream_rules.push(format!("!!import:{}", import));
-            } else if let (Some(match_pattern), Some(replace)) =
-                (&rule.match_pattern, &rule.replace)
-            {
-                stream_rules.push(format!("{}|{}", match_pattern, replace));
-            } else if let (Some(match_str), Some(replace)) = (&rule.match_str, &rule.replace) {
-                stream_rules.push(format!("{}|{}", match_str, replace));
-            } else if let Some(script) = &rule.script {
-                stream_rules.push(format!("!!script:{}", script));
-            }
-        }
-        import_items(
-            &mut stream_rules,
+        import_toml_items(
+            &mut self.userinfo.stream_rule,
             false,
-            proxy_config,
+            "stream_rule",
+            &proxy_config,
             &self.common.base_path,
         )?;
-        self.parsed_stream_rule = RegexMatchConfigs::from_ini_with_delimiter(&stream_rules, "|");
+        self.parsed_stream_rule = self
+            .userinfo
+            .stream_rule
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
 
         // Process time rules
-        let mut time_rules = Vec::new();
-        for rule in &self.userinfo.time_rule {
-            if let Some(import) = &rule.import {
-                time_rules.push(format!("!!import:{}", import));
-            } else if let (Some(match_pattern), Some(replace)) =
-                (&rule.match_pattern, &rule.replace)
-            {
-                time_rules.push(format!("{}|{}", match_pattern, replace));
-            } else if let (Some(match_str), Some(replace)) = (&rule.match_str, &rule.replace) {
-                time_rules.push(format!("{}|{}", match_str, replace));
-            } else if let Some(script) = &rule.script {
-                time_rules.push(format!("!!script:{}", script));
-            }
-        }
-        import_items(&mut time_rules, false, proxy_config, &self.common.base_path)?;
-        self.parsed_time_rule = RegexMatchConfigs::from_ini_with_delimiter(&time_rules, "|");
+        import_toml_items(
+            &mut self.userinfo.time_rule,
+            false,
+            "time_rule",
+            &proxy_config,
+            &self.common.base_path,
+        )?;
+        self.parsed_time_rule = self
+            .userinfo
+            .time_rule
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
 
         // Process emoji rules
-        let mut emoji_rules = Vec::new();
-        for rule in &self.emojis.emoji {
-            if let Some(import) = &rule.import {
-                emoji_rules.push(format!("!!import:{}", import));
-            } else if let (Some(match_pattern), Some(replace)) =
-                (&rule.match_pattern, &rule.replace)
-            {
-                emoji_rules.push(format!("{},{}", match_pattern, replace));
-            } else if let (Some(match_str), Some(replace)) = (&rule.match_str, &rule.replace) {
-                emoji_rules.push(format!("{},{}", match_str, replace));
-            } else if let Some(script) = &rule.script {
-                emoji_rules.push(format!("!!script:{}", script));
-            }
-        }
-        import_items(
-            &mut emoji_rules,
+        import_toml_items(
+            &mut self.emojis.emoji,
             false,
-            proxy_config,
+            "emoji",
+            &proxy_config,
             &self.common.base_path,
         )?;
-        self.parsed_emoji_rules = RegexMatchConfigs::from_ini_with_delimiter(&emoji_rules, ",");
+        self.parsed_emoji_rules = self.emojis.emoji.iter().map(|r| r.clone().into()).collect();
 
         // Process rulesets
-        let mut rulesets = Vec::new();
-        for ruleset in &self.rulesets {
-            if let Some(import) = &ruleset.import {
-                rulesets.push(format!("!!import:{}", import));
-            } else {
-                let mut ruleset_str = ruleset.group.clone();
-
-                if !ruleset.ruleset.as_ref().map_or(true, |s| s.is_empty()) {
-                    ruleset_str.push_str(&format!(",{}", ruleset.ruleset.as_ref().unwrap()));
-
-                    // Add interval if provided
-                    if let Some(interval) = ruleset.interval {
-                        ruleset_str.push_str(&format!(",{}", interval));
-                    }
-                } else {
-                    ruleset_str.push_str(",[]");
-                }
-
-                if !ruleset_str.eq(&ruleset.group) {
-                    rulesets.push(ruleset_str);
-                }
-            }
-        }
-        import_items(&mut rulesets, false, proxy_config, &self.common.base_path)?;
-        self.parsed_ruleset = RulesetConfigs::from_ini(&rulesets);
-
-        // Process proxy groups
-        let mut proxy_groups = Vec::new();
-        for group in &self.custom_proxy_groups {
-            if let Some(import) = &group.import {
-                proxy_groups.push(format!("!!import:{}", import));
-            } else {
-                let mut group_str = format!("{}`{}", group.name, group.group_type);
-
-                // Add all rules
-                for rule in &group.rule {
-                    group_str.push_str(&format!("`{}", rule));
-                }
-
-                // Add URL and interval information for appropriate group types
-                if group.group_type == "url-test"
-                    || group.group_type == "fallback"
-                    || group.group_type == "load-balance"
-                    || group.group_type == "smart"
-                {
-                    if let Some(url) = &group.url {
-                        group_str.push_str(&format!("`{}", url));
-
-                        // Format: interval,timeout,tolerance
-                        let interval = group
-                            .interval
-                            .unwrap_or_else(|| default_interval().unwrap());
-                        let timeout = group.timeout.unwrap_or(5);
-                        let tolerance = group.tolerance.unwrap_or(0);
-                        group_str.push_str(&format!("`{},{},{}", interval, timeout, tolerance));
-                    }
-                }
-
-                proxy_groups.push(group_str);
-            }
-        }
-        import_items(
-            &mut proxy_groups,
-            false,
-            proxy_config,
+        import_toml_items(
+            &mut self.rulesets,
+            global.api_mode,
+            "rulesets",
+            &proxy_config,
             &self.common.base_path,
         )?;
-        self.parsed_proxy_group = ProxyGroupConfigs::from_ini(&proxy_groups);
+
+        // Check ruleset count limit
+        if global.max_allowed_rulesets > 0 && self.rulesets.len() > global.max_allowed_rulesets {
+            return Err(format!(
+                "Number of rulesets exceeds the maximum allowed: {}",
+                global.max_allowed_rulesets
+            )
+            .into());
+        }
+
+        self.parsed_ruleset = self.rulesets.iter().map(|r| r.clone().into()).collect();
+
+        // Process proxy groups
+        import_toml_items(
+            &mut self.custom_proxy_groups,
+            global.api_mode,
+            "custom_groups",
+            &proxy_config,
+            &self.common.base_path,
+        )?;
+        self.parsed_proxy_group = self
+            .custom_proxy_groups
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
 
         // Process tasks
-        let mut tasks = Vec::new();
-        for task in &self.tasks {
-            if let Some(import) = &task.import {
-                tasks.push(format!("!!import:{}", import));
-            } else {
-                tasks.push(format!(
-                    "{}`{}`{}`{}",
-                    task.name, task.cronexp, task.path, task.timeout
-                ));
-            }
-        }
-        import_items(&mut tasks, false, proxy_config, &self.common.base_path)?;
-        self.parsed_tasks = CronTaskConfigs::from_ini(&tasks);
+        import_toml_items(
+            &mut self.tasks,
+            false,
+            "tasks",
+            &proxy_config,
+            &self.common.base_path,
+        )?;
+        self.parsed_tasks = self.tasks.iter().map(|r| r.clone().into()).collect();
 
         Ok(())
     }

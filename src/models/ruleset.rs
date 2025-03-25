@@ -47,7 +47,7 @@ pub fn get_ruleset_type_from_url(url: &str) -> Option<RulesetType> {
     None
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct RulesetConfig {
     pub group: String,
     pub url: String,

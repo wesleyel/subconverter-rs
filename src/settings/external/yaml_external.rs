@@ -1,7 +1,10 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::models::RegexMatchConfig;
+use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
+use crate::models::ruleset::RulesetConfigs;
+use crate::models::{ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs, RulesetConfig};
+use crate::{settings::import_items, utils::http::parse_proxy, Settings};
 
 // Default value functions
 fn default_true() -> bool {
@@ -36,9 +39,8 @@ pub struct RuleGenerationSettings {
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
 pub struct EmojiSettings {
-    pub add_emoji: bool,
-    #[serde(default = "default_true")]
-    pub remove_old_emoji: bool,
+    pub add_emoji: Option<bool>,
+    pub remove_old_emoji: Option<bool>,
     pub emoji: Vec<RegexMatchConfig>,
 }
 
@@ -48,33 +50,6 @@ pub struct EmojiSettings {
 pub struct FilteringSettings {
     pub include_remarks: Vec<String>,
     pub exclude_remarks: Vec<String>,
-}
-
-/// Ruleset configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct RulesetConfig {
-    pub group: String,
-    pub ruleset: String,
-    pub interval: Option<i32>,
-    pub url: Option<String>,
-}
-
-/// Proxy group configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct ProxyGroupConfig {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub group_type: String,
-    pub rule: Vec<String>,
-    pub url: Option<String>,
-    pub interval: Option<i32>,
-    pub tolerance: Option<i32>,
-    pub timeout: Option<i32>,
-    pub lazy: Option<bool>,
-    pub disable_udp: Option<bool>,
-    pub strategy: Option<String>,
 }
 
 /// Custom settings
@@ -97,9 +72,16 @@ pub struct CustomSettings {
     #[serde(flatten)]
     pub filtering: FilteringSettings,
 
-    // Rulesets and proxy groups
-    pub rulesets: Vec<RulesetConfig>,
-    pub custom_proxy_group: Vec<ProxyGroupConfig>,
+    // Emoji and rename rules
+    #[serde(alias = "emoji")]
+    pub emojis: Vec<String>,
+    pub rename_nodes: Vec<String>,
+
+    // Custom rulesets and proxy groups
+    #[serde(alias = "surge_ruleset")]
+    pub rulesets: Vec<String>,
+    #[serde(alias = "custom_proxy_group")]
+    pub proxy_groups: Vec<String>,
 }
 
 /// Main YAML external settings structure
@@ -107,6 +89,61 @@ pub struct CustomSettings {
 #[serde(default)]
 pub struct YamlExternalSettings {
     pub custom: CustomSettings,
-    pub rename: Vec<RegexMatchConfig>,
     pub tpl_args: Option<HashMap<String, String>>,
+
+    // Processed fields
+    #[serde(skip)]
+    pub parsed_custom_proxy_groups: ProxyGroupConfigs,
+    #[serde(skip)]
+    pub parsed_rulesets: RulesetConfigs,
+    #[serde(skip)]
+    pub parsed_rename: Vec<RegexMatchConfig>,
+    #[serde(skip)]
+    pub parsed_emojis: Vec<RegexMatchConfig>,
+}
+
+impl YamlExternalSettings {
+    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let global = Settings::current();
+        let proxy_config = parse_proxy(&global.proxy_config);
+
+        // Process rename nodes
+        import_items(
+            &mut self.custom.rename_nodes,
+            false,
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_rename =
+            RegexMatchConfigs::from_ini_with_delimiter(&self.custom.rename_nodes, "@");
+
+        // Process emoji rules
+        import_items(
+            &mut self.custom.emojis,
+            false,
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_emojis = RegexMatchConfigs::from_ini_with_delimiter(&self.custom.emojis, ",");
+
+        // Process imports for rulesets
+        import_items(
+            &mut self.custom.rulesets,
+            global.api_mode,
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_rulesets = RulesetConfigs::from_ini(&self.custom.rulesets);
+
+        // Process imports for proxy groups
+        import_items(
+            &mut self.custom.proxy_groups,
+            global.api_mode,
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_custom_proxy_groups = ProxyGroupConfigs::from_ini(&self.custom.proxy_groups);
+
+        Ok(())
+    }
 }

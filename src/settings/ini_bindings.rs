@@ -1,10 +1,8 @@
 use crate::models::cron::{CronTaskConfig, CronTaskConfigs};
-use crate::models::proxy_group_config::{
-    BalanceStrategy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,
-};
+use crate::models::proxy_group_config::{ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType};
 use crate::models::regex_match_config::{RegexMatchConfig, RegexMatchConfigs};
 use crate::models::ruleset::{RulesetConfig, RulesetConfigs};
-use crate::utils::string::{hash, starts_with};
+use crate::utils::string::starts_with;
 
 /// Parse group times string into interval, timeout, and tolerance values
 /// Similar to the C++ parseGroupTimes function in settings.h
@@ -45,7 +43,7 @@ impl FromIni<ProxyGroupConfigs> for ProxyGroupConfigs {
         let mut confs = Vec::new();
 
         for x in arr {
-            let mut rules_upper_bound = 0;
+            let mut rules_upper_bound;
             let mut conf = ProxyGroupConfig::default();
 
             let v_array: Vec<&str> = x.split('`').collect();
@@ -57,31 +55,16 @@ impl FromIni<ProxyGroupConfigs> for ProxyGroupConfigs {
             let type_str = v_array[1];
 
             rules_upper_bound = v_array.len();
-            match hash(type_str) {
-                // Using hash values corresponding to the string hashes in C++
-                h if h == hash("select") => {
-                    conf.group_type = ProxyGroupType::Select;
-                }
-                h if h == hash("relay") => {
-                    conf.group_type = ProxyGroupType::Relay;
-                }
-                h if h == hash("url-test") => {
-                    conf.group_type = ProxyGroupType::URLTest;
-                }
-                h if h == hash("fallback") => {
-                    conf.group_type = ProxyGroupType::Fallback;
-                }
-                h if h == hash("load-balance") => {
-                    conf.group_type = ProxyGroupType::LoadBalance;
-                }
-                h if h == hash("ssid") => {
-                    conf.group_type = ProxyGroupType::SSID;
-                }
-                h if h == hash("smart") => {
-                    conf.group_type = ProxyGroupType::Smart;
-                }
-                _ => continue,
-            }
+            conf.group_type = match type_str {
+                "select" => ProxyGroupType::Select,
+                "relay" => ProxyGroupType::Relay,
+                "url-test" => ProxyGroupType::URLTest,
+                "fallback" => ProxyGroupType::Fallback,
+                "load-balance" => ProxyGroupType::LoadBalance,
+                "ssid" => ProxyGroupType::SSID,
+                "smart" => ProxyGroupType::Smart,
+                _ => ProxyGroupType::Select,
+            };
 
             if conf.group_type == ProxyGroupType::URLTest
                 || conf.group_type == ProxyGroupType::LoadBalance
@@ -224,7 +207,7 @@ impl FromIni<CronTaskConfigs> for CronTaskConfigs {
             conf.path = v_array[2].to_string();
 
             if v_array.len() > 3 {
-                if let Ok(timeout) = v_array[3].parse::<i32>() {
+                if let Ok(timeout) = v_array[3].parse::<u32>() {
                     conf.timeout = timeout;
                 }
             }

@@ -1,6 +1,5 @@
 // Re-export types and implementations
 pub mod conversions;
-pub mod ini_bindings;
 pub mod ini_settings;
 pub mod settings_struct;
 pub mod toml_settings;

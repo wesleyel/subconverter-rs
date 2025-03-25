@@ -51,7 +51,7 @@ impl RulesetConfig {
 pub fn fetch_ruleset(
     url: &str,
     proxy: &ProxyConfig,
-    _cache_timeout: i32,
+    _cache_timeout: u32,
     _async_fetch: bool,
 ) -> Result<String, String> {
     // First check if it's a local file

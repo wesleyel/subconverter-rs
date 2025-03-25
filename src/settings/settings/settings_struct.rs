@@ -44,8 +44,8 @@ pub struct Settings {
     pub default_urls: Vec<String>,
     pub insert_urls: Vec<String>,
     pub managed_config_prefix: String,
-    pub max_pending_conns: i32,
-    pub max_concur_threads: i32,
+    pub max_pending_conns: u32,
+    pub max_concur_threads: u32,
     pub prepend_insert: bool,
     pub skip_failed_links: bool,
     pub api_mode: bool,
@@ -59,7 +59,7 @@ pub struct Settings {
     pub api_access_token: String,
     pub base_path: String,
     pub custom_group: String,
-    pub log_level: i32,
+    pub log_level: u32,
     pub max_allowed_download_size: i64,
     pub template_path: String,
     pub template_vars: HashMap<String, String>,
@@ -90,7 +90,7 @@ pub struct Settings {
     pub proxy_config: String,
     pub proxy_ruleset: String,
     pub proxy_subscription: String,
-    pub update_interval: i32,
+    pub update_interval: u32,
     pub sort_script: String,
     pub filter_script: String,
 
@@ -109,13 +109,13 @@ pub struct Settings {
 
     // Cache system
     pub serve_cache_on_fetch_fail: bool,
-    pub cache_subscription: i32,
-    pub cache_config: i32,
-    pub cache_ruleset: i32,
+    pub cache_subscription: u32,
+    pub cache_config: u32,
+    pub cache_ruleset: u32,
 
     // Server
     pub listen_address: String,
-    pub listen_port: i32,
+    pub listen_port: u32,
     pub serve_file: bool,
     pub serve_file_root: String,
 
@@ -134,15 +134,15 @@ pub fn default_listen_address() -> String {
     "127.0.0.1".to_string()
 }
 
-pub fn default_listen_port() -> i32 {
+pub fn default_listen_port() -> u32 {
     25500
 }
 
-pub fn default_max_pending_conns() -> i32 {
+pub fn default_max_pending_conns() -> u32 {
     10240
 }
 
-pub fn default_max_concur_threads() -> i32 {
+pub fn default_max_concur_threads() -> u32 {
     4
 }
 
@@ -150,7 +150,7 @@ pub fn default_true() -> bool {
     true
 }
 
-pub fn default_log_level() -> i32 {
+pub fn default_log_level() -> u32 {
     1
 }
 
@@ -158,15 +158,15 @@ pub fn default_max_download_size() -> i64 {
     32 * 1024 * 1024 // 32MB
 }
 
-pub fn default_cache_subscription() -> i32 {
+pub fn default_cache_subscription() -> u32 {
     60
 }
 
-pub fn default_cache_config() -> i32 {
+pub fn default_cache_config() -> u32 {
     300
 }
 
-pub fn default_cache_ruleset() -> i32 {
+pub fn default_cache_ruleset() -> u32 {
     21600
 }
 

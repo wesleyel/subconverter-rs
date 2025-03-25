@@ -1,3 +1,5 @@
+use crate::Settings;
+
 use super::RegexMatchConfigs;
 
 /// Settings for subscription export operations
@@ -57,9 +59,11 @@ pub struct ExtraSettings {
 
 impl Default for ExtraSettings {
     fn default() -> Self {
+        let global = Settings::current();
+
         ExtraSettings {
-            enable_rule_generator: true,
-            overwrite_original_rules: true,
+            enable_rule_generator: global.enable_rule_gen,
+            overwrite_original_rules: global.overwrite_original_rules,
             rename_array: Vec::new(),
             emoji_array: Vec::new(),
             add_emoji: false,
@@ -70,7 +74,7 @@ impl Default for ExtraSettings {
             filter_deprecated: false,
             clash_new_field_name: true,
             clash_script: false,
-            surge_ssr_path: String::new(),
+            surge_ssr_path: global.surge_ssr_path.clone(),
             managed_config_prefix: String::new(),
             quanx_dev_id: String::new(),
             udp: None,
@@ -79,8 +83,16 @@ impl Default for ExtraSettings {
             tls13: None,
             clash_classical_ruleset: false,
             sort_script: String::new(),
-            clash_proxies_style: "flow".to_string(),
-            clash_proxy_groups_style: "flow".to_string(),
+            clash_proxies_style: if global.clash_proxies_style.is_empty() {
+                "flow".to_string()
+            } else {
+                global.clash_proxies_style.clone()
+            },
+            clash_proxy_groups_style: if global.clash_proxy_groups_style.is_empty() {
+                "flow".to_string()
+            } else {
+                global.clash_proxy_groups_style.clone()
+            },
             authorized: false,
             js_context: None,
         }

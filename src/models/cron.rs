@@ -3,7 +3,7 @@ pub struct CronTaskConfig {
     pub name: String,
     pub cron_exp: String,
     pub path: String,
-    pub timeout: i32,
+    pub timeout: u32,
 }
 
 impl Default for CronTaskConfig {

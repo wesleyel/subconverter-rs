@@ -1,14 +1,12 @@
 use log::debug;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_yaml;
 use std::collections::HashMap;
 use std::path::Path;
 use toml;
 
-use crate::models::RegexMatchConfig;
-use crate::settings::deserializer::*;
-use crate::settings::ruleset::RulesetConfig;
-use crate::settings::{import_items, Settings};
+use crate::models::{ProxyGroupConfig, RegexMatchConfig, RulesetConfig};
+use crate::settings::Settings;
 use crate::utils::file::read_file;
 use crate::utils::http::{parse_proxy, web_get};
 // TODO: Implement template rendering module similar to C++ render_template function
@@ -18,8 +16,7 @@ use super::toml_external::TomlExternalSettings;
 use super::yaml_external::YamlExternalSettings;
 
 /// External configuration structure with flattened fields
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Clone, Default)]
 pub struct ExternalSettings {
     // Rule bases
     pub clash_rule_base: String,
@@ -36,20 +33,20 @@ pub struct ExternalSettings {
     pub enable_rule_generator: Option<bool>,
     pub overwrite_original_rules: Option<bool>,
 
+    // Emoji settings
     pub add_emoji: Option<bool>,
     pub remove_old_emoji: Option<bool>,
+    pub emojis: Vec<RegexMatchConfig>,
 
     // Filtering
     pub include_remarks: Vec<String>,
     pub exclude_remarks: Vec<String>,
-
-    #[serde(default, deserialize_with = "deserialize_rulesets")]
-    pub rulesets: Vec<String>,
-    #[serde(default, deserialize_with = "deserialize_proxy_groups")]
-    pub custom_proxy_groups: Vec<String>,
+    // #[serde(default, deserialize_with = "deserialize_rulesets")]
+    pub custom_rulesets: Vec<RulesetConfig>,
+    pub custom_proxy_groups: Vec<ProxyGroupConfig>,
 
     // Node operations
-    pub rename: Vec<RegexMatchConfig>,
+    pub rename_nodes: Vec<RegexMatchConfig>,
 
     // Template arguments
     pub tpl_args: Option<HashMap<String, String>>,
@@ -58,29 +55,6 @@ pub struct ExternalSettings {
 impl ExternalSettings {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Process imports in the configuration
-    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let settings = Settings::current();
-        let proxy_config = parse_proxy(&settings.proxy_config);
-        // Process imports for rulesets
-        import_items(
-            &mut self.rulesets,
-            settings.api_mode,
-            &proxy_config,
-            &settings.base_path,
-        )?;
-
-        // Process imports for custom proxy groups
-        import_items(
-            &mut self.custom_proxy_groups,
-            settings.api_mode,
-            &proxy_config,
-            &settings.base_path,
-        )?;
-
-        Ok(())
     }
 
     /// Load external configuration from file or URL
@@ -108,44 +82,43 @@ impl ExternalSettings {
 
         // Try YAML format first
         if _content.contains("custom:") {
-            match serde_yaml::from_str::<YamlExternalSettings>(&_content) {
-                Ok(yaml_settings) => {
-                    // Convert to ExternalSettings
-                    let mut config = Self::from(yaml_settings);
-                    // Process any imports
-                    config.process_imports()?;
-                    return Ok(config);
-                }
-                Err(e) => debug!("Failed to parse external config as YAML: {}", e),
-            }
+            let mut yaml_settings: YamlExternalSettings = serde_yaml::from_str(&_content)?;
+            yaml_settings.process_imports()?;
+            // Convert to ExternalSettings
+            let config = Self::from(yaml_settings);
+            return Ok(config);
         }
 
-        // Try TOML format
-        match toml::from_str::<TomlExternalSettings>(&_content) {
-            Ok(toml_settings) => {
-                // Convert to ExternalSettings
-                let mut config = Self::from(toml_settings);
-                // Process any imports
-                config.process_imports()?;
-                return Ok(config);
-            }
-            Err(e) => debug!("Failed to parse external config as TOML: {}", e),
+        if toml::from_str::<toml::Value>(&_content).is_ok() {
+            let mut toml_settings: TomlExternalSettings = toml::from_str(&_content)?;
+            toml_settings.process_imports()?;
+            // Convert to ExternalSettings
+            let config = Self::from(toml_settings);
+            return Ok(config);
         }
 
         // Fall back to INI format
         let mut ini_settings = IniExternalSettings::new();
         match ini_settings.load_from_ini(&_content) {
             Ok(_) => {
-                // Convert to ExternalSettings
-                let mut config = Self::from(ini_settings);
                 // Process any imports
-                config.process_imports()?;
-                Ok(config)
+                ini_settings.process_imports()?;
+                // Convert to ExternalSettings
+                let config = Self::from(ini_settings);
+                return Ok(config);
             }
             Err(e) => Err(format!("Failed to parse external config as INI: {}", e).into()),
         }
     }
 
-    // TODO: Implement validate_rulesets method - in C++ there's a check for maxAllowedRulesets
-    // In C++: if(global.maxAllowedRulesets && vArray.size() > global.maxAllowedRulesets) { ... }
+    /// Validate rulesets count
+    pub fn validate_rulesets(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let settings = Settings::current();
+        if settings.max_allowed_rulesets > 0
+            && self.custom_rulesets.len() > settings.max_allowed_rulesets
+        {
+            return Err("Ruleset count in external config has exceeded limit.".into());
+        }
+        Ok(())
+    }
 }

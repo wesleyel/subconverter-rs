@@ -3,12 +3,30 @@ use crate::generator::config::formats::{
     singbox::proxy_to_singbox, ss_sub::proxy_to_ss_sub, surge::proxy_to_surge,
 };
 use crate::generator::exports::clash::proxy_to_clash;
-use crate::models::{ExtraSettings, Proxy, ProxyGroupConfigs, RulesetContent, SubconverterTarget};
+use crate::models::ruleset::RulesetConfigs;
+use crate::models::{
+    ExtraSettings, Proxy, ProxyGroupConfigs, RegexMatchConfig, RulesetContent, SubconverterTarget,
+};
 use crate::parser::parse_settings::ParseSettings;
 use crate::parser::subparser::add_nodes;
+use crate::Settings;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::path::Path;
+
+#[derive(Debug, Clone, Default)]
+pub struct RuleBases {
+    // Rule bases
+    pub clash_rule_base: String,
+    pub surge_rule_base: String,
+    pub surfboard_rule_base: String,
+    pub mellow_rule_base: String,
+    pub quan_rule_base: String,
+    pub quanx_rule_base: String,
+    pub loon_rule_base: String,
+    pub sssub_rule_base: String,
+    pub singbox_rule_base: String,
+}
 
 /// Configuration for subconverter
 #[derive(Debug, Clone)]
@@ -25,18 +43,14 @@ pub struct SubconverterConfig {
     pub group_name: Option<String>,
     /// Base configuration content for the target format
     pub base_content: HashMap<SubconverterTarget, String>,
-    /// Ruleset contents to apply
-    pub ruleset_content: Vec<RulesetContent>,
+    // Ruleset configs
+    pub ruleset_configs: RulesetConfigs,
     /// Custom proxy groups
     pub proxy_groups: ProxyGroupConfigs,
     /// Include nodes matching these remarks
     pub include_remarks: Vec<String>,
     /// Exclude nodes matching these remarks
     pub exclude_remarks: Vec<String>,
-    /// Rename patterns
-    pub rename_patterns: Vec<(String, String)>,
-    /// Emoji patterns
-    pub emoji_patterns: Vec<(String, String)>,
     /// Additional settings
     pub extra: ExtraSettings,
     /// Device ID for certain formats
@@ -44,7 +58,7 @@ pub struct SubconverterConfig {
     /// Filename for download
     pub filename: Option<String>,
     /// Update interval in seconds
-    pub update_interval: i32,
+    pub update_interval: u32,
     /// Filter script
     pub filter_script: Option<String>,
     /// Whether update is strict
@@ -63,6 +77,8 @@ pub struct SubconverterConfig {
     pub authorized: bool,
     /// Subscription information
     pub sub_info: Option<String>,
+    /// Rule bases
+    pub rule_bases: RuleBases,
 }
 
 /// Builder for SubconverterConfig
@@ -88,12 +104,10 @@ impl SubconverterConfigBuilder {
                 prepend_insert: false,
                 group_name: None,
                 base_content: HashMap::new(),
-                ruleset_content: Vec::new(),
+                ruleset_configs: Vec::new(),
                 proxy_groups: Vec::new(),
                 include_remarks: Vec::new(),
                 exclude_remarks: Vec::new(),
-                rename_patterns: Vec::new(),
-                emoji_patterns: Vec::new(),
                 extra: ExtraSettings::default(),
                 device_id: None,
                 filename: None,
@@ -107,18 +121,19 @@ impl SubconverterConfigBuilder {
                 token: None,
                 authorized: false,
                 sub_info: None,
+                rule_bases: RuleBases::default(),
             },
         }
     }
 
     /// Set the target format
-    pub fn target(mut self, target: SubconverterTarget) -> Self {
+    pub fn target(&mut self, target: SubconverterTarget) -> &mut Self {
         self.config.target = target;
         self
     }
 
     /// Set target from string
-    pub fn target_from_str(mut self, target: &str) -> Self {
+    pub fn target_from_str(&mut self, target: &str) -> &mut Self {
         if let Some(t) = SubconverterTarget::from_str(target) {
             self.config.target = t;
         }
@@ -126,7 +141,7 @@ impl SubconverterConfigBuilder {
     }
 
     /// Set Surge version if target is Surge
-    pub fn surge_version(mut self, version: i32) -> Self {
+    pub fn surge_version(&mut self, version: i32) -> &mut Self {
         if let SubconverterTarget::Surge(_) = self.config.target {
             self.config.target = SubconverterTarget::Surge(version);
         }
@@ -134,294 +149,271 @@ impl SubconverterConfigBuilder {
     }
 
     /// Add a URL to parse
-    pub fn add_url(mut self, url: &str) -> Self {
+    pub fn add_url(&mut self, url: &str) -> &mut Self {
         self.config.urls.push(url.to_string());
         self
     }
 
     /// Set URLs to parse
-    pub fn urls(mut self, urls: Vec<String>) -> Self {
+    pub fn urls(&mut self, urls: Vec<String>) -> &mut Self {
         self.config.urls = urls;
         self
     }
 
     /// Set URLs from pipe-separated string
-    pub fn urls_from_str(mut self, urls: &str) -> Self {
+    pub fn urls_from_str(&mut self, urls: &str) -> &mut Self {
         self.config.urls = urls.split('|').map(|s| s.trim().to_string()).collect();
         self
     }
 
     /// Add an insert URL
-    pub fn add_insert_url(mut self, url: &str) -> Self {
+    pub fn add_insert_url(&mut self, url: &str) -> &mut Self {
         self.config.insert_urls.push(url.to_string());
         self
     }
 
     /// Set insert URLs
-    pub fn insert_urls(mut self, urls: Vec<String>) -> Self {
+    pub fn insert_urls(&mut self, urls: Vec<String>) -> &mut Self {
         self.config.insert_urls = urls;
         self
     }
 
     /// Set insert URLs from pipe-separated string
-    pub fn insert_urls_from_str(mut self, urls: &str) -> Self {
+    pub fn insert_urls_from_str(&mut self, urls: &str) -> &mut Self {
         self.config.insert_urls = urls.split('|').map(|s| s.trim().to_string()).collect();
         self
     }
 
     /// Set whether to prepend inserted nodes
-    pub fn prepend_insert(mut self, prepend: bool) -> Self {
+    pub fn prepend_insert(&mut self, prepend: bool) -> &mut Self {
         self.config.prepend_insert = prepend;
         self
     }
 
     /// Set custom group name
-    pub fn group_name(mut self, name: Option<String>) -> Self {
+    pub fn group_name(&mut self, name: Option<String>) -> &mut Self {
         self.config.group_name = name;
         self
     }
 
-    /// Add base content for a specific target
-    pub fn add_base_content(mut self, target: SubconverterTarget, content: String) -> Self {
-        self.config.base_content.insert(target, content);
-        self
-    }
-
-    /// Set base content for a target from a file path
-    pub fn add_base_content_from_file<P: AsRef<Path>>(
-        mut self,
-        target: SubconverterTarget,
-        path: P,
-    ) -> Self {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            self.config.base_content.insert(target, content);
-        }
-        self
-    }
-
-    /// Add a ruleset content
-    pub fn add_ruleset(mut self, ruleset: RulesetContent) -> Self {
-        self.config.ruleset_content.push(ruleset);
-        self
-    }
-
-    /// Set ruleset contents
-    pub fn ruleset_content(mut self, rulesets: Vec<RulesetContent>) -> Self {
-        self.config.ruleset_content = rulesets;
-        self
-    }
-
     /// Set proxy groups
-    pub fn proxy_groups(mut self, groups: ProxyGroupConfigs) -> Self {
+    pub fn proxy_groups(&mut self, groups: ProxyGroupConfigs) -> &mut Self {
         self.config.proxy_groups = groups;
         self
     }
 
+    pub fn ruleset_configs(&mut self, configs: RulesetConfigs) -> &mut Self {
+        self.config.ruleset_configs = configs;
+        self
+    }
+
     /// Add an include remark pattern
-    pub fn add_include_remark(mut self, pattern: &str) -> Self {
+    pub fn add_include_remark(&mut self, pattern: &str) -> &mut Self {
         self.config.include_remarks.push(pattern.to_string());
         self
     }
 
     /// Set include remark patterns
-    pub fn include_remarks(mut self, patterns: Vec<String>) -> Self {
+    pub fn include_remarks(&mut self, patterns: Vec<String>) -> &mut Self {
         self.config.include_remarks = patterns;
         self
     }
 
     /// Add an exclude remark pattern
-    pub fn add_exclude_remark(mut self, pattern: &str) -> Self {
+    pub fn add_exclude_remark(&mut self, pattern: &str) -> &mut Self {
         self.config.exclude_remarks.push(pattern.to_string());
         self
     }
 
     /// Set exclude remark patterns
-    pub fn exclude_remarks(mut self, patterns: Vec<String>) -> Self {
+    pub fn exclude_remarks(&mut self, patterns: Vec<String>) -> &mut Self {
         self.config.exclude_remarks = patterns;
         self
     }
 
-    /// Add a rename pattern
-    pub fn add_rename_pattern(mut self, pattern: &str, replacement: &str) -> Self {
-        self.config
-            .rename_patterns
-            .push((pattern.to_string(), replacement.to_string()));
+    pub fn emoji_array(&mut self, patterns: Vec<RegexMatchConfig>) -> &mut Self {
+        self.config.extra.emoji_array = patterns;
         self
     }
 
-    /// Set rename patterns
-    pub fn rename_patterns(mut self, patterns: Vec<(String, String)>) -> Self {
-        self.config.rename_patterns = patterns;
+    pub fn rename_array(&mut self, patterns: Vec<RegexMatchConfig>) -> &mut Self {
+        self.config.extra.rename_array = patterns;
         self
     }
 
-    /// Add an emoji pattern
-    pub fn add_emoji_pattern(mut self, pattern: &str, emoji: &str) -> Self {
-        self.config
-            .emoji_patterns
-            .push((pattern.to_string(), emoji.to_string()));
+    pub fn add_emoji(&mut self, add: bool) -> &mut Self {
+        self.config.extra.add_emoji = add;
         self
     }
 
-    /// Set emoji patterns
-    pub fn emoji_patterns(mut self, patterns: Vec<(String, String)>) -> Self {
-        self.config.emoji_patterns = patterns;
+    pub fn remove_emoji(&mut self, remove: bool) -> &mut Self {
+        self.config.extra.remove_emoji = remove;
         self
     }
 
     /// Set extra settings
-    pub fn extra(mut self, extra: ExtraSettings) -> Self {
+    pub fn extra(&mut self, extra: ExtraSettings) -> &mut Self {
         self.config.extra = extra;
         self
     }
 
     /// Set whether to append proxy type to remarks
-    pub fn append_proxy_type(mut self, append: bool) -> Self {
+    pub fn append_proxy_type(&mut self, append: bool) -> &mut Self {
         self.config.extra.append_proxy_type = append;
         self
     }
 
     /// Set whether to enable TCP Fast Open
-    pub fn tfo(mut self, tfo: Option<bool>) -> Self {
+    pub fn tfo(&mut self, tfo: Option<bool>) -> &mut Self {
         self.config.extra.tfo = tfo;
         self
     }
 
     /// Set whether to enable UDP
-    pub fn udp(mut self, udp: Option<bool>) -> Self {
+    pub fn udp(&mut self, udp: Option<bool>) -> &mut Self {
         self.config.extra.udp = udp;
         self
     }
 
     /// Set whether to skip certificate verification
-    pub fn skip_cert_verify(mut self, skip: Option<bool>) -> Self {
+    pub fn skip_cert_verify(&mut self, skip: Option<bool>) -> &mut Self {
         self.config.extra.skip_cert_verify = skip;
         self
     }
 
     /// Set whether to enable TLS 1.3
-    pub fn tls13(mut self, tls13: Option<bool>) -> Self {
+    pub fn tls13(&mut self, tls13: Option<bool>) -> &mut Self {
         self.config.extra.tls13 = tls13;
         self
     }
 
     /// Set whether to sort nodes
-    pub fn sort(mut self, sort: bool) -> Self {
+    pub fn sort(&mut self, sort: bool) -> &mut Self {
         self.config.extra.sort_flag = sort;
         self
     }
 
     /// Set sort script
-    pub fn sort_script(mut self, script: String) -> Self {
+    pub fn sort_script(&mut self, script: String) -> &mut Self {
         self.config.extra.sort_script = script;
         self
     }
 
     /// Set whether to filter deprecated nodes
-    pub fn filter_deprecated(mut self, filter: bool) -> Self {
+    pub fn filter_deprecated(&mut self, filter: bool) -> &mut Self {
         self.config.extra.filter_deprecated = filter;
         self
     }
 
     /// Set whether to use new field names in Clash
-    pub fn clash_new_field_name(mut self, new_field: bool) -> Self {
+    pub fn clash_new_field_name(&mut self, new_field: bool) -> &mut Self {
         self.config.extra.clash_new_field_name = new_field;
         self
     }
 
     /// Set whether to enable Clash script
-    pub fn clash_script(mut self, enable: bool) -> Self {
+    pub fn clash_script(&mut self, enable: bool) -> &mut Self {
         self.config.extra.clash_script = enable;
         self
     }
 
+    pub fn clash_classical_ruleset(&mut self, enable: bool) -> &mut Self {
+        self.config.extra.clash_classical_ruleset = enable;
+        self
+    }
+
     /// Set whether to generate node list
-    pub fn nodelist(mut self, nodelist: bool) -> Self {
+    pub fn nodelist(&mut self, nodelist: bool) -> &mut Self {
         self.config.extra.nodelist = nodelist;
         self
     }
 
     /// Set whether to enable rule generator
-    pub fn enable_rule_generator(mut self, enable: bool) -> Self {
+    pub fn enable_rule_generator(&mut self, enable: bool) -> &mut Self {
         self.config.extra.enable_rule_generator = enable;
         self
     }
 
     /// Set whether to overwrite original rules
-    pub fn overwrite_original_rules(mut self, overwrite: bool) -> Self {
+    pub fn overwrite_original_rules(&mut self, overwrite: bool) -> &mut Self {
         self.config.extra.overwrite_original_rules = overwrite;
         self
     }
 
     /// Set device ID
-    pub fn device_id(mut self, device_id: Option<String>) -> Self {
+    pub fn device_id(&mut self, device_id: Option<String>) -> &mut Self {
         self.config.device_id = device_id;
         self
     }
 
     /// Set filename
-    pub fn filename(mut self, filename: Option<String>) -> Self {
+    pub fn filename(&mut self, filename: Option<String>) -> &mut Self {
         self.config.filename = filename;
         self
     }
 
     /// Set update interval
-    pub fn update_interval(mut self, interval: i32) -> Self {
+    pub fn update_interval(&mut self, interval: u32) -> &mut Self {
         self.config.update_interval = interval;
         self
     }
 
     /// Set filter script
-    pub fn filter_script(mut self, script: Option<String>) -> Self {
+    pub fn filter_script(&mut self, script: Option<String>) -> &mut Self {
         self.config.filter_script = script;
         self
     }
 
     /// Set whether update is strict
-    pub fn update_strict(mut self, strict: bool) -> Self {
+    pub fn update_strict(&mut self, strict: bool) -> &mut Self {
         self.config.update_strict = strict;
         self
     }
 
     /// Set managed config prefix
-    pub fn managed_config_prefix(mut self, prefix: String) -> Self {
+    pub fn managed_config_prefix(&mut self, prefix: String) -> &mut Self {
         self.config.managed_config_prefix = prefix;
         self
     }
 
     /// Set upload path
-    pub fn upload_path(mut self, path: Option<String>) -> Self {
+    pub fn upload_path(&mut self, path: Option<String>) -> &mut Self {
         self.config.upload_path = path;
         self
     }
 
     /// Set whether to upload the result
-    pub fn upload(mut self, upload: bool) -> Self {
+    pub fn upload(&mut self, upload: bool) -> &mut Self {
         self.config.upload = upload;
         self
     }
 
     /// Set proxy for fetching subscriptions
-    pub fn proxy(mut self, proxy: Option<String>) -> Self {
+    pub fn proxy(&mut self, proxy: Option<String>) -> &mut Self {
         self.config.proxy = proxy;
         self
     }
 
     /// Set authentication token
-    pub fn token(mut self, token: Option<String>) -> Self {
+    pub fn token(&mut self, token: Option<String>) -> &mut Self {
         self.config.token = token;
         self
     }
 
     /// Set whether this request is authorized
-    pub fn authorized(mut self, authorized: bool) -> Self {
+    pub fn authorized(&mut self, authorized: bool) -> &mut Self {
         self.config.authorized = authorized;
         self
     }
 
     /// Set subscription information
-    pub fn sub_info(mut self, sub_info: Option<String>) -> Self {
+    pub fn sub_info(&mut self, sub_info: Option<String>) -> &mut Self {
         self.config.sub_info = sub_info;
+        self
+    }
+    /// rule bases updates
+    pub fn rule_bases(&mut self, rule_bases: RuleBases) -> &mut Self {
+        self.config.rule_bases = rule_bases;
         self
     }
 
@@ -508,6 +500,7 @@ pub fn parse_subscription(url: &str, options: ParseOptions) -> Result<Vec<Proxy>
 pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, String> {
     let mut response_headers = HashMap::new();
     let mut nodes = Vec::new();
+    let global = Settings::current();
 
     info!(
         "Processing subscription conversion request to {}",
@@ -601,13 +594,20 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
     preprocess_nodes(
         &mut nodes,
         &config.extra,
-        &config.rename_patterns,
-        &config.emoji_patterns,
+        &config.extra.rename_array,
+        &config.extra.emoji_array,
     );
 
     // Pass subscription info if provided
     if let Some(sub_info) = &config.sub_info {
         response_headers.insert("Subscription-UserInfo".to_string(), sub_info.clone());
+    }
+
+    let mut ruleset_content;
+    if config.ruleset_configs == global.custom_rulesets {
+        ruleset_content = global.rulesets_content.clone();
+    } else {
+        ruleset_content = vec![];
     }
 
     // Generate output based on target
@@ -622,7 +622,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_clash(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 false,
                 &mut config.extra.clone(),
@@ -638,7 +638,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_clash(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 true,
                 &mut config.extra.clone(),
@@ -654,7 +654,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             let output = proxy_to_surge(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 *ver,
                 &mut config.extra.clone(),
@@ -695,7 +695,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             let output = proxy_to_surge(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 -3, // Special version for Surfboard
                 &mut config.extra.clone(),
@@ -735,7 +735,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_mellow(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
@@ -784,7 +784,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_quan(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
@@ -799,7 +799,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_quanx(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
@@ -814,7 +814,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_loon(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
@@ -834,7 +834,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_singbox(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
@@ -851,7 +851,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             proxy_to_clash(
                 &mut nodes,
                 &base,
-                &mut config.ruleset_content.clone(),
+                &mut ruleset_content,
                 &config.proxy_groups,
                 false,
                 &mut config.extra.clone(),
@@ -887,8 +887,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
 pub fn preprocess_nodes(
     nodes: &mut Vec<Proxy>,
     extra: &ExtraSettings,
-    rename_patterns: &[(String, String)],
-    emoji_patterns: &[(String, String)],
+    rename_patterns: &Vec<RegexMatchConfig>,
+    emoji_patterns: &Vec<RegexMatchConfig>,
 ) {
     // Apply renames
     if !rename_patterns.is_empty() {
@@ -898,12 +898,8 @@ pub fn preprocess_nodes(
             nodes.len()
         );
         for node in nodes.iter_mut() {
-            for (pattern, replacement) in rename_patterns {
-                // Apply regex replace
-                // This is a simplified version; actual implementation would use regex
-                if node.remark.contains(pattern) {
-                    node.remark = node.remark.replace(pattern, replacement);
-                }
+            for pattern in rename_patterns {
+                pattern.process(&mut node.remark);
             }
         }
     }
@@ -919,11 +915,8 @@ pub fn preprocess_nodes(
             }
 
             // Add emoji based on patterns
-            for (pattern, emoji) in emoji_patterns {
-                if node.remark.contains(pattern) {
-                    node.remark = format!("{} {}", emoji, node.remark);
-                    break; // Only add one emoji
-                }
+            for pattern in emoji_patterns {
+                pattern.process(&mut node.remark);
             }
         }
     }

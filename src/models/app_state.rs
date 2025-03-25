@@ -12,9 +12,6 @@ pub struct AppState {
     /// Base configuration content for different targets
     base_configs: RwLock<HashMap<SubconverterTarget, String>>,
 
-    /// Emoji mapping for node remarks
-    pub emoji_map: Option<HashMap<String, String>>,
-
     /// Runtime variables
     pub runtime_vars: RwLock<HashMap<String, String>>,
 }
@@ -24,7 +21,6 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             base_configs: RwLock::new(HashMap::new()),
-            emoji_map: None,
             runtime_vars: RwLock::new(HashMap::new()),
         }
     }
@@ -108,34 +104,5 @@ impl AppState {
                 configs.insert(SubconverterTarget::SingBox, content);
             }
         }
-    }
-
-    /// Load emoji mapping from file
-    pub fn load_emoji_map(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let content = file_get(path, None)?;
-        let mut emoji_map = HashMap::new();
-
-        for line in content.lines() {
-            let line = line.trim();
-            if line.starts_with('#') || line.is_empty() {
-                continue;
-            }
-
-            let parts: Vec<&str> = line.splitn(2, '=').collect();
-            if parts.len() == 2 {
-                let keyword = parts[0].trim();
-                let emoji = parts[1].trim();
-
-                if !keyword.is_empty() && !emoji.is_empty() {
-                    emoji_map.insert(keyword.to_string(), emoji.to_string());
-                }
-            }
-        }
-
-        if !emoji_map.is_empty() {
-            self.emoji_map = Some(emoji_map);
-        }
-
-        Ok(())
     }
 }

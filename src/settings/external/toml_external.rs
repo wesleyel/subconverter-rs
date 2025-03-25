@@ -1,7 +1,13 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::models::RegexMatchConfig;
+use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
+use crate::models::ruleset::RulesetConfigs;
+use crate::models::{ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs, RulesetConfig};
+use crate::settings::import_toml::import_toml_items;
+use crate::settings::toml_deserializer::*;
+use crate::settings::{import_items, Settings};
+use crate::utils::http::parse_proxy;
 
 // Default value functions
 fn default_true() -> bool {
@@ -36,10 +42,9 @@ pub struct RuleGenerationSettings {
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
 pub struct EmojiSettings {
-    pub add_emoji: bool,
-    #[serde(default = "default_true")]
-    pub remove_old_emoji: bool,
-    pub emoji: Vec<RegexMatchConfig>,
+    pub add_emoji: Option<bool>,
+    pub remove_old_emoji: Option<bool>,
+    pub emoji: Vec<RegexMatchRuleInToml>,
 }
 
 /// Filtering settings
@@ -48,34 +53,6 @@ pub struct EmojiSettings {
 pub struct FilteringSettings {
     pub include_remarks: Vec<String>,
     pub exclude_remarks: Vec<String>,
-}
-
-/// Ruleset configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct RulesetConfig {
-    pub group: String,
-    pub ruleset: String,
-    #[serde(rename = "type")]
-    pub ruleset_type: Option<String>,
-    pub interval: Option<i32>,
-}
-
-/// Proxy group configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct ProxyGroupConfig {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub group_type: String,
-    pub rule: Vec<String>,
-    pub url: Option<String>,
-    pub interval: Option<i32>,
-    pub tolerance: Option<i32>,
-    pub timeout: Option<i32>,
-    pub lazy: Option<bool>,
-    pub disable_udp: Option<bool>,
-    pub strategy: Option<String>,
 }
 
 /// Custom settings
@@ -98,9 +75,12 @@ pub struct CustomSettings {
     #[serde(flatten)]
     pub filtering: FilteringSettings,
 
-    // Rulesets and proxy groups
-    pub rulesets: Vec<RulesetConfig>,
-    pub custom_proxy_groups: Vec<ProxyGroupConfig>,
+    // Emoji and rename rules
+    pub rename_node: Vec<RegexMatchRuleInToml>,
+
+    // Custom rulesets and proxy groups
+    pub custom_rulesets: Vec<RulesetConfigInToml>,
+    pub custom_proxy_groups: Vec<ProxyGroupConfigInToml>,
 }
 
 /// Main TOML external settings structure
@@ -108,6 +88,94 @@ pub struct CustomSettings {
 #[serde(default)]
 pub struct TomlExternalSettings {
     pub custom: CustomSettings,
-    pub rename: Vec<RegexMatchConfig>,
     pub tpl_args: Option<HashMap<String, String>>,
+
+    // Processed fields
+    #[serde(skip)]
+    pub parsed_custom_proxy_groups: ProxyGroupConfigs,
+    #[serde(skip)]
+    pub parsed_rulesets: Vec<RulesetConfig>,
+    #[serde(skip)]
+    pub parsed_rename: Vec<RegexMatchConfig>,
+    #[serde(skip)]
+    pub parsed_emojis: Vec<RegexMatchConfig>,
+}
+
+impl TomlExternalSettings {
+    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let global = Settings::current();
+        let proxy_config = parse_proxy(&global.proxy_config);
+
+        import_toml_items(
+            &mut self.custom.rename_node,
+            false,
+            "rename_node",
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_rename = self
+            .custom
+            .rename_node
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
+
+        // Process emoji rules
+        import_toml_items(
+            &mut self.custom.emoji_settings.emoji,
+            false,
+            "emoji",
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_emojis = self
+            .custom
+            .emoji_settings
+            .emoji
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
+
+        // Process imports for rulesets
+        import_toml_items(
+            &mut self.custom.custom_rulesets,
+            global.api_mode,
+            "rulesets",
+            &proxy_config,
+            &global.base_path,
+        )?;
+        if global.max_allowed_rulesets > 0
+            && self.custom.custom_rulesets.len() > global.max_allowed_rulesets
+        {
+            return Err(format!(
+                "Number of rulesets exceeds the maximum allowed: {}",
+                global.max_allowed_rulesets
+            )
+            .into());
+        }
+
+        self.parsed_rulesets = self
+            .custom
+            .custom_rulesets
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
+
+        // Process imports for proxy groups
+        import_toml_items(
+            &mut self.custom.custom_proxy_groups,
+            global.api_mode,
+            "custom_group",
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_custom_proxy_groups = self
+            .custom
+            .custom_proxy_groups
+            .iter()
+            .map(|r| r.clone().into())
+            .collect();
+
+        Ok(())
+    }
 }

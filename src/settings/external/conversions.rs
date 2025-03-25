@@ -2,7 +2,6 @@ use super::external_struct::ExternalSettings;
 use super::ini_external::IniExternalSettings;
 use super::toml_external::TomlExternalSettings;
 use super::yaml_external::YamlExternalSettings;
-use crate::models::RegexMatchConfig;
 
 // TODO: Implement template handling and global settings like in C++
 // In C++, there is a template rendering system and global settings
@@ -35,25 +34,18 @@ impl From<YamlExternalSettings> for ExternalSettings {
         );
 
         // Emoji options
-        settings.add_emoji = Some(yaml_settings.custom.emoji_settings.add_emoji);
-        settings.remove_old_emoji = Some(yaml_settings.custom.emoji_settings.remove_old_emoji);
+        settings.add_emoji = yaml_settings.custom.emoji_settings.add_emoji;
+        settings.remove_old_emoji = yaml_settings.custom.emoji_settings.remove_old_emoji;
 
         // Filtering options
         settings.include_remarks = yaml_settings.custom.filtering.include_remarks;
         settings.exclude_remarks = yaml_settings.custom.filtering.exclude_remarks;
 
-        // Convert rulesets and proxy groups
-        for ruleset in yaml_settings.custom.rulesets {
-            let ruleset_str = format!("{},{}", ruleset.group, ruleset.ruleset);
-            settings.rulesets.push(ruleset_str);
-        }
-
-        // TODO: Handle custom formatting for different ruleset types like in C++
-        // In C++, there are special types like RULESET_CLASH_DOMAIN, RULESET_CLASH_IPCIDR, etc.
-        // that need special formatting
-
-        // Copy rename rules
-        settings.rename = yaml_settings.rename;
+        // Copy processed fields
+        settings.custom_rulesets = yaml_settings.parsed_rulesets;
+        settings.custom_proxy_groups = yaml_settings.parsed_custom_proxy_groups;
+        settings.rename_nodes = yaml_settings.parsed_rename;
+        settings.emojis = yaml_settings.parsed_emojis;
 
         // Copy template arguments
         settings.tpl_args = yaml_settings.tpl_args;
@@ -89,29 +81,18 @@ impl From<TomlExternalSettings> for ExternalSettings {
         );
 
         // Emoji options
-        settings.add_emoji = Some(toml_settings.custom.emoji_settings.add_emoji);
-        settings.remove_old_emoji = Some(toml_settings.custom.emoji_settings.remove_old_emoji);
+        settings.add_emoji = toml_settings.custom.emoji_settings.add_emoji;
+        settings.remove_old_emoji = toml_settings.custom.emoji_settings.remove_old_emoji;
 
         // Filtering options
         settings.include_remarks = toml_settings.custom.filtering.include_remarks;
         settings.exclude_remarks = toml_settings.custom.filtering.exclude_remarks;
 
-        // Convert rulesets and proxy groups
-        for ruleset in toml_settings.custom.rulesets {
-            let ruleset_str = if let Some(ruleset_type) = ruleset.ruleset_type {
-                format!("{},{},{}", ruleset.group, ruleset_type, ruleset.ruleset)
-            } else {
-                format!("{},{}", ruleset.group, ruleset.ruleset)
-            };
-
-            settings.rulesets.push(ruleset_str);
-        }
-
-        // TODO: Add validation for ruleset count
-        // In C++ there's a maxAllowedRulesets check
-
-        // Copy rename rules
-        settings.rename = toml_settings.rename;
+        // Copy processed fields
+        settings.custom_rulesets = toml_settings.parsed_rulesets;
+        settings.custom_proxy_groups = toml_settings.parsed_custom_proxy_groups;
+        settings.rename_nodes = toml_settings.parsed_rename;
+        settings.emojis = toml_settings.parsed_emojis;
 
         // Copy template arguments
         settings.tpl_args = toml_settings.tpl_args;
@@ -141,22 +122,18 @@ impl From<IniExternalSettings> for ExternalSettings {
         settings.overwrite_original_rules = Some(ini_settings.overwrite_original_rules);
 
         // Emoji options
-        settings.add_emoji = Some(ini_settings.add_emoji);
-        settings.remove_old_emoji = Some(ini_settings.remove_old_emoji);
+        settings.add_emoji = ini_settings.add_emoji;
+        settings.remove_old_emoji = ini_settings.remove_old_emoji;
 
         // Filtering options
         settings.include_remarks = ini_settings.include_remarks;
         settings.exclude_remarks = ini_settings.exclude_remarks;
 
-        // Copy raw rulesets and proxy groups
-        settings.rulesets = ini_settings.rulesets;
-        settings.custom_proxy_groups = ini_settings.custom_proxy_groups;
-
-        // TODO: Implement inline parsing rules like in C++
-        // In C++, there are special cases for rule URLs starting with specific prefixes
-
-        // Copy rename rules
-        settings.rename = ini_settings.rename;
+        // Copy processed fields
+        settings.custom_rulesets = ini_settings.parsed_rulesets;
+        settings.custom_proxy_groups = ini_settings.parsed_custom_proxy_groups;
+        settings.rename_nodes = ini_settings.parsed_rename;
+        settings.emojis = ini_settings.parsed_emojis;
 
         // Copy template arguments
         settings.tpl_args = ini_settings.tpl_args;

@@ -5,9 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_yaml;
 use toml;
 
-use super::{deserializer::*, import_items, Settings};
+use super::{import_items, yaml_deserializer::*, Settings};
 use crate::models::RegexMatchConfig;
-use crate::settings::ruleset::RulesetConfig;
 use crate::utils::file::read_file;
 use crate::utils::http::web_get;
 

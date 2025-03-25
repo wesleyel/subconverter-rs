@@ -74,6 +74,10 @@ impl SubconverterTarget {
         }
     }
 
+    pub fn is_clash(&self) -> bool {
+        matches!(self, SubconverterTarget::Clash | SubconverterTarget::ClashR)
+    }
+
     /// Returns true if the target represents a simple type (e.g. ss, ssr, trojan)
     pub fn is_simple(&self) -> bool {
         matches!(

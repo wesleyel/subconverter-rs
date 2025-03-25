@@ -1,7 +1,11 @@
 use serde::Deserialize;
 use std::collections::HashMap;
 
-use crate::models::RegexMatchConfig;
+use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
+use crate::models::ruleset::RulesetConfigs;
+use crate::models::{ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs, RulesetConfig};
+use crate::settings::{import_items, Settings};
+use crate::utils::http::parse_proxy;
 
 /// INI external settings structure
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -23,8 +27,9 @@ pub struct IniExternalSettings {
     pub overwrite_original_rules: bool,
 
     // Emoji options
-    pub add_emoji: bool,
-    pub remove_old_emoji: bool,
+    pub add_emoji: Option<bool>,
+    pub remove_old_emoji: Option<bool>,
+    pub emojis: Vec<String>,
 
     // Filtering options
     pub include_remarks: Vec<String>,
@@ -34,11 +39,22 @@ pub struct IniExternalSettings {
     pub rulesets: Vec<String>,
     pub custom_proxy_groups: Vec<String>,
 
+    // fields
+    pub rename_nodes: Vec<String>,
     // Rename rules
-    pub rename: Vec<RegexMatchConfig>,
 
     // Template arguments
     pub tpl_args: Option<HashMap<String, String>>,
+
+    // processed fields
+    #[serde(skip)]
+    pub parsed_custom_proxy_groups: ProxyGroupConfigs,
+    #[serde(skip)]
+    pub parsed_rulesets: Vec<RulesetConfig>,
+    #[serde(skip)]
+    pub parsed_rename: Vec<RegexMatchConfig>,
+    #[serde(skip)]
+    pub parsed_emojis: Vec<RegexMatchConfig>,
 }
 
 impl IniExternalSettings {
@@ -71,7 +87,6 @@ impl IniExternalSettings {
 
                 match current_section.as_str() {
                     "custom" => self.process_custom_section(key, value),
-                    "rename" => self.process_rename_section(key, value),
                     "template" => self.process_template_section(key, value),
                     _ => {} // Ignore unknown sections
                 }
@@ -91,10 +106,12 @@ impl IniExternalSettings {
             "loon_rule_base" => self.loon_rule_base = value.to_string(),
             "sssub_rule_base" => self.sssub_rule_base = value.to_string(),
             "singbox_rule_base" => self.singbox_rule_base = value.to_string(),
-            "enable_rule_generator" => self.enable_rule_generator = parse_bool(value),
+            "enable_rule_generator" => {
+                self.enable_rule_generator = parse_bool_with_true_default(value)
+            }
             "overwrite_original_rules" => self.overwrite_original_rules = parse_bool(value),
-            "add_emoji" => self.add_emoji = parse_bool(value),
-            "remove_old_emoji" => self.remove_old_emoji = parse_bool(value),
+            "add_emoji" => self.add_emoji = Some(parse_bool(value)),
+            "remove_old_emoji" => self.remove_old_emoji = Some(parse_bool(value)),
             "include_remarks" => {
                 self.include_remarks = value.split(',').map(|s| s.trim().to_string()).collect();
             }
@@ -107,19 +124,13 @@ impl IniExternalSettings {
             "custom_proxy_group" => {
                 self.custom_proxy_groups.push(value.to_string());
             }
+            "emoji" => {
+                self.emojis.push(value.to_string());
+            }
+            "rename" => {
+                self.rename_nodes.push(value.to_string());
+            }
             _ => {}
-        }
-    }
-
-    fn process_rename_section(&mut self, key: &str, value: &str) {
-        // Handle rename rules
-        if key.starts_with("rename_") {
-            // Create a RegexMatchConfig from key/value
-            let config = RegexMatchConfig {
-                _match: key.trim_start_matches("rename_").to_string(),
-                replace: value.to_string(),
-            };
-            self.rename.push(config);
         }
     }
 
@@ -134,9 +145,54 @@ impl IniExternalSettings {
             args.insert(key.to_string(), value.to_string());
         }
     }
+
+    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let global = Settings::current();
+        let proxy_config = parse_proxy(&global.proxy_config);
+        // Process rename nodes
+        import_items(
+            &mut self.rename_nodes,
+            false,
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&self.rename_nodes, "@");
+
+        // Process emoji rules
+        import_items(&mut self.emojis, false, &proxy_config, &global.base_path)?;
+        self.parsed_emojis = RegexMatchConfigs::from_ini_with_delimiter(&self.emojis, ",");
+
+        // Process imports for rulesets
+        import_items(
+            &mut self.rulesets,
+            global.api_mode,
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_rulesets = RulesetConfigs::from_ini(&self.rulesets);
+        // Process imports for proxy groups
+        let mut custom_proxy_groups = self.custom_proxy_groups.clone();
+        import_items(
+            &mut custom_proxy_groups,
+            global.api_mode,
+            &proxy_config,
+            &global.base_path,
+        )?;
+        self.parsed_custom_proxy_groups = ProxyGroupConfigs::from_ini(&custom_proxy_groups);
+
+        Ok(())
+    }
 }
 
 /// Parse a string as boolean
 fn parse_bool(value: &str) -> bool {
     value.to_lowercase() == "true" || value == "1"
+}
+
+fn parse_bool_with_true_default(value: &str) -> bool {
+    if value.is_empty() {
+        true
+    } else {
+        parse_bool(value)
+    }
 }

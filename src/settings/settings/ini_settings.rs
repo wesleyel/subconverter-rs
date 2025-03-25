@@ -1,13 +1,9 @@
-use super::ini_bindings::{FromIni, FromIniWithDelimiter};
+use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
+use crate::utils::http::parse_proxy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::io;
-use std::sync::Arc;
-use std::sync::RwLock;
 
-use crate::utils::http::parse_proxy;
-use crate::utils::web_get;
 use crate::{
     models::{
         cron::CronTaskConfigs, ruleset::RulesetConfigs, ProxyGroupConfigs, RegexMatchConfigs,
@@ -47,13 +43,13 @@ pub struct IniSettings {
     #[serde(default = "default_listen_address")]
     pub listen_address: String,
     #[serde(default = "default_listen_port")]
-    pub listen_port: i32,
+    pub listen_port: u32,
     #[serde(default)]
     pub managed_config_prefix: String,
     #[serde(default = "default_max_pending_conns")]
-    pub max_pending_conns: i32,
+    pub max_pending_conns: u32,
     #[serde(default = "default_max_concur_threads")]
-    pub max_concur_threads: i32,
+    pub max_concur_threads: u32,
     #[serde(default)]
     pub prepend_insert: bool,
     #[serde(default)]
@@ -77,7 +73,7 @@ pub struct IniSettings {
     pub base_path: String,
     pub custom_group: String,
     #[serde(default = "default_log_level")]
-    pub log_level: i32,
+    pub log_level: u32,
     #[serde(default = "default_max_download_size")]
     pub max_allowed_download_size: i64,
     pub template_path: String,
@@ -128,7 +124,7 @@ pub struct IniSettings {
     pub proxy_ruleset: String,
     pub proxy_subscription: String,
     #[serde(default)]
-    pub update_interval: i32,
+    pub update_interval: u32,
     pub sort_script: String,
 
     pub enable_filter: bool,
@@ -153,11 +149,11 @@ pub struct IniSettings {
     #[serde(default)]
     pub serve_cache_on_fetch_fail: bool,
     #[serde(default = "default_cache_subscription")]
-    pub cache_subscription: i32,
+    pub cache_subscription: u32,
     #[serde(default = "default_cache_config")]
-    pub cache_config: i32,
+    pub cache_config: u32,
     #[serde(default = "default_cache_ruleset")]
-    pub cache_ruleset: i32,
+    pub cache_ruleset: u32,
 
     // Limits
     #[serde(default = "default_max_rulesets")]
@@ -209,15 +205,15 @@ fn default_listen_address() -> String {
     "127.0.0.1".to_string()
 }
 
-fn default_listen_port() -> i32 {
+fn default_listen_port() -> u32 {
     25500
 }
 
-fn default_max_pending_conns() -> i32 {
+fn default_max_pending_conns() -> u32 {
     10240
 }
 
-fn default_max_concur_threads() -> i32 {
+fn default_max_concur_threads() -> u32 {
     4
 }
 
@@ -225,7 +221,7 @@ fn default_true() -> bool {
     true
 }
 
-fn default_log_level() -> i32 {
+fn default_log_level() -> u32 {
     1 // LOG_LEVEL_INFO
 }
 
@@ -233,15 +229,15 @@ fn default_max_download_size() -> i64 {
     32 * 1024 * 1024 // 32MB
 }
 
-fn default_cache_subscription() -> i32 {
+fn default_cache_subscription() -> u32 {
     60
 }
 
-fn default_cache_config() -> i32 {
+fn default_cache_config() -> u32 {
     300
 }
 
-fn default_cache_ruleset() -> i32 {
+fn default_cache_ruleset() -> u32 {
     21600
 }
 

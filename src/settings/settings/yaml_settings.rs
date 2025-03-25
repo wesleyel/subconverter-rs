@@ -1,14 +1,11 @@
-use super::ini_bindings::{FromIni, FromIniWithDelimiter};
+use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 use crate::{
     models::{
-        cron::{CronTaskConfig, CronTaskConfigs},
-        ruleset::RulesetConfigs,
-        ProxyGroupConfig, ProxyGroupConfigs, RegexMatchConfigs,
+        cron::CronTaskConfigs, ruleset::RulesetConfigs, ProxyGroupConfigs, RegexMatchConfigs,
     },
-    settings::import_items,
+    settings::{import_items, yaml_deserializer::*},
     utils::http::parse_proxy,
 };
 
@@ -38,15 +35,15 @@ fn default_listen_address() -> String {
     "127.0.0.1".to_string()
 }
 
-fn default_listen_port() -> i32 {
+fn default_listen_port() -> u32 {
     25500
 }
 
-fn default_max_pending_conns() -> i32 {
+fn default_max_pending_conns() -> u32 {
     10240
 }
 
-fn default_max_concurrent_threads() -> i32 {
+fn default_max_concurrent_threads() -> u32 {
     4
 }
 
@@ -54,15 +51,15 @@ fn default_info_log_level() -> String {
     "info".to_string()
 }
 
-fn default_cache_subscription() -> i32 {
+fn default_cache_subscription() -> u32 {
     60
 }
 
-fn default_cache_config() -> i32 {
+fn default_cache_config() -> u32 {
     300
 }
 
-fn default_cache_ruleset() -> i32 {
+fn default_cache_ruleset() -> u32 {
     21600
 }
 
@@ -76,104 +73,6 @@ fn default_max_rules() -> usize {
 
 fn default_max_download_size() -> i64 {
     32 * 1024 * 1024 // 32MB
-}
-
-/// Stream rule configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct RegexMatchRuleInYaml {
-    #[serde(rename = "match")]
-    pub match_str: Option<String>,
-    pub replace: Option<String>,
-    pub script: Option<String>,
-    pub import: Option<String>,
-}
-
-/// Trait for converting to INI format with a specified delimiter
-pub trait ToIniWithDelimiter {
-    fn to_ini_with_delimiter(&self, delimiter: &str) -> String;
-}
-
-impl ToIniWithDelimiter for RegexMatchRuleInYaml {
-    fn to_ini_with_delimiter(&self, delimiter: &str) -> String {
-        // Check for script first
-        if let Some(script) = &self.script {
-            if !script.is_empty() {
-                return format!("!!script:{}", script);
-            }
-        }
-
-        // Then check for import
-        if let Some(import) = &self.import {
-            if !import.is_empty() {
-                return format!("!!import:{}", import);
-            }
-        }
-
-        // Finally check for match and replace
-        if let (Some(match_str), Some(replace)) = (&self.match_str, &self.replace) {
-            if !match_str.is_empty() && !replace.is_empty() {
-                return format!("{}{}{}", match_str, delimiter, replace);
-            }
-        }
-
-        // Default to empty string if nothing matches
-        String::new()
-    }
-}
-
-pub trait ToIni {
-    fn to_ini(&self) -> String;
-}
-
-impl ToIni for RulesetConfigInYaml {
-    fn to_ini(&self) -> String {
-        // Check for import first
-        if let Some(import) = &self.import {
-            if !import.is_empty() {
-                return format!("!!import:{}", import);
-            }
-        }
-
-        // Then check for ruleset URL
-        if let Some(ruleset) = &self.ruleset {
-            if !ruleset.is_empty() {
-                let mut result = format!("{},{}", self.group, ruleset);
-                // Add interval if provided
-                if let Some(interval) = self.interval {
-                    result = format!("{},{}", result, interval);
-                }
-                return result;
-            }
-        }
-
-        // Finally check for rule
-        if let Some(rule) = &self.rule {
-            if !rule.is_empty() {
-                return format!("{},[]{}", self.group, rule);
-            }
-        }
-
-        // Default to empty string if nothing matches
-        String::new()
-    }
-}
-
-impl ToIni for TaskConfigInYaml {
-    fn to_ini(&self) -> String {
-        // Check for import first
-        if let Some(import) = &self.import {
-            if !import.is_empty() {
-                return format!("!!import:{}", import);
-            }
-        }
-
-        // Otherwise join fields with backticks
-        format!(
-            "{}`{}`{}`{}",
-            self.name, self.cronexp, self.path, self.timeout
-        )
-    }
 }
 
 /// User info settings
@@ -252,12 +151,12 @@ pub struct ManagedConfigSettings {
     #[serde(default = "default_listen_address")]
     pub managed_config_prefix: String,
     #[serde(default = "default_update_interval")]
-    pub config_update_interval: i32,
+    pub config_update_interval: u32,
     pub config_update_strict: bool,
     pub quanx_device_id: String,
 }
 
-fn default_update_interval() -> i32 {
+fn default_update_interval() -> u32 {
     86400 // 24 hours
 }
 
@@ -280,17 +179,6 @@ pub struct EmojiSettings {
     pub rules: Vec<RegexMatchRuleInYaml>,
 }
 
-/// Ruleset configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct RulesetConfigInYaml {
-    pub rule: Option<String>,
-    pub ruleset: Option<String>,
-    pub group: String,
-    pub interval: Option<i32>,
-    pub import: Option<String>,
-}
-
 /// Ruleset settings
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
@@ -301,31 +189,6 @@ pub struct RulesetSettings {
     pub update_ruleset_on_request: bool,
     #[serde(alias = "surge_ruleset")]
     pub rulesets: Vec<RulesetConfigInYaml>,
-}
-
-/// Proxy group configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-struct ProxyGroupConfigInYaml {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub group_type: String,
-    pub rule: Vec<String>,
-    #[serde(default = "default_test_url")]
-    pub url: Option<String>,
-    #[serde(default = "default_interval")]
-    pub interval: Option<i32>,
-    pub tolerance: Option<i32>,
-    pub timeout: Option<i32>,
-    pub import: Option<String>,
-}
-
-fn default_test_url() -> Option<String> {
-    Some("http://www.gstatic.com/generate_204".to_string())
-}
-
-fn default_interval() -> Option<i32> {
-    Some(300)
 }
 
 /// Proxy groups settings
@@ -368,17 +231,6 @@ pub struct AliasConfig {
     pub target: String,
 }
 
-/// Task configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct TaskConfigInYaml {
-    pub name: String,
-    pub cronexp: String,
-    pub path: String,
-    pub timeout: i32,
-    pub import: Option<String>,
-}
-
 /// Server settings
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(default)]
@@ -386,7 +238,7 @@ pub struct ServerSettings {
     #[serde(default = "default_listen_address")]
     pub listen: String,
     #[serde(default = "default_listen_port")]
-    pub port: i32,
+    pub port: u32,
     pub serve_file_root: String,
 }
 
@@ -398,9 +250,9 @@ pub struct AdvancedSettings {
     pub log_level: String,
     pub print_debug_info: bool,
     #[serde(default = "default_max_pending_conns")]
-    pub max_pending_connections: i32,
+    pub max_pending_connections: u32,
     #[serde(default = "default_max_concurrent_threads")]
-    pub max_concurrent_threads: i32,
+    pub max_concurrent_threads: u32,
     #[serde(default = "default_max_rulesets")]
     pub max_allowed_rulesets: usize,
     #[serde(default = "default_max_rules")]
@@ -409,11 +261,11 @@ pub struct AdvancedSettings {
     pub max_allowed_download_size: i64,
     pub enable_cache: bool,
     #[serde(default = "default_cache_subscription")]
-    pub cache_subscription: i32,
+    pub cache_subscription: u32,
     #[serde(default = "default_cache_config")]
-    pub cache_config: i32,
+    pub cache_config: u32,
     #[serde(default = "default_cache_ruleset")]
-    pub cache_ruleset: i32,
+    pub cache_ruleset: u32,
     #[serde(default = "default_true")]
     pub script_clean_context: bool,
     pub async_fetch_ruleset: bool,

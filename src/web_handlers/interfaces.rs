@@ -1,46 +1,77 @@
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use log::{debug, error};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::constants::regex_black_list::REGEX_BLACK_LIST;
 use crate::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
-use crate::models::{AppState, ExtraSettings, SubconverterTarget};
+use crate::models::ruleset::RulesetConfigs;
+use crate::models::{
+    AppState, ExtraSettings, ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs,
+    SubconverterTarget,
+};
 use crate::settings::external::ExternalSettings;
-use crate::settings::refresh_configuration;
-use crate::Settings;
+use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
+use crate::utils::{file_exists, is_link, match_user_agent, reg_valid, starts_with};
+use crate::{RuleBases, Settings};
+fn default_ver() -> u32 {
+    3
+}
 /// Query parameters for subscription conversion
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, Clone)]
 pub struct SubconverterQuery {
     /// Target format
     pub target: Option<String>,
+    /// Surge version number
+    #[serde(default = "default_ver")]
+    pub ver: u32,
+    /// Clash new field name
+    pub new_name: Option<bool>,
     /// URLs to convert (pipe separated)
     pub url: Option<String>,
-    /// Insert URLs to append/prepend (pipe separated)
-    pub insert: Option<String>,
-    /// Whether to prepend insert nodes
-    #[serde(default)]
-    pub prepend: bool,
     /// Custom group name
     pub group: Option<String>,
+    /// Upload path (optional)
+    pub upload_path: Option<String>,
+    /// Include remarks regex, multiple regexes separated by '|'
+    pub include: Option<String>,
+    /// Exclude remarks regex, multiple regexes separated by '|'
+    pub exclude: Option<String>,
+    /// custom groups
+    pub groups: Option<String>,
+    /// Ruleset contents
+    pub ruleset: Option<String>,
+    /// External configuration file (optional)
+    pub config: Option<String>,
+
+    /// Device ID (for device-specific configurations)
+    pub dev_id: Option<String>,
+    /// Whether to insert nodes
+    pub insert: Option<bool>,
+    /// Whether to prepend insert nodes
+    pub prepend: Option<bool>,
     /// Custom filename for download
     pub filename: Option<String>,
-    /// Base configuration file (optional)
-    pub config: Option<String>,
-    /// Include remarks regex
-    pub include: Option<String>,
-    /// Exclude remarks regex
-    pub exclude: Option<String>,
-    /// Surge version number
-    pub ver: Option<u32>,
     /// Append proxy type to remarks
     pub append_type: Option<bool>,
-    /// Whether to add emoji
+    /// Whether to remove old emoji and add new emoji
     pub emoji: Option<bool>,
+    /// Whether to add emoji
+    pub add_emoji: Option<bool>,
+    /// Whether to remove emoji
+    pub remove_emoji: Option<bool>,
     /// List mode (node list only)
     pub list: Option<bool>,
     /// Sort nodes
     pub sort: Option<bool>,
+
+    /// Sort Script
+    pub sort_script: Option<String>,
+
+    /// argFilterDeprecated
+    pub fdn: Option<bool>,
+
     /// Information for filtering, rename, emoji addition
     pub rename: Option<String>,
     /// Whether to enable TCP Fast Open
@@ -63,10 +94,12 @@ pub struct SubconverterQuery {
     pub token: Option<String>,
     /// Filter script
     pub filter: Option<String>,
-    /// Device ID (for device-specific configurations)
-    pub dev_id: Option<String>,
-    /// Whether to use new field names in Clash
-    pub new_name: Option<bool>,
+
+    /// Clash script
+    pub script: Option<bool>,
+    pub classic: Option<bool>,
+
+    pub expand: Option<bool>,
 }
 
 /// Parse a query string into a HashMap
@@ -82,175 +115,328 @@ pub fn parse_query_string(query: &str) -> HashMap<String, String> {
     params
 }
 
+fn check_external_base(path: &str, dest: &mut String, base_path: &str) -> bool {
+    if is_link(path) || starts_with(path, base_path) && file_exists(path) {
+        *dest = path.to_string();
+        true
+    } else {
+        false
+    }
+}
+
 /// Handler for subscription conversion
 pub async fn sub_handler(
+    req: HttpRequest,
     query: web::Query<SubconverterQuery>,
     app_state: web::Data<Arc<AppState>>,
 ) -> HttpResponse {
     debug!("Received subconverter request: {:?}", query);
+    let mut global = Settings::current();
 
-    let global = Settings::current();
     // Check if we should reload the config
-    if global.reload_conf_on_request && !global.api_mode {
-        // Try to refresh the configuration
+    if global.reload_conf_on_request && !global.api_mode && !global.generator_mode {
         refresh_configuration();
-    }
-
-    // Process external config if provided
-    if let Some(conf_url) = &query.config {
-        match ExternalSettings::load_from_file_sync(conf_url) {
-            Ok(config) => {
-                if let Some(include) = &query.include {}
-                if let Some(exclude) = &query.exclude {}
-            }
-            Err(e) => {
-                error!("Failed to load external config from {}: {}", conf_url, e);
-                // Continue without external config
-            }
-        }
+        global = Settings::current();
     }
 
     // Start building configuration
     let mut builder = SubconverterConfigBuilder::new();
 
-    let extra = ExtraSettings::default();
+    let target;
+    if let Some(_target) = &query.target {
+        match SubconverterTarget::from_str(&_target) {
+            Some(_target) => {
+                target = _target.clone();
+                if _target == SubconverterTarget::Auto {
+                    // TODO: Check user agent and set target accordingly
+                    // if let Some(user_agent) = req.headers().get("User-Agent") {
+                    //     if let Ok(user_agent) = user_agent.to_str() {
 
-    // Process target parameter
-    if let Some(target) = &query.target {
-        builder = builder.target_from_str(target);
+                    //         // match_user_agent(
+                    //         //     user_agent,
+                    //         //     &target,
+                    //         //      query.new_name,
+                    //         //      &query.ver);
+                    //     }
+                    // }
+                    return HttpResponse::BadRequest()
+                        .body("Auto user agent is not supported for now.");
+                }
+                builder.target(_target);
+            }
+            None => {
+                return HttpResponse::BadRequest().body("Invalid target parameter");
+            }
+        }
+    } else {
+        return HttpResponse::BadRequest().body("Missing target parameter");
+    }
 
-        // Process Surge version
-        if let Some(ver) = query.ver {
-            if let Ok(cfg) = builder.clone().build() {
-                if matches!(cfg.target, SubconverterTarget::Surge(_)) {
-                    builder = builder.surge_version(ver as i32);
+    builder.update_interval(match query.interval {
+        Some(interval) => interval,
+        None => global.update_interval,
+    });
+    // Check if we should authorize the request, if we are in API mode
+    let authorized =
+        !global.api_mode || query.token.as_deref().unwrap_or_default() == global.api_access_token;
+    builder.authorized(authorized);
+    builder.update_strict(query.strict.unwrap_or(global.update_strict));
+
+    if query
+        .include
+        .clone()
+        .is_some_and(|include| REGEX_BLACK_LIST.contains(&include))
+        || query
+            .exclude
+            .clone()
+            .is_some_and(|exclude| REGEX_BLACK_LIST.contains(&exclude))
+    {
+        return HttpResponse::BadRequest().body("Invalid regex in request!");
+    }
+
+    let enable_insert = match query.insert {
+        Some(insert) => insert,
+        None => global.enable_insert,
+    };
+
+    if enable_insert {
+        builder.insert_urls(global.insert_urls.clone());
+        // 加在前面还是加在后面
+        builder.prepend_insert(query.prepend.unwrap_or(global.prepend_insert));
+    }
+
+    let urls = match query.url.as_deref() {
+        Some(url) => url.split('|').map(|s| s.to_owned()).collect(),
+        None => {
+            if authorized {
+                global.default_urls.clone()
+            } else {
+                vec![]
+            }
+        }
+    };
+    builder.urls(urls);
+
+    // TODO: what if urls still empty after insert?
+
+    // TODO: template args
+
+    builder.append_proxy_type(query.append_type.unwrap_or(global.append_type));
+
+    let mut arg_expand_rulesets = query.expand;
+    if target.is_clash() && query.script.is_none() {
+        arg_expand_rulesets = Some(true);
+    }
+
+    // flags
+    builder.tfo(query.tfo.or(global.tfo_flag));
+    builder.udp(query.udp.or(global.udp_flag));
+    builder.skip_cert_verify(query.scv.or(global.skip_cert_verify));
+    builder.tls13(query.tls13.or(global.tls13_flag));
+    builder.sort(query.sort.unwrap_or(global.enable_sort));
+    if let Some(script) = &query.sort_script {
+        builder.sort_script(script.clone());
+    }
+
+    builder.filter_deprecated(query.fdn.unwrap_or(global.filter_deprecated));
+    builder.clash_new_field_name(query.new_name.unwrap_or(global.clash_use_new_field));
+    builder.clash_script(query.script.unwrap_or_default());
+    builder.clash_classical_ruleset(query.classic.unwrap_or_default());
+    let nodelist = query.list.unwrap_or_default();
+    builder.nodelist(nodelist);
+
+    if arg_expand_rulesets != Some(true) {
+        builder.clash_new_field_name(true);
+    } else {
+        builder.managed_config_prefix(global.managed_config_prefix.clone());
+        builder.clash_script(false);
+    }
+
+    let mut ruleset_configs = global.custom_rulesets.clone();
+    let mut custom_group_configs = global.custom_proxy_groups.clone();
+
+    // 这部分参数有优先级：query > external > global
+    builder.include_remarks(global.include_remarks.clone());
+    builder.exclude_remarks(global.exclude_remarks.clone());
+    builder.rename_array(global.renames.clone());
+    builder.emoji_array(global.emojis.clone());
+    builder.add_emoji(global.add_emoji);
+    builder.remove_emoji(global.remove_emoji);
+    builder.enable_rule_generator(global.enable_rule_gen);
+
+    let ext_config = query
+        .config
+        .as_deref()
+        .unwrap_or(&global.default_ext_config);
+    if !ext_config.is_empty() {
+        // Process external config if provided
+        match ExternalSettings::load_from_file_sync(ext_config) {
+            Ok(extconf) => {
+                if !nodelist {
+                    let mut rule_bases = RuleBases {
+                        clash_rule_base: global.clash_base.clone(),
+                        surge_rule_base: global.surge_base.clone(),
+                        surfboard_rule_base: global.surfboard_base.clone(),
+                        mellow_rule_base: global.mellow_base.clone(),
+                        quan_rule_base: global.quan_base.clone(),
+                        quanx_rule_base: global.quanx_base.clone(),
+                        loon_rule_base: global.loon_base.clone(),
+                        sssub_rule_base: global.ssub_base.clone(),
+                        singbox_rule_base: global.singbox_base.clone(),
+                    };
+                    check_external_base(
+                        &extconf.clash_rule_base,
+                        &mut rule_bases.clash_rule_base,
+                        &global.base_path,
+                    );
+                    check_external_base(
+                        &extconf.surge_rule_base,
+                        &mut rule_bases.surge_rule_base,
+                        &global.base_path,
+                    );
+                    check_external_base(
+                        &extconf.surfboard_rule_base,
+                        &mut rule_bases.surfboard_rule_base,
+                        &global.base_path,
+                    );
+                    check_external_base(
+                        &extconf.mellow_rule_base,
+                        &mut rule_bases.mellow_rule_base,
+                        &global.base_path,
+                    );
+                    check_external_base(
+                        &extconf.quan_rule_base,
+                        &mut rule_bases.quan_rule_base,
+                        &global.base_path,
+                    );
+                    check_external_base(
+                        &extconf.quanx_rule_base,
+                        &mut rule_bases.quanx_rule_base,
+                        &global.base_path,
+                    );
+
+                    builder.rule_bases(rule_bases);
+                    if !target.is_simple() {
+                        if !extconf.custom_rulesets.is_empty() {
+                            ruleset_configs = extconf.custom_rulesets;
+                        }
+                        if !extconf.custom_proxy_groups.is_empty() {
+                            custom_group_configs = extconf.custom_proxy_groups;
+                        }
+                        if let Some(enable_rule_gen) = extconf.enable_rule_generator {
+                            builder.enable_rule_generator(enable_rule_gen);
+                        }
+                        if let Some(overwrite_original_rules) = extconf.overwrite_original_rules {
+                            builder.overwrite_original_rules(overwrite_original_rules);
+                        }
+                    }
+                }
+                if !extconf.rename_nodes.is_empty() {
+                    builder.rename_array(extconf.rename_nodes);
+                }
+                if !extconf.emojis.is_empty() {
+                    builder.emoji_array(extconf.emojis);
+                }
+                if !extconf.include_remarks.is_empty() {
+                    builder.include_remarks(extconf.include_remarks);
+                }
+                if !extconf.exclude_remarks.is_empty() {
+                    builder.exclude_remarks(extconf.exclude_remarks);
+                }
+                if extconf.add_emoji.is_some() {
+                    builder.add_emoji(extconf.add_emoji.unwrap());
+                }
+                if extconf.remove_old_emoji.is_some() {
+                    builder.remove_emoji(extconf.remove_old_emoji.unwrap());
                 }
             }
-        }
-    }
-
-    // Process URL parameter (mandatory)
-    if let Some(url) = &query.url {
-        builder = builder.urls_from_str(url);
-    } else {
-        return HttpResponse::BadRequest().body("Missing URL parameter");
-    }
-
-    // Process insert URLs if provided
-    if let Some(insert) = &query.insert {
-        builder = builder.insert_urls_from_str(insert);
-        builder = builder.prepend_insert(query.prepend);
-    }
-
-    // Process group name
-    if let Some(group) = &query.group {
-        builder = builder.group_name(Some(group.clone()));
-    }
-
-    // Process rename patterns
-    if let Some(rename) = &query.rename {
-        // Parse rename patterns from format "pattern1@replacement1|pattern2@replacement2"
-        for pair in rename.split('|') {
-            let parts: Vec<&str> = pair.split('@').collect();
-            if parts.len() == 2 {
-                builder = builder.add_rename_pattern(parts[0], parts[1]);
+            Err(e) => {
+                error!("Failed to load external config from {}: {}", ext_config, e);
             }
         }
     }
 
-    // Process emoji setting
-    if let Some(emoji) = query.emoji {
-        // Create a copy of the current extra settings
-        // extra.add_emoji = emoji;
-    }
-
-    // Process other extra settings
-    if let Some(append_type) = query.append_type {
-        builder = builder.append_proxy_type(append_type);
-    }
-    if let Some(tfo) = query.tfo {
-        builder = builder.tfo(Some(tfo));
-    }
-    if let Some(udp) = query.udp {
-        builder = builder.udp(Some(udp));
-    }
-    if let Some(scv) = query.scv {
-        builder = builder.skip_cert_verify(Some(scv));
-    }
-    if let Some(tls13) = query.tls13 {
-        builder = builder.tls13(Some(tls13));
-    }
-    if let Some(sort) = query.sort {
-        builder = builder.sort(sort);
-    }
-    if let Some(nodelist) = query.list {
-        builder = builder.nodelist(nodelist);
-    }
-    if let Some(new_name) = query.new_name {
-        builder = builder.clash_new_field_name(new_name);
-    }
-
-    // Process filename
-    if let Some(filename) = &query.filename {
-        builder = builder.filename(Some(filename.clone()));
-    }
-
-    // Process update settings
-    if let Some(interval) = query.interval {
-        builder = builder.update_interval(interval as i32);
-    }
-    if let Some(strict) = query.strict {
-        builder = builder.update_strict(strict);
-    }
-
-    // Process upload settings
-    if let Some(upload) = query.upload {
-        builder = builder.upload(upload);
-    }
-
-    // Process filter script
-    if let Some(filter) = &query.filter {
-        builder = builder.filter_script(Some(filter.clone()));
-    }
-
-    // Process device ID
-    if let Some(dev_id) = &query.dev_id {
-        builder = builder.device_id(Some(dev_id.clone()));
-    }
-
-    // Process authorization
-    if let Some(token) = &query.token {
-        builder = builder.token(Some(token.clone()));
-        builder = builder.authorized(token == &global.api_access_token);
-    }
-
-    // Add base configuration from merged settings or global settings
-    // if let Ok(cfg) = builder.clone().build() {
-    //     let target = cfg.target;
-
-    //     // Get base content from external config using the helper method
-    //     let base_content = target.get_base_content_from_external(&external_config);
-
-    //     // If external config has a base, use it
-    //     if let Some(base) = base_content {
-    //         builder = builder.add_base_content(target, base);
-    //     } else if let Some(base_conf) = app_state.get_base_config(&target) {
-    //         // Otherwise fall back to app_state's base config
-    //         builder = builder.add_base_content(target, base_conf);
-    //     }
-    // }
-
-    // Set managed config prefix from global settings
-    if !global.managed_config_prefix.is_empty() {
-        builder = builder.managed_config_prefix(global.managed_config_prefix.clone());
-    }
-
-    // Set emoji patterns from global settings
-    if let Some(emoji_map) = &app_state.emoji_map {
-        for (pattern, emoji) in emoji_map {
-            builder = builder.add_emoji_pattern(pattern, emoji);
+    // 请求参数的覆盖优先级最高
+    if let Some(include) = query.include.as_deref() {
+        if reg_valid(&include) {
+            builder.include_remarks(vec![include.to_owned()]);
         }
     }
+    if let Some(exclude) = query.exclude.as_deref() {
+        if reg_valid(&exclude) {
+            builder.exclude_remarks(vec![exclude.to_owned()]);
+        }
+    }
+    if let Some(emoji) = query.emoji {
+        builder.add_emoji(emoji);
+        builder.remove_emoji(true);
+    }
+
+    if let Some(add_emoji) = query.add_emoji {
+        builder.add_emoji(add_emoji);
+    }
+    if let Some(remove_emoji) = query.remove_emoji {
+        builder.remove_emoji(remove_emoji);
+    }
+    if let Some(rename) = query.rename.as_deref() {
+        if !rename.is_empty() {
+            let v_array: Vec<String> = rename.split('`').map(|s| s.to_string()).collect();
+            builder.rename_array(RegexMatchConfigs::from_ini_with_delimiter(&v_array, "@"));
+        }
+    }
+
+    if !target.is_simple() {
+        // loading custom groups
+        if !query
+            .groups
+            .as_deref()
+            .is_none_or(|groups| groups.is_empty())
+            && !nodelist
+        {
+            if let Some(groups) = query.groups.as_deref() {
+                let v_array: Vec<String> = groups.split('@').map(|s| s.to_string()).collect();
+                custom_group_configs = ProxyGroupConfigs::from_ini(&v_array);
+            }
+        }
+        // loading custom rulesets
+        if !query
+            .ruleset
+            .as_deref()
+            .is_none_or(|ruleset| ruleset.is_empty())
+            && !nodelist
+        {
+            if let Some(ruleset) = query.ruleset.as_deref() {
+                let v_array: Vec<String> = ruleset.split('@').map(|s| s.to_string()).collect();
+                ruleset_configs = RulesetConfigs::from_ini(&v_array);
+            }
+        }
+    }
+    builder.proxy_groups(custom_group_configs);
+    builder.ruleset_configs(ruleset_configs);
+
+    // TODO: process with the script runtime
+
+    // parse settings
+
+    // Process group name
+    builder.group_name(query.group.clone());
+    builder.filename(query.filename.clone());
+    builder.upload(query.upload.unwrap_or_default());
+
+    // // Process filter script
+    // if let Some(filter) = &query.filter {
+    //     builder = builder.filter_script(Some(filter.clone()));
+    // }
+
+    // // Process device ID
+    // if let Some(dev_id) = &query.dev_id {
+    //     builder = builder.device_id(Some(dev_id.clone()));
+    // }
+
+    // // Set managed config prefix from global settings
+    // if !global.managed_config_prefix.is_empty() {
+    //     builder = builder.managed_config_prefix(global.managed_config_prefix.clone());
+    // }
 
     // Build and validate configuration
     let config = match builder.build() {
@@ -261,14 +447,11 @@ pub async fn sub_handler(
         }
     };
 
-    let target = config.target.clone();
-
+    // Run subconverter
     let subconverter_result = std::thread::spawn(move || subconverter(config));
 
-    // Run subconverter
     match subconverter_result.join().unwrap() {
         Ok(result) => {
-            // Build response with headers
             let mut resp = HttpResponse::Ok();
 
             // Add headers from result
@@ -303,6 +486,7 @@ pub async fn sub_handler(
 
 /// Handler for simple conversion (no rules)
 pub async fn simple_handler(
+    req: HttpRequest,
     path: web::Path<(String,)>,
     query: web::Query<SubconverterQuery>,
     app_state: web::Data<Arc<AppState>>,
@@ -318,7 +502,7 @@ pub async fn simple_handler(
             modified_query.target = Some(target_type.clone());
 
             // Reuse the sub_handler
-            sub_handler(web::Query(modified_query), app_state).await
+            sub_handler(req, web::Query(modified_query), app_state).await
         }
         _ => HttpResponse::BadRequest().body(format!("Unsupported target type: {}", target_type)),
     }
@@ -326,6 +510,7 @@ pub async fn simple_handler(
 
 /// Handler for Clash from Surge configuration
 pub async fn surge_to_clash_handler(
+    req: HttpRequest,
     query: web::Query<SubconverterQuery>,
     app_state: web::Data<Arc<AppState>>,
 ) -> HttpResponse {
@@ -337,7 +522,7 @@ pub async fn surge_to_clash_handler(
     modified_query.list = Some(true);
 
     // Reuse the sub_handler
-    sub_handler(web::Query(modified_query), app_state).await
+    sub_handler(req, web::Query(modified_query), app_state).await
 }
 
 /// Register the API endpoints with Actix Web
