@@ -6,6 +6,7 @@ use std::time::Duration;
 
 #[cfg(target_os = "windows")]
 use winapi::shared::winerror::IS_ERROR;
+#[cfg(target_os = "windows")]
 use winapi::{
     shared::minwindef::{BYTE, DWORD, HKEY},
     um::{
