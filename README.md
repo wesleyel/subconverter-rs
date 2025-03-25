@@ -3,11 +3,12 @@ A more powerful utility to convert between proxy subscription format, the origin
 
 > Transform. Optimize. Simplify. A blazingly fast proxy subscription converter rewritten in Rust.
 
-**⚠️ WORK IN PROGRESS ⚠️** - This project is currently under active development. Features may be incomplete or subject to change.
+**⚠️ BETA VERSION AVAILABLE ⚠️** - This project is now in beta. Core features are implemented but may still have some rough edges.
 
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
-[![Status](https://img.shields.io/badge/status-active%20development-brightgreen.svg)](https://github.com/lonelam/subconverter-rs)
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-beta-blue.svg)](https://github.com/lonelam/subconverter-rs)
+[![GPL-3.0+ License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/subconverter-rs.svg)](https://crates.io/crates/subconverter-rs)
 
 subconverter-rs takes the power of the original [subconverter](https://github.com/tindy2013/subconverter) project and reimplements it in Rust, bringing memory safety, concurrency without data races, and significantly improved performance.
 
@@ -58,19 +59,19 @@ However, the subconverter is almost the only one tool that could provide compati
 
 ## Installation
 
+### From Crates.io
+```bash
+cargo install subconverter
+```
+
 ### From Source
 ```bash
-git clone https://github.com/yourusername/subconverter-rs.git
+git clone https://github.com/lonelam/subconverter-rs.git
 cd subconverter-rs
 cargo build --release
 ```
 
 The binary will be available at `target/release/subconverter-rs`.
-
-### From Cargo
-```bash
-cargo install subconverter-rs
-```
 
 ## Usage
 
@@ -137,7 +138,8 @@ For questions or discussions, you can:
 
 - [x] Basic proxy parsing and conversion
 - [x] Node filtering and manipulation
-- [ ] Complete VMess protocol support
+- [x] Complete VMess protocol support
+- [x] Published to crates.io
 - [ ] Web interface for online conversion
 - [ ] HTTP server for subscription conversion
 - [ ] RESTful API
@@ -147,7 +149,7 @@ For questions or discussions, you can:
 - [ ] Docker container and CI/CD pipelines
 
 ## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the GPL-3.0+ License - see the LICENSE file for details.
 
 ## Architecture
 

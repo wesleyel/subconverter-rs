@@ -148,7 +148,7 @@ impl Into<ProxyGroupConfig> for ProxyGroupConfigInToml {
             Some("consistent-hashing") => BalanceStrategy::ConsistentHashing,
             Some("round-robin") => BalanceStrategy::RoundRobin,
             _ => BalanceStrategy::ConsistentHashing,
-        };
+    };
 
         // 创建基本的 ProxyGroupConfig
         let mut config = ProxyGroupConfig {
