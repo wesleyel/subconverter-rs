@@ -3,6 +3,7 @@ pub mod generator;
 pub mod interfaces;
 pub mod models;
 pub mod parser;
+pub mod rulesets;
 pub mod settings;
 pub mod utils;
 pub mod web_handlers;

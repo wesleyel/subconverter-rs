@@ -2,50 +2,11 @@ use std::fs::read_to_string as read_file;
 use std::path::Path;
 
 use log::{error, info, warn};
-use serde::Deserialize;
 
 use crate::models::ruleset::{get_ruleset_type_from_url, RulesetContent, RulesetType};
+use crate::models::RulesetConfig;
 use crate::utils::http::{parse_proxy, web_get, ProxyConfig};
-
-use super::Settings;
-
-/// Ruleset configuration
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(default)]
-pub struct RulesetConfig {
-    pub group: String,
-    pub url: String,
-    pub interval: u32,
-}
-
-impl RulesetConfig {
-    /// Create a new ruleset configuration
-    pub fn new(group: &str, url: &str, interval: u32) -> Self {
-        Self {
-            group: group.to_string(),
-            url: url.to_string(),
-            interval: interval,
-        }
-    }
-
-    /// Parse from string in format "group,url[,interval]"
-    pub fn from_str(line: &str) -> Option<Self> {
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() < 2 {
-            return None;
-        }
-
-        let group = parts[0];
-        let url = parts[1];
-        let interval = if parts.len() > 2 {
-            parts[2].parse::<u32>().unwrap_or(0)
-        } else {
-            0
-        };
-
-        Some(Self::new(group, url, interval))
-    }
-}
+use crate::Settings;
 
 /// Fetch ruleset content from file or URL
 pub fn fetch_ruleset(
@@ -175,87 +136,4 @@ pub fn refresh_rulesets(
             }
         }
     }
-}
-
-/// Read ruleset configurations from INI format
-pub fn parse_rulesets_from_ini(lines: &[String]) -> Vec<RulesetConfig> {
-    let mut rulesets = Vec::new();
-
-    for line in lines {
-        if let Some(ruleset) = RulesetConfig::from_str(line) {
-            rulesets.push(ruleset);
-        } else {
-            warn!("Invalid ruleset format: {}", line);
-        }
-    }
-
-    rulesets
-}
-
-/// Parse rulesets from external config format
-pub fn parse_rulesets_from_external(config: &str) -> Vec<RulesetConfig> {
-    let mut rulesets = Vec::new();
-
-    for line in config.lines() {
-        let trimmed = line.trim();
-
-        // Skip empty lines and comments
-        if trimmed.is_empty() || trimmed.starts_with(';') || trimmed.starts_with('#') {
-            continue;
-        }
-
-        // Check for section headers
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            continue;
-        }
-
-        // Process key-value pairs
-        if let Some(pos) = trimmed.find('=') {
-            let key = trimmed[..pos].trim();
-            let value = trimmed[pos + 1..].trim();
-
-            if key == "ruleset" || key == "surge_ruleset" {
-                if let Some(ruleset) = RulesetConfig::from_str(value) {
-                    rulesets.push(ruleset);
-                }
-            }
-        }
-    }
-
-    rulesets
-}
-
-/// Parse a ruleset section from an INI file
-pub fn parse_ruleset_from_ini(content: &str) -> Vec<RulesetConfig> {
-    let mut result = Vec::new();
-    let mut _in_ruleset_section = false;
-
-    for line in content.lines() {
-        let trimmed = line.trim();
-
-        // Skip empty lines and comments
-        if trimmed.is_empty() || trimmed.starts_with(';') || trimmed.starts_with('#') {
-            continue;
-        }
-
-        // Check for section headers
-        if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            _in_ruleset_section = false;
-            continue;
-        }
-
-        // Process key-value pairs
-        if let Some(pos) = trimmed.find('=') {
-            let key = trimmed[..pos].trim();
-            let value = trimmed[pos + 1..].trim();
-
-            if key == "ruleset" || key == "surge_ruleset" {
-                if let Some(ruleset) = RulesetConfig::from_str(value) {
-                    result.push(ruleset);
-                }
-            }
-        }
-    }
-
-    result
 }
