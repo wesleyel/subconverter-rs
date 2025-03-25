@@ -9,6 +9,8 @@ use crate::models::{
 };
 use crate::parser::parse_settings::ParseSettings;
 use crate::parser::subparser::add_nodes;
+use crate::utils::http::parse_proxy;
+use crate::utils::{file_get, web_get};
 use crate::Settings;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
@@ -417,6 +419,60 @@ impl SubconverterConfigBuilder {
         self
     }
 
+    /// Set rule base for Clash
+    pub fn clash_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.clash_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for Surge
+    pub fn surge_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.surge_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for Surfboard
+    pub fn surfboard_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.surfboard_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for Mellow
+    pub fn mellow_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.mellow_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for Quantumult
+    pub fn quan_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.quan_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for QuantumultX
+    pub fn quanx_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.quanx_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for Loon
+    pub fn loon_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.loon_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for SS Subscription
+    pub fn sssub_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.sssub_rule_base = path.to_string();
+        self
+    }
+
+    /// Set rule base for SingBox
+    pub fn singbox_rule_base(&mut self, path: &str) -> &mut Self {
+        self.config.rule_bases.singbox_rule_base = path.to_string();
+        self
+    }
+
     /// Build the final configuration
     pub fn build(self) -> Result<SubconverterConfig, String> {
         let config = self.config;
@@ -506,6 +562,10 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
         "Processing subscription conversion request to {}",
         config.target.to_str()
     );
+    // Load rule base content
+    let base_content = config.rule_bases.load_content();
+    let mut config = config;
+    config.base_content = base_content;
 
     // Parse subscription URLs
     let opts = ParseOptions {
@@ -931,5 +991,89 @@ pub fn preprocess_nodes(
             // Simple default sort by remark
             nodes.sort_by(|a, b| a.remark.cmp(&b.remark));
         }
+    }
+}
+
+impl RuleBases {
+    /// Load rule base content from files or URLs
+    pub fn load_content(&self) -> HashMap<SubconverterTarget, String> {
+        let mut base_content = HashMap::new();
+
+        let global = Settings::current();
+        let proxy_config = parse_proxy(&global.proxy_config);
+
+        // Helper function to load content from file or URL
+        let load_content = |path: &str| -> Option<String> {
+            if path.is_empty() {
+                return None;
+            }
+
+            // Check if path is a URL
+            if path.starts_with("http://") || path.starts_with("https://") {
+                match web_get(path, &proxy_config, None) {
+                    Ok((content, _)) => {
+                        debug!("Loaded rule base from URL: {}", path);
+                        Some(content)
+                    }
+                    Err(e) => {
+                        warn!("Failed to load rule base from URL {}: {}", path, e);
+                        None
+                    }
+                }
+            } else {
+                // Treat as file path
+                match file_get(path, None) {
+                    Ok(content) => {
+                        debug!("Loaded rule base from file: {}", path);
+                        Some(content)
+                    }
+                    Err(e) => {
+                        warn!("Failed to load rule base from file {}: {}", path, e);
+                        None
+                    }
+                }
+            }
+        };
+
+        // Load rule bases for each target format
+        if let Some(content) = load_content(&self.clash_rule_base) {
+            base_content.insert(SubconverterTarget::Clash, content.clone());
+            base_content.insert(SubconverterTarget::ClashR, content);
+        }
+
+        if let Some(content) = load_content(&self.surge_rule_base) {
+            base_content.insert(SubconverterTarget::Surge(3), content.clone());
+            base_content.insert(SubconverterTarget::Surge(4), content);
+        }
+
+        if let Some(content) = load_content(&self.surfboard_rule_base) {
+            base_content.insert(SubconverterTarget::Surfboard, content);
+        }
+
+        if let Some(content) = load_content(&self.mellow_rule_base) {
+            base_content.insert(SubconverterTarget::Mellow, content);
+        }
+
+        if let Some(content) = load_content(&self.quan_rule_base) {
+            base_content.insert(SubconverterTarget::Quantumult, content);
+        }
+
+        if let Some(content) = load_content(&self.quanx_rule_base) {
+            base_content.insert(SubconverterTarget::QuantumultX, content);
+        }
+
+        if let Some(content) = load_content(&self.loon_rule_base) {
+            base_content.insert(SubconverterTarget::Loon, content);
+        }
+
+        if let Some(content) = load_content(&self.sssub_rule_base) {
+            base_content.insert(SubconverterTarget::SSSub, content);
+        }
+
+        if let Some(content) = load_content(&self.singbox_rule_base) {
+            base_content.insert(SubconverterTarget::SingBox, content);
+        }
+
+        base_content
     }
 }
