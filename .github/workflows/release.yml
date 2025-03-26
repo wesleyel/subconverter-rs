@@ -62,6 +62,7 @@ jobs:
       run: |
         mkdir -p subconverter/
         cp target/release/subconverter subconverter/
+        cp -r base/* subconverter/
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -117,6 +118,7 @@ jobs:
       run: |
         mkdir -p subconverter/
         cp target/${{ matrix.target }}/release/subconverter subconverter/
+        cp -r base/* subconverter/
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -172,6 +174,7 @@ jobs:
       run: |
         mkdir -p subconverter/
         cp target/${{ matrix.target }}/release/subconverter.exe subconverter/
+        cp -r base/* subconverter/
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
