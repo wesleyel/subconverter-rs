@@ -40,7 +40,10 @@ pub fn explode(link: &str, node: &mut Proxy) -> bool {
     } else if link.starts_with("ssr://") {
         // super::ssr::explode_ssr(link, node)
         false
-    } else if link.starts_with("socks://") || link.starts_with("socks5://") {
+    } else if link.starts_with("socks://")
+        || link.starts_with("https://t.me/socks")
+        || link.starts_with("tg://socks")
+    {
         super::socks::explode_socks(link, node)
     } else if link.starts_with("http://") || link.starts_with("https://") {
         // Try HTTP parser first
@@ -81,27 +84,75 @@ pub fn explode_sub(sub: &str, nodes: &mut Vec<Proxy>) -> bool {
         return false;
     }
 
-    // Try to decode as base64
-    let decoded = match STANDARD.decode(sub) {
-        Ok(bytes) => match String::from_utf8(bytes) {
-            Ok(s) => s,
+    let mut processed = false;
+
+    // Try to parse as SSD configuration
+    if sub.starts_with("ssd://") {
+        if super::ss::explode_ssd(sub, nodes) {
+            processed = true;
+        }
+    }
+
+    // Try to parse as Clash configuration
+    if !processed
+        && (sub.contains("\"Proxy\":")
+            || sub.contains("\"proxies\":")
+            || sub.contains("Proxy:")
+            || sub.contains("proxies:"))
+    {
+        if super::clash::explode_clash(sub, nodes) {
+            processed = true;
+        }
+    }
+
+    // Try to parse as Surge configuration
+    if !processed && super::surge::explode_surge(sub, nodes) {
+        processed = true;
+    }
+
+    // If no specific format was detected, try as a normal subscription
+    if !processed {
+        // Try to decode as base64
+        let decoded = match STANDARD.decode(sub) {
+            Ok(bytes) => match String::from_utf8(bytes) {
+                Ok(s) => s,
+                Err(_) => sub.to_string(),
+            },
             Err(_) => sub.to_string(),
-        },
-        Err(_) => sub.to_string(),
-    };
+        };
 
-    // Split by newlines and parse each line
-    let lines: Vec<&str> = decoded.lines().collect();
-
-    for line in lines {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
+        // Check if it's a Surge format after decoding
+        if decoded.contains("vmess=")
+            || decoded.contains("shadowsocks=")
+            || decoded.contains("http=")
+            || decoded.contains("trojan=")
+        {
+            if super::surge::explode_surge(&decoded, nodes) {
+                return true;
+            }
         }
 
-        let mut node = Proxy::default();
-        if explode(line, &mut node) {
-            nodes.push(node);
+        // Split by newlines or spaces depending on content
+        let delimiter = if decoded.contains('\n') {
+            '\n'
+        } else if decoded.contains('\r') {
+            '\r'
+        } else {
+            ' '
+        };
+
+        let lines: Vec<&str> = decoded.split(delimiter).collect();
+
+        for line in lines {
+            let line = line.trim().trim_end_matches('\r');
+            if line.is_empty() {
+                continue;
+            }
+
+            let mut node = Proxy::default();
+            if explode(line, &mut node) {
+                nodes.push(node);
+            }
         }
     }
 

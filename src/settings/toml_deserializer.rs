@@ -11,9 +11,9 @@ use super::Settings;
 pub trait ImportableInToml: serde::de::DeserializeOwned + Clone {
     fn is_import_node(&self) -> bool;
     fn get_import_path(&self) -> Option<String>;
-
-    // 新增方法，从 toml::Value 创建实例
-    fn try_from_toml_value(value: &toml::Value) -> Result<Self, Box<dyn std::error::Error>>;
+    fn try_from_toml_value(value: &toml::Value) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(value.clone().try_into()?)
+    }
 }
 
 /// Stream rule configuration
@@ -46,10 +46,6 @@ impl ImportableInToml for RegexMatchRuleInToml {
     fn get_import_path(&self) -> Option<String> {
         self.import.clone()
     }
-
-    fn try_from_toml_value(value: &toml::Value) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(toml::from_str(&value.to_string())?)
-    }
 }
 
 /// Ruleset configuration
@@ -71,10 +67,6 @@ impl ImportableInToml for RulesetConfigInToml {
 
     fn get_import_path(&self) -> Option<String> {
         self.import.clone()
-    }
-
-    fn try_from_toml_value(value: &toml::Value) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(toml::from_str(&value.to_string())?)
     }
 }
 
@@ -124,10 +116,6 @@ impl ImportableInToml for ProxyGroupConfigInToml {
     fn get_import_path(&self) -> Option<String> {
         self.import.clone()
     }
-
-    fn try_from_toml_value(value: &toml::Value) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(toml::from_str(&value.to_string())?)
-    }
 }
 
 impl Into<ProxyGroupConfig> for ProxyGroupConfigInToml {
@@ -148,7 +136,7 @@ impl Into<ProxyGroupConfig> for ProxyGroupConfigInToml {
             Some("consistent-hashing") => BalanceStrategy::ConsistentHashing,
             Some("round-robin") => BalanceStrategy::RoundRobin,
             _ => BalanceStrategy::ConsistentHashing,
-    };
+        };
 
         // 创建基本的 ProxyGroupConfig
         let mut config = ProxyGroupConfig {
@@ -213,10 +201,6 @@ impl ImportableInToml for TaskConfigInToml {
 
     fn get_import_path(&self) -> Option<String> {
         self.import.clone()
-    }
-
-    fn try_from_toml_value(value: &toml::Value) -> Result<Self, Box<dyn std::error::Error>> {
-        Ok(toml::from_str(&value.to_string())?)
     }
 }
 

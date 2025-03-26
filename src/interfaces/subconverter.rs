@@ -1,3 +1,5 @@
+use crate::generator::config::formats::single::proxy_to_single;
+use crate::generator::config::formats::ssd::proxy_to_ssd;
 use crate::generator::config::formats::{
     loon::proxy_to_loon, mellow::proxy_to_mellow, quan::proxy_to_quan, quanx::proxy_to_quanx,
     singbox::proxy_to_singbox, ss_sub::proxy_to_ss_sub, surge::proxy_to_surge,
@@ -587,7 +589,9 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
                 }
                 Err(e) => {
                     warn!("Failed to parse insert URL '{}': {}", url, e);
-                    // Continue with other URLs even if this one failed
+                    if !global.skip_failed_links {
+                        return Err(format!("Failed to parse insert URL '{}': {}", url, e));
+                    }
                 }
             }
         }
@@ -604,7 +608,9 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             }
             Err(e) => {
                 error!("Failed to parse URL '{}': {}", url, e);
-                return Err(format!("Failed to parse URL '{}': {}", url, e));
+                if !global.skip_failed_links {
+                    return Err(format!("Failed to parse URL '{}': {}", url, e));
+                }
             }
         }
     }
@@ -639,15 +645,50 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
     if let Some(group_name) = &config.group_name {
         info!("Setting group name to '{}'", group_name);
         for node in &mut nodes {
-            (*node).group = group_name.clone();
+            node.group = group_name.clone();
         }
     }
 
     // Apply filter script if available
     if let Some(script) = &config.filter_script {
         info!("Applying filter script");
-        // In a real implementation, this would involve running a JavaScript engine
-        // to filter nodes based on the script. Left as placeholder for future implementation.
+        if config.authorized {
+            #[cfg(feature = "js_runtime")]
+            {
+                // Run filter script in JavaScript context
+                // if let Some(runtime) = &config.extra.js_runtime {
+                //     if let Some(context) = &config.extra.js_context {
+                //         script_safe_runner(
+                //             runtime,
+                //             context,
+                //             |ctx| match ctx.eval(script) {
+                //                 Ok(_) => {
+                //                     if let Ok(filter) = ctx.eval::<quickjs::Function>("filter") {
+                //                         nodes.retain(|node| {
+                //                             match filter.call1(
+                //                                 &quickjs::Value::Null,
+                //                                 &quickjs::Value::from_serde(node).unwrap(),
+                //                             ) {
+                //                                 Ok(result) => result.as_bool().unwrap_or(false),
+                //                                 Err(_) => false,
+                //                             }
+                //                         });
+                //                     }
+                //                 }
+                //                 Err(e) => {
+                //                     script_print_stack(ctx);
+                //                 }
+                //             },
+                //             global.script_clean_context,
+                //         );
+                //     }
+                // }
+            }
+            #[cfg(not(feature = "js_runtime"))]
+            {
+                warn!("JavaScript runtime feature not enabled, skipping filter script");
+            }
+        }
     }
 
     // Process nodes (rename, emoji, sort, etc.)
@@ -824,28 +865,23 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
         }
         SubconverterTarget::SS => {
             info!("Generate target: SS");
-            // To be implemented: convert nodes to SS format
-            String::new() // placeholder
+            proxy_to_single(&mut nodes, 1, &mut config.extra.clone())
         }
         SubconverterTarget::SSR => {
             info!("Generate target: SSR");
-            // To be implemented: convert nodes to SSR format
-            String::new() // placeholder
+            proxy_to_single(&mut nodes, 2, &mut config.extra.clone())
         }
         SubconverterTarget::V2Ray => {
             info!("Generate target: V2Ray");
-            // To be implemented: convert nodes to V2Ray format
-            String::new() // placeholder
+            proxy_to_single(&mut nodes, 4, &mut config.extra.clone())
         }
         SubconverterTarget::Trojan => {
             info!("Generate target: Trojan");
-            // To be implemented: convert nodes to Trojan format
-            String::new() // placeholder
+            proxy_to_single(&mut nodes, 8, &mut config.extra.clone())
         }
         SubconverterTarget::Mixed => {
             info!("Generate target: Mixed");
-            // To be implemented: convert nodes to mixed format
-            String::new() // placeholder
+            proxy_to_single(&mut nodes, 15, &mut config.extra.clone())
         }
         SubconverterTarget::Quantumult => {
             info!("Generate target: Quantumult");
@@ -894,8 +930,12 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
         }
         SubconverterTarget::SSD => {
             info!("Generate target: SSD");
-            // To be implemented: convert nodes to SSD format
-            String::new() // placeholder
+            proxy_to_ssd(
+                &mut nodes,
+                &config.group_name.as_deref().unwrap_or(""),
+                &config.sub_info.as_deref().unwrap_or(""),
+                &mut config.extra.clone(),
+            )
         }
         SubconverterTarget::SingBox => {
             info!("Generate target: SingBox");

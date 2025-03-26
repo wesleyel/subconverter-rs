@@ -1274,6 +1274,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "quickjs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1356dbc67b3ea69096f3d50bcfdb3b23c73e2ba29b9e1de2d7da2a91e625b590"
+
+[[package]]
 name = "quote"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1683,6 +1689,7 @@ dependencies = [
  "linked-hash-map",
  "log",
  "once_cell",
+ "quickjs",
  "regex",
  "reqwest",
  "serde",

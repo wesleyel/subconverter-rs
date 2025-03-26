@@ -2,11 +2,12 @@ use crate::models::Proxy;
 use crate::parser::explodes::*;
 use crate::parser::infoparser::{get_sub_info_from_nodes, get_sub_info_from_ssd};
 use crate::parser::parse_settings::ParseSettings;
-use crate::utils::file_exists;
 use crate::utils::http::{get_sub_info_from_header, web_get};
 use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
+use crate::utils::{file_exists, file_get};
+use crate::Settings;
 use std::fs;
 
 /// Equivalent to ConfType enum in C++
@@ -242,7 +243,7 @@ fn get_url_arg(url: &str, arg_name: &str) -> Option<String> {
 /// Parses a configuration file into a vector of Proxy objects
 /// Returns the number of proxies parsed
 fn explode_conf(path: &str, nodes: &mut Vec<Proxy>) -> i32 {
-    match fs::read_to_string(path) {
+    match file_get(path, Some(Settings::current().base_path.as_str())) {
         Ok(content) => explode_conf_content(&content, nodes),
         Err(_) => 0,
     }
