@@ -269,9 +269,22 @@ pub async fn sub_handler(
         .as_deref()
         .unwrap_or(&global.default_ext_config);
     if !ext_config.is_empty() {
+        let ext_config_clone = ext_config.to_string();
+        let handler = std::thread::spawn(move || {
+            match ExternalSettings::load_from_file_sync(&ext_config_clone) {
+                Ok(extconf) => Some(extconf),
+                Err(e) => {
+                    error!(
+                        "Failed to load external config from {}: {}",
+                        ext_config_clone, e
+                    );
+                    None
+                }
+            }
+        });
         // Process external config if provided
-        match ExternalSettings::load_from_file_sync(ext_config) {
-            Ok(extconf) => {
+        match handler.join().unwrap() {
+            Some(extconf) => {
                 if !nodelist {
                     let mut rule_bases = RuleBases {
                         clash_rule_base: global.clash_base.clone(),
@@ -350,8 +363,8 @@ pub async fn sub_handler(
                     builder.remove_emoji(extconf.remove_old_emoji.unwrap());
                 }
             }
-            Err(e) => {
-                error!("Failed to load external config from {}: {}", ext_config, e);
+            None => {
+                error!("Failed to load external config from {}", ext_config);
             }
         }
     }

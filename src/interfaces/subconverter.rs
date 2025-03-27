@@ -171,13 +171,19 @@ impl SubconverterConfigBuilder {
 
     /// Add an insert URL
     pub fn add_insert_url(&mut self, url: &str) -> &mut Self {
-        self.config.insert_urls.push(url.to_string());
+        if !url.is_empty() {
+            self.config.insert_urls.push(url.to_string());
+        }
         self
     }
 
     /// Set insert URLs
     pub fn insert_urls(&mut self, urls: Vec<String>) -> &mut Self {
-        self.config.insert_urls = urls;
+        self.config.insert_urls = urls
+            .iter()
+            .filter(|u| !u.is_empty())
+            .map(|u| u.to_string())
+            .collect();
         self
     }
 

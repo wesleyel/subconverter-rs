@@ -7,7 +7,7 @@ use env_logger::Env;
 use log::{error, info};
 
 use subconverter::models::AppState;
-use subconverter::settings::update_settings_from_file;
+use subconverter::settings::settings::settings_struct::init_settings;
 use subconverter::web_handlers::interfaces;
 use subconverter::Settings;
 
@@ -18,12 +18,7 @@ async fn main() -> std::io::Result<()> {
 
     // Check for a config file path from command line
     let args: Vec<String> = env::args().collect();
-    let config_path = if args.len() > 1 { &args[1] } else { "pref.ini" };
-    // Load settings from file if it exists
-    if Path::new(config_path).exists() {
-        info!("Loading settings from {}", config_path);
-        update_settings_from_file(config_path).unwrap();
-    }
+    init_settings("").unwrap();
 
     // Get the current settings
     let settings = Settings::current();

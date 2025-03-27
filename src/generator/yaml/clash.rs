@@ -242,7 +242,7 @@ pub enum ClashProxy {
         common: CommonProxyOptions,
         cipher: String,
         password: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         plugin: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         plugin_opts: Option<HashMap<String, serde_yaml::Value>>,
@@ -255,14 +255,14 @@ pub enum ClashProxy {
         password: String,
         protocol: String,
         obfs: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         protocol_param: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         obfs_param: Option<String>,
         // ClashR compatibility
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         protocolparam: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         obfsparam: Option<String>,
     },
     #[serde(rename = "vmess")]
@@ -273,9 +273,9 @@ pub enum ClashProxy {
         #[serde(rename = "alterId")]
         alter_id: u32,
         cipher: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         network: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         ws_path: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         ws_headers: Option<serde_yaml::Value>,
@@ -287,7 +287,7 @@ pub enum ClashProxy {
         h2_opts: Option<HashMap<String, serde_yaml::Value>>,
         #[serde(skip_serializing_if = "Option::is_none")]
         grpc_opts: Option<HashMap<String, serde_yaml::Value>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         servername: Option<String>,
     },
     #[serde(rename = "trojan")]
@@ -295,7 +295,7 @@ pub enum ClashProxy {
         #[serde(flatten)]
         common: CommonProxyOptions,
         password: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         network: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         ws_opts: Option<serde_yaml::Value>,
@@ -306,18 +306,18 @@ pub enum ClashProxy {
     Http {
         #[serde(flatten)]
         common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         username: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         password: Option<String>,
     },
     #[serde(rename = "socks5")]
     Socks5 {
         #[serde(flatten)]
         common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         username: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         password: Option<String>,
     },
     #[serde(rename = "snell")]
@@ -327,7 +327,7 @@ pub enum ClashProxy {
         psk: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         version: Option<u32>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         obfs: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         obfs_opts: Option<HashMap<String, serde_yaml::Value>>,
@@ -341,9 +341,9 @@ pub enum ClashProxy {
         #[serde(rename = "public-key")]
         public_key: String,
         ip: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         ipv6: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         preshared_key: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         dns: Option<Vec<String>>,
@@ -358,33 +358,36 @@ pub enum ClashProxy {
     Hysteria {
         #[serde(flatten)]
         common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         ports: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         protocol: Option<String>,
-        #[serde(rename = "obfs-protocol", skip_serializing_if = "Option::is_none")]
+        #[serde(
+            rename = "obfs-protocol",
+            skip_serializing_if = "is_empty_option_string"
+        )]
         obfs_protocol: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         up: Option<String>,
         #[serde(rename = "up-speed", skip_serializing_if = "Option::is_none")]
         up_speed: Option<u32>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         down: Option<String>,
         #[serde(rename = "down-speed", skip_serializing_if = "Option::is_none")]
         down_speed: Option<u32>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         auth: Option<String>,
-        #[serde(rename = "auth-str", skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "auth-str", skip_serializing_if = "is_empty_option_string")]
         auth_str: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         obfs: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         fingerprint: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         alpn: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         ca: Option<String>,
-        #[serde(rename = "ca-str", skip_serializing_if = "Option::is_none")]
+        #[serde(rename = "ca-str", skip_serializing_if = "is_empty_option_string")]
         ca_str: Option<String>,
         #[serde(rename = "recv-window-conn", skip_serializing_if = "Option::is_none")]
         recv_window_conn: Option<u32>,
@@ -730,7 +733,7 @@ pub enum ClashProxyGroup {
         name: String,
         proxies: Vec<String>,
         strategy: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "is_empty_option_string")]
         url: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         interval: Option<u32>,

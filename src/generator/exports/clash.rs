@@ -979,8 +979,8 @@ fn handle_hysteria(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Cla
         ports,
         protocol,
         obfs_protocol,
-        up_speed,
-        down_speed,
+        up,
+        down,
         auth,
         auth_str,
         obfs,
@@ -998,8 +998,8 @@ fn handle_hysteria(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<Cla
         *ports = node.ports.clone();
         *protocol = node.protocol.clone();
         *obfs_protocol = node.obfs.clone();
-        *up_speed = Some(node.up_speed);
-        *down_speed = Some(node.down_speed);
+        *up = Some(format!("{}Mbps", node.up_speed));
+        *down = Some(format!("{}Mbps", node.down_speed));
         if let Some(auth_str) = &node.auth_str {
             *auth = Some(base64_encode(&auth_str));
         }

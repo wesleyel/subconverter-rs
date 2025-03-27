@@ -44,3 +44,23 @@ pub fn file_get<P: AsRef<Path>>(path: P, base_path: Option<&str>) -> io::Result<
     }
     fs::read_to_string(path)
 }
+
+/// Copy a file from source to destination
+pub fn copy_file(src: &str, dst: &str) -> io::Result<()> {
+    // Check if source exists
+    if !Path::new(src).exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Source file {} not found", src),
+        ));
+    }
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = Path::new(dst).parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    // Copy the file
+    fs::copy(src, dst)?;
+    Ok(())
+}

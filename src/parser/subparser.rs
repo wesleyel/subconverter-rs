@@ -243,7 +243,8 @@ fn get_url_arg(url: &str, arg_name: &str) -> Option<String> {
 /// Parses a configuration file into a vector of Proxy objects
 /// Returns the number of proxies parsed
 fn explode_conf(path: &str, nodes: &mut Vec<Proxy>) -> i32 {
-    match file_get(path, Some(Settings::current().base_path.as_str())) {
+    // TODO: 安全问题，但是旧版subconverter也有……
+    match file_get(path, None) {
         Ok(content) => explode_conf_content(&content, nodes),
         Err(_) => 0,
     }

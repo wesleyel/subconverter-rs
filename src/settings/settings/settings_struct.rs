@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::RwLock;
 
+use log::info;
 use serde::{Deserialize, Serialize};
 use serde_yaml;
 use toml;
@@ -15,6 +16,7 @@ use crate::models::RegexMatchConfig;
 use crate::models::RegexMatchConfigs;
 use crate::models::RulesetConfig;
 use crate::settings::import_items;
+use crate::utils::file::copy_file;
 use crate::utils::file_get;
 use crate::utils::http::web_get;
 use crate::utils::http::ProxyConfig;
@@ -393,6 +395,38 @@ pub fn update_settings_from_file(
     })
     .join()
     .unwrap_or(Err("Failed to join thread".into()))
+}
+
+pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let default_config_paths = vec!["pref.toml", "pref.yml", "pref.ini"];
+    let default_example_paths = vec!["pref.example.toml", "pref.example.yml", "pref.example.ini"];
+    for path in default_config_paths {
+        if Path::new(path).exists() {
+            info!("Loading settings from {}", path);
+            match update_settings_from_file(path) {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    eprintln!("Failed to load settings from {}: {}", path, e);
+                    return Err(e);
+                }
+            }
+        }
+    }
+    for path in default_example_paths {
+        if Path::new(path).exists() {
+            let new_path = path.replace(".example", "");
+            info!(
+                "Loading settings from {}, and copy it to {}",
+                path, &new_path
+            );
+            // copy
+            copy_file(&path, &new_path)?;
+
+            update_settings_from_file(&new_path).unwrap();
+            return Ok(());
+        }
+    }
+    Err("No settings file found".into())
 }
 
 pub fn update_settings_from_content(
