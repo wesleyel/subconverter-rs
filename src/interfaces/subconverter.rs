@@ -4,7 +4,7 @@ use crate::generator::config::formats::{
     loon::proxy_to_loon, mellow::proxy_to_mellow, quan::proxy_to_quan, quanx::proxy_to_quanx,
     singbox::proxy_to_singbox, ss_sub::proxy_to_ss_sub, surge::proxy_to_surge,
 };
-use crate::generator::exports::clash::proxy_to_clash;
+use crate::generator::exports::proxy_to_clash::proxy_to_clash;
 use crate::models::ruleset::RulesetConfigs;
 use crate::models::{
     ExtraSettings, Proxy, ProxyGroupConfigs, RegexMatchConfig, RulesetContent, SubconverterTarget,
@@ -1008,48 +1008,8 @@ pub fn preprocess_nodes(
     rename_patterns: &Vec<RegexMatchConfig>,
     emoji_patterns: &Vec<RegexMatchConfig>,
 ) {
-    // Apply renames
-    if !rename_patterns.is_empty() {
-        info!(
-            "Applying {} rename patterns to {} nodes",
-            rename_patterns.len(),
-            nodes.len()
-        );
-        for node in nodes.iter_mut() {
-            for pattern in rename_patterns {
-                pattern.process(&mut node.remark);
-            }
-        }
-    }
-
-    // Apply emojis
-    if extra.add_emoji && !emoji_patterns.is_empty() {
-        info!("Applying emoji patterns to {} nodes", nodes.len());
-        for node in nodes.iter_mut() {
-            // Remove existing emoji if needed
-            if extra.remove_emoji {
-                // Simplified emoji removal; actual implementation would use regex
-                // to remove emoji patterns
-            }
-
-            // Add emoji based on patterns
-            for pattern in emoji_patterns {
-                pattern.process(&mut node.remark);
-            }
-        }
-    }
-
-    // Sort nodes if needed
-    if extra.sort_flag {
-        info!("Sorting {} nodes", nodes.len());
-        if !extra.sort_script.is_empty() {
-            // Apply sort using script
-            // This would involve running a JavaScript engine
-        } else {
-            // Simple default sort by remark
-            nodes.sort_by(|a, b| a.remark.cmp(&b.remark));
-        }
-    }
+    // Call the implementation in utils/node_manip
+    crate::utils::preprocess_nodes(nodes, extra, rename_patterns, emoji_patterns);
 }
 
 /// Prepend proxy direct ruleset to ruleset content

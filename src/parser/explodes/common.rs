@@ -1,6 +1,5 @@
+use crate::utils::base64::base64_decode;
 use crate::Proxy;
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
 
 /// Explode a proxy link into a Proxy object
 ///
@@ -100,7 +99,7 @@ pub fn explode_sub(sub: &str, nodes: &mut Vec<Proxy>) -> bool {
             || sub.contains("Proxy:")
             || sub.contains("proxies:"))
     {
-        if super::clash::explode_clash(sub, nodes) {
+        if super::explode_clash::explode_clash(sub, nodes) {
             processed = true;
         }
     }
@@ -113,13 +112,7 @@ pub fn explode_sub(sub: &str, nodes: &mut Vec<Proxy>) -> bool {
     // If no specific format was detected, try as a normal subscription
     if !processed {
         // Try to decode as base64
-        let decoded = match STANDARD.decode(sub) {
-            Ok(bytes) => match String::from_utf8(bytes) {
-                Ok(s) => s,
-                Err(_) => sub.to_string(),
-            },
-            Err(_) => sub.to_string(),
-        };
+        let decoded = base64_decode(sub, false);
 
         // Check if it's a Surge format after decoding
         if decoded.contains("vmess=")
@@ -197,7 +190,7 @@ pub fn explode_conf_content(content: &str, nodes: &mut Vec<Proxy>) -> i32 {
     }
     // Try to parse as YAML/Clash
     else if content.contains("proxies:") || content.contains("Proxy:") {
-        if super::clash::explode_clash(content, nodes) {
+        if super::explode_clash::explode_clash(content, nodes) {
             parsed = true;
         }
     }

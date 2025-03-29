@@ -50,6 +50,7 @@ pub fn explode_hysteria2(hysteria2: &str, node: &mut Proxy) -> bool {
             "ca" => ca = url_decode(&value),
             "caStr" => ca_str = url_decode(&value),
             "ports" => ports = url_decode(&value),
+            "mport" => ports = url_decode(&value),
             "cwnd" => cwnd = value.parse::<u32>().ok(),
             "alpn" => {
                 for a in url_decode(&value).split(',') {

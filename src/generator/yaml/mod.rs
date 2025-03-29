@@ -1,16 +1,16 @@
-pub mod clash;
+pub mod clash_output;
+pub mod proxy_group_output;
 
 // Example function showing how to use the ClashProxyCommon trait
 #[cfg(test)]
 mod tests {
-    use super::clash::{ClashProxy, ClashProxyCommon};
-    
+    use super::clash_output::{ClashProxy, ClashProxyCommon};
 
     #[test]
     fn test_common_proxy_operations() {
         // Create a Shadowsocks proxy
         let mut ss_proxy = ClashProxy::Shadowsocks {
-            common: super::clash::CommonProxyOptions {
+            common: super::clash_output::CommonProxyOptions {
                 name: "example-ss".to_string(),
                 server: "example.com".to_string(),
                 port: 8388,

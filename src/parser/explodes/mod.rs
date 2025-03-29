@@ -1,4 +1,4 @@
-mod clash;
+mod explode_clash;
 mod common;
 mod http;
 mod httpsub;
@@ -16,7 +16,7 @@ mod trojan;
 mod vmess;
 mod wireguard;
 
-pub use clash::explode_clash;
+pub use explode_clash::explode_clash;
 pub use common::{explode, explode_conf_content, explode_sub};
 pub use http::explode_http;
 pub use httpsub::explode_http_sub;

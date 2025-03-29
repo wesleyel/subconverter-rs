@@ -1,8 +1,9 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
-use crate::generator::yaml::clash::{ClashProxy, ClashProxyCommon, CommonProxyOptions};
-use crate::models::{ExtraSettings, ProxyGroupConfigs, ProxyGroupType};
+use crate::generator::yaml::clash_output::{ClashProxy, ClashProxyCommon, CommonProxyOptions};
+use crate::generator::yaml::proxy_group_output::convert_proxy_groups;
+use crate::models::{ExtraSettings, ProxyGroupConfigs};
 use crate::models::{Proxy, ProxyType, RulesetContent};
 use crate::utils::base64::base64_encode;
 use crate::utils::replace_all_distinct;
@@ -289,184 +290,27 @@ pub fn proxy_to_clash_yaml(
             }
         };
 
-        // Process each proxy group
+        // Build filtered nodes map for each group
+        let mut filtered_nodes_map = HashMap::new();
         for group in extra_proxy_group {
-            // Create the proxy group with basic properties
-            let mut proxy_group_map = Mapping::new();
-            proxy_group_map.insert(
-                YamlValue::String("name".to_string()),
-                YamlValue::String(group.name.clone()),
-            );
-
-            // Set type (special case for Smart type which becomes url-test)
-            let type_str = if group.group_type == ProxyGroupType::Smart {
-                "url-test"
-            } else {
-                group.type_str()
-            };
-            proxy_group_map.insert(
-                YamlValue::String("type".to_string()),
-                YamlValue::String(type_str.to_string()),
-            );
-
-            // Add fields based on proxy group type
-            match group.group_type {
-                ProxyGroupType::Select | ProxyGroupType::Relay => {
-                    // No special fields for these types
-                }
-                ProxyGroupType::LoadBalance => {
-                    // Add strategy for load balancing
-                    proxy_group_map.insert(
-                        YamlValue::String("strategy".to_string()),
-                        YamlValue::String(group.strategy_str().to_string()),
-                    );
-
-                    // Continue with URL test fields (fall through)
-                    if !group.lazy {
-                        proxy_group_map.insert(
-                            YamlValue::String("lazy".to_string()),
-                            YamlValue::Bool(group.lazy),
-                        );
-                    }
-
-                    proxy_group_map.insert(
-                        YamlValue::String("url".to_string()),
-                        YamlValue::String(group.url.clone()),
-                    );
-
-                    if group.interval > 0 {
-                        proxy_group_map.insert(
-                            YamlValue::String("interval".to_string()),
-                            YamlValue::Number(group.interval.into()),
-                        );
-                    }
-
-                    if group.tolerance > 0 {
-                        proxy_group_map.insert(
-                            YamlValue::String("tolerance".to_string()),
-                            YamlValue::Number(group.tolerance.into()),
-                        );
-                    }
-                }
-                ProxyGroupType::Smart | ProxyGroupType::URLTest => {
-                    // Add lazy if defined
-                    if !group.lazy {
-                        proxy_group_map.insert(
-                            YamlValue::String("lazy".to_string()),
-                            YamlValue::Bool(group.lazy),
-                        );
-                    }
-
-                    // Add URL test fields
-                    proxy_group_map.insert(
-                        YamlValue::String("url".to_string()),
-                        YamlValue::String(group.url.clone()),
-                    );
-
-                    if group.interval > 0 {
-                        proxy_group_map.insert(
-                            YamlValue::String("interval".to_string()),
-                            YamlValue::Number(group.interval.into()),
-                        );
-                    }
-
-                    if group.tolerance > 0 {
-                        proxy_group_map.insert(
-                            YamlValue::String("tolerance".to_string()),
-                            YamlValue::Number(group.tolerance.into()),
-                        );
-                    }
-                }
-                ProxyGroupType::Fallback => {
-                    // Add URL test fields
-                    proxy_group_map.insert(
-                        YamlValue::String("url".to_string()),
-                        YamlValue::String(group.url.clone()),
-                    );
-
-                    if group.interval > 0 {
-                        proxy_group_map.insert(
-                            YamlValue::String("interval".to_string()),
-                            YamlValue::Number(group.interval.into()),
-                        );
-                    }
-
-                    if group.tolerance > 0 {
-                        proxy_group_map.insert(
-                            YamlValue::String("tolerance".to_string()),
-                            YamlValue::Number(group.tolerance.into()),
-                        );
-                    }
-                }
-                _ => {
-                    // Skip unsupported types
-                    continue;
-                }
-            }
-
-            // Add disable-udp if defined
-            if group.disable_udp {
-                proxy_group_map.insert(
-                    YamlValue::String("disable-udp".to_string()),
-                    YamlValue::Bool(group.disable_udp),
-                );
-            }
-
-            // Add persistent if defined
-            if group.persistent {
-                proxy_group_map.insert(
-                    YamlValue::String("persistent".to_string()),
-                    YamlValue::Bool(group.persistent),
-                );
-            }
-
-            // Add evaluate-before-use if defined
-            if group.evaluate_before_use {
-                proxy_group_map.insert(
-                    YamlValue::String("evaluate-before-use".to_string()),
-                    YamlValue::Bool(group.evaluate_before_use),
-                );
-            }
-
-            // Get filtered proxies
             let mut filtered_nodes = Vec::new();
             for proxy_name in &group.proxies {
                 group_generate(proxy_name, nodes, &mut filtered_nodes, true, ext);
             }
 
-            // Add provider via "use" field if present, or filtered nodes
-            if !group.using_provider.is_empty() {
-                let provider_seq = group
-                    .using_provider
-                    .iter()
-                    .map(|name| YamlValue::String(name.clone()))
-                    .collect::<Vec<_>>();
-                proxy_group_map.insert(
-                    YamlValue::String("use".to_string()),
-                    YamlValue::Sequence(provider_seq),
-                );
-            } else {
-                // Add DIRECT if empty
-                if filtered_nodes.is_empty() {
-                    filtered_nodes.push("DIRECT".to_string());
-                }
+            // Add DIRECT if empty
+            if filtered_nodes.is_empty() && group.using_provider.is_empty() {
+                filtered_nodes.push("DIRECT".to_string());
             }
 
-            // Add proxies list
-            if !filtered_nodes.is_empty() {
-                let proxies_seq = filtered_nodes
-                    .into_iter()
-                    .map(|name| YamlValue::String(name))
-                    .collect::<Vec<_>>();
-                proxy_group_map.insert(
-                    YamlValue::String("proxies".to_string()),
-                    YamlValue::Sequence(proxies_seq),
-                );
-            }
+            filtered_nodes_map.insert(group.name.clone(), filtered_nodes);
+        }
 
-            // Create the final YamlValue from the map
-            let proxy_group = YamlValue::Mapping(proxy_group_map);
+        // Convert proxy groups using the new serialization
+        let clash_proxy_groups = convert_proxy_groups(extra_proxy_group, Some(&filtered_nodes_map));
 
+        // Merge with existing groups
+        for group in clash_proxy_groups {
             // Check if this group should replace an existing one with the same name
             let mut replaced = false;
             for i in 0..original_groups.len() {
@@ -476,9 +320,12 @@ pub fn proxy_to_clash_yaml(
                     {
                         if name == &group.name {
                             if let Some(elem) = original_groups.get_mut(i) {
-                                *elem = proxy_group.clone();
-                                replaced = true;
-                                break;
+                                // Convert the group to YAML and replace
+                                if let Ok(group_yaml) = serde_yaml::to_value(&group) {
+                                    *elem = group_yaml;
+                                    replaced = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -487,7 +334,9 @@ pub fn proxy_to_clash_yaml(
 
             // If not replaced, add to the list
             if !replaced {
-                original_groups.push(proxy_group);
+                if let Ok(group_yaml) = serde_yaml::to_value(&group) {
+                    original_groups.push(group_yaml);
+                }
             }
         }
 

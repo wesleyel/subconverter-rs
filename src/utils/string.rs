@@ -223,6 +223,71 @@ pub fn join<T: AsRef<str>>(parts: &[T], separator: &str) -> String {
         .join(separator)
 }
 
+/// Remove emoji characters from the beginning of a string
+///
+/// # Arguments
+///
+/// * `s` - The string to process
+///
+/// # Returns
+///
+/// A new string with emoji removed from the beginning
+pub fn remove_emoji(s: &str) -> String {
+    if s.is_empty() {
+        return s.to_string();
+    }
+
+    // Emoji often start with specific byte patterns in UTF-8
+    // This is a simplified version that tries to detect emoji at the start
+    let mut result = s.to_string();
+
+    // Keep removing emoji patterns from the beginning
+    // This is a simplified approach, assuming emoji are 4 bytes
+    // Real emoji detection would need a proper Unicode library
+    while result.len() >= 4 {
+        let bytes = result.as_bytes();
+        // Check for emoji pattern: typically starts with 0xF0 (240) in UTF-8
+        if bytes[0] == 0xF0 || (bytes[0] == 0xE2 && bytes[1] >= 0x9C) {
+            // Remove 4 bytes that likely form an emoji
+            result = result[4..].to_string();
+        } else {
+            break;
+        }
+    }
+
+    // If we removed everything, return the original string
+    if result.is_empty() {
+        return s.to_string();
+    }
+
+    result
+}
+
+/// Calculate MD5 hash for a string
+///
+/// # Arguments
+///
+/// * `input` - The input string to calculate MD5 hash for
+///
+/// # Returns
+///
+/// A string containing the hexadecimal representation of the MD5 hash
+pub fn md5(input: &str) -> String {
+    use md5::{Digest, Md5};
+
+    let mut hasher = Md5::new();
+    hasher.update(input.as_bytes());
+    let result = hasher.finalize();
+
+    // Convert to hex string
+    let mut hex_string = String::with_capacity(32);
+    for byte in result.iter() {
+        hex_string.push_str(&format!("{:02x}", byte));
+    }
+
+    hex_string
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,5 +349,25 @@ mod tests {
         // Test with empty array
         let empty: Vec<&str> = vec![];
         assert_eq!(join(&empty, ","), "");
+    }
+
+    #[test]
+    fn test_remove_emoji() {
+        // Test with emoji at the beginning
+        assert_eq!(remove_emoji("😀Hello"), "Hello");
+        // Test with multiple emoji
+        assert_eq!(remove_emoji("😀😁Hello"), "Hello");
+        // Test with no emoji
+        assert_eq!(remove_emoji("Hello"), "Hello");
+        // Test with only emoji
+        assert_eq!(remove_emoji("😀"), "😀"); // Preserves the original if all emoji
+    }
+
+    #[test]
+    fn test_md5() {
+        // Test cases with known MD5 hashes
+        assert_eq!(md5(""), "d41d8cd98f00b204e9800998ecf8427e");
+        assert_eq!(md5("hello world"), "5eb63bbbe01eeed093cb22bb8f5acdc3");
+        assert_eq!(md5("test"), "098f6bcd4621d373cade4e832627b4f6");
     }
 }

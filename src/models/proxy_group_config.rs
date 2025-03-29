@@ -116,3 +116,140 @@ impl ProxyGroupConfig {
 
 /// A collection of proxy group configurations
 pub type ProxyGroupConfigs = Vec<ProxyGroupConfig>;
+
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
+
+impl Serialize for ProxyGroupConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Figure out how many fields we'll have based on the proxy group type
+        let mut field_count = 2; // name and type always present
+
+        // Count conditional fields based on group type
+        match self.group_type {
+            ProxyGroupType::LoadBalance => {
+                field_count += 4; // strategy, url, interval, tolerance
+                if !self.lazy {
+                    field_count += 1; // lazy
+                }
+            }
+            ProxyGroupType::URLTest | ProxyGroupType::Smart => {
+                field_count += 2; // url, interval
+                if !self.lazy {
+                    field_count += 1; // lazy
+                }
+                if self.tolerance > 0 {
+                    field_count += 1; // tolerance
+                }
+            }
+            ProxyGroupType::Fallback => {
+                field_count += 2; // url, interval
+                if self.tolerance > 0 {
+                    field_count += 1; // tolerance
+                }
+            }
+            _ => {}
+        }
+
+        // Add count for other optional fields
+        if self.disable_udp {
+            field_count += 1;
+        }
+        if self.persistent {
+            field_count += 1;
+        }
+        if self.evaluate_before_use {
+            field_count += 1;
+        }
+
+        // Add fields for proxies and provider
+        if !self.proxies.is_empty() {
+            field_count += 1;
+        }
+        if !self.using_provider.is_empty() {
+            field_count += 1;
+        }
+
+        // Create serialization struct
+        let mut state = serializer.serialize_struct("ProxyGroup", field_count)?;
+
+        // Always include name
+        state.serialize_field("name", &self.name)?;
+
+        // Handle type (with special case for Smart)
+        let type_str = if self.group_type == ProxyGroupType::Smart {
+            "url-test"
+        } else {
+            self.type_str()
+        };
+        state.serialize_field("type", &type_str)?;
+
+        // Add fields based on type
+        match self.group_type {
+            ProxyGroupType::LoadBalance => {
+                // Load balancing specific fields
+                state.serialize_field("strategy", &self.strategy_str())?;
+                if !self.lazy {
+                    state.serialize_field("lazy", &self.lazy)?;
+                }
+                state.serialize_field("url", &self.url)?;
+                if self.interval > 0 {
+                    state.serialize_field("interval", &self.interval)?;
+                }
+                if self.tolerance > 0 {
+                    state.serialize_field("tolerance", &self.tolerance)?;
+                }
+            }
+            ProxyGroupType::URLTest | ProxyGroupType::Smart => {
+                // URL-test specific fields
+                if !self.lazy {
+                    state.serialize_field("lazy", &self.lazy)?;
+                }
+                state.serialize_field("url", &self.url)?;
+                if self.interval > 0 {
+                    state.serialize_field("interval", &self.interval)?;
+                }
+                if self.tolerance > 0 {
+                    state.serialize_field("tolerance", &self.tolerance)?;
+                }
+            }
+            ProxyGroupType::Fallback => {
+                // Fallback specific fields
+                state.serialize_field("url", &self.url)?;
+                if self.interval > 0 {
+                    state.serialize_field("interval", &self.interval)?;
+                }
+                if self.tolerance > 0 {
+                    state.serialize_field("tolerance", &self.tolerance)?;
+                }
+            }
+            _ => {}
+        }
+
+        // Add optional common fields
+        if self.disable_udp {
+            state.serialize_field("disable-udp", &self.disable_udp)?;
+        }
+        if self.persistent {
+            state.serialize_field("persistent", &self.persistent)?;
+        }
+        if self.evaluate_before_use {
+            state.serialize_field("evaluate-before-use", &self.evaluate_before_use)?;
+        }
+
+        // Add proxies list if not empty
+        if !self.proxies.is_empty() {
+            state.serialize_field("proxies", &self.proxies)?;
+        }
+
+        // Add provider via "use" field if present
+        if !self.using_provider.is_empty() {
+            state.serialize_field("use", &self.using_provider)?;
+        }
+
+        state.end()
+    }
+}

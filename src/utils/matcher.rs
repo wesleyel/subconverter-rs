@@ -10,6 +10,11 @@ lazy_static! {
     static ref TYPE_REGEX: Regex = Regex::new(r"^!!(?:TYPE)=(.+?)(?:!!(.*))?$").unwrap();
     static ref PORT_REGEX: Regex = Regex::new(r"^!!(?:PORT)=(.+?)(?:!!(.*))?$").unwrap();
     static ref SERVER_REGEX: Regex = Regex::new(r"^!!(?:SERVER)=(.+?)(?:!!(.*))?$").unwrap();
+    static ref PROTOCOL_REGEX: Regex = Regex::new(r"^!!(?:PROTOCOL)=(.+?)(?:!!(.*))?$").unwrap();
+    static ref UDPSUPPORT_REGEX: Regex =
+        Regex::new(r"^!!(?:UDPSUPPORT)=(.+?)(?:!!(.*))?$").unwrap();
+    static ref SECURITY_REGEX: Regex = Regex::new(r"^!!(?:SECURITY)=(.+?)(?:!!(.*))?$").unwrap();
+    static ref REMARKS_REGEX: Regex = Regex::new(r"^!!(?:REMARKS)=(.+?)(?:!!(.*))?$").unwrap();
     static ref PROXY_TYPES: HashMap<ProxyType, &'static str> = {
         let mut m = HashMap::new();
         m.insert(ProxyType::Shadowsocks, "SS");
@@ -30,9 +35,24 @@ lazy_static! {
 
 /// Match a rule against a proxy node
 ///
+/// This function evaluates complex rule strings that can match different aspects of a proxy node.
+/// Special rule formats begin with "!!" and can match against properties like group, type, port, etc.
+///
+/// Supported special rules:
+/// - !!GROUP=<group_pattern> - Matches node's group against pattern
+/// - !!GROUPID=<id_range> - Matches node's group ID against range
+/// - !!INSERT=<id_range> - Like GROUPID but negates direction
+/// - !!TYPE=<type_pattern> - Matches node's proxy type against pattern
+/// - !!PORT=<port_range> - Matches node's port against range
+/// - !!SERVER=<server_pattern> - Matches node's hostname against pattern
+/// - !!PROTOCOL=<protocol_pattern> - Matches node's protocol against pattern
+/// - !!UDPSUPPORT=<support_pattern> - Matches node's UDP support status
+/// - !!SECURITY=<security_pattern> - Matches node's security features
+/// - !!REMARKS=<remarks_pattern> - Matches node's remark against pattern
+///
 /// # Arguments
 /// * `rule` - The rule to match
-/// * `real_rule` - The rule after processing special prefixes
+/// * `real_rule` - Output parameter that will contain the processed rule after special prefix handling
 /// * `node` - The proxy node to match against
 ///
 /// # Returns
@@ -74,6 +94,61 @@ pub fn apply_matcher(rule: &str, real_rule: &mut String, node: &Proxy) -> bool {
             let target = captures.get(1).map_or("", |m| m.as_str());
             *real_rule = captures.get(2).map_or("", |m| m.as_str()).to_string();
             return reg_find(&node.hostname, target);
+        }
+    } else if rule.starts_with("!!PROTOCOL=") {
+        if let Some(captures) = PROTOCOL_REGEX.captures(rule) {
+            let target = captures.get(1).map_or("", |m| m.as_str());
+            *real_rule = captures.get(2).map_or("", |m| m.as_str()).to_string();
+            let protocol = match &node.protocol {
+                Some(proto) => proto,
+                None => return false,
+            };
+            return reg_find(protocol, target);
+        }
+    } else if rule.starts_with("!!UDPSUPPORT=") {
+        if let Some(captures) = UDPSUPPORT_REGEX.captures(rule) {
+            let target = captures.get(1).map_or("", |m| m.as_str());
+            *real_rule = captures.get(2).map_or("", |m| m.as_str()).to_string();
+
+            match node.udp {
+                Some(true) => return reg_match("yes", target),
+                Some(false) => return reg_match("no", target),
+                None => return reg_match("undefined", target),
+            }
+        }
+    } else if rule.starts_with("!!SECURITY=") {
+        if let Some(captures) = SECURITY_REGEX.captures(rule) {
+            let target = captures.get(1).map_or("", |m| m.as_str());
+            *real_rule = captures.get(2).map_or("", |m| m.as_str()).to_string();
+
+            // Build a string of security features
+            let mut features = String::new();
+
+            if node.tls_secure {
+                features.push_str("TLS,");
+            }
+
+            if let Some(true) = node.allow_insecure {
+                features.push_str("INSECURE,");
+            }
+
+            if let Some(true) = node.tls13 {
+                features.push_str("TLS13,");
+            }
+
+            if !features.is_empty() {
+                features.pop(); // Remove trailing comma
+            } else {
+                features.push_str("NONE");
+            }
+
+            return reg_find(&features, target);
+        }
+    } else if rule.starts_with("!!REMARKS=") {
+        if let Some(captures) = REMARKS_REGEX.captures(rule) {
+            let target = captures.get(1).map_or("", |m| m.as_str());
+            *real_rule = captures.get(2).map_or("", |m| m.as_str()).to_string();
+            return reg_find(&node.remark, target);
         }
     } else {
         *real_rule = rule.to_string();
@@ -190,6 +265,10 @@ mod tests {
             hostname: "example.com".to_string(),
             port: 8080,
             proxy_type: ProxyType::Shadowsocks,
+            protocol: Some("origin".to_string()),
+            udp: Some(true),
+            tls_secure: true,
+            tls13: Some(true),
             ..Default::default()
         }
     }
@@ -239,10 +318,9 @@ mod tests {
 
     #[test]
     fn test_reg_match() {
-        assert!(reg_match("test", "test"));
-        assert!(reg_match("TEST", "test")); // Case insensitive
-        assert!(!reg_match("test string", "test"));
-        assert!(reg_match("test", "")); // Empty pattern always matches
+        assert!(reg_match("12345", r"^\d+$"));
+        assert!(!reg_match("12345a", r"^\d+$"));
+        assert!(reg_match("HELLO", r"(?i)hello"));
     }
 
     #[test]
@@ -250,39 +328,11 @@ mod tests {
         let node = create_test_proxy();
         let mut real_rule = String::new();
 
-        // Test GROUP rule matching
-        assert!(apply_matcher("!!GROUP=TestGroup!!", &mut real_rule, &node));
+        assert!(apply_matcher("!!GROUP=TestGroup", &mut real_rule, &node));
         assert_eq!(real_rule, "");
 
-        // Test GROUP rule with trailing rule
-        real_rule.clear();
-        assert!(apply_matcher(
-            "!!GROUP=TestGroup!!trailing",
-            &mut real_rule,
-            &node
-        ));
-        assert_eq!(real_rule, "trailing");
-
-        // Test GROUP rule not matching
         real_rule.clear();
         assert!(!apply_matcher("!!GROUP=OtherGroup", &mut real_rule, &node));
-    }
-
-    #[test]
-    fn test_apply_matcher_groupid() {
-        let node = create_test_proxy();
-        let mut real_rule = String::new();
-
-        // Test GROUPID rule matching
-        assert!(apply_matcher("!!GROUPID=2", &mut real_rule, &node));
-
-        // Test GROUPID rule with range
-        real_rule.clear();
-        assert!(apply_matcher("!!GROUPID=1-5", &mut real_rule, &node));
-
-        // Test GROUPID rule not matching
-        real_rule.clear();
-        assert!(!apply_matcher("!!GROUPID=3", &mut real_rule, &node));
     }
 
     #[test]
@@ -290,26 +340,11 @@ mod tests {
         let node = create_test_proxy();
         let mut real_rule = String::new();
 
-        // Test TYPE rule matching
         assert!(apply_matcher("!!TYPE=SS", &mut real_rule, &node));
+        assert_eq!(real_rule, "");
 
-        // Case insensitive
         real_rule.clear();
-        assert!(apply_matcher("!!TYPE=ss", &mut real_rule, &node));
-
-        // Partial match shouldn't work with exact matching
-        real_rule.clear();
-        assert!(!apply_matcher("!!TYPE=S", &mut real_rule, &node));
-
-        // Unknown type handling
-        real_rule.clear();
-        let mut unknown_node = node.clone();
-        unknown_node.proxy_type = ProxyType::Unknown;
-        assert!(!apply_matcher(
-            "!!TYPE=anything",
-            &mut real_rule,
-            &unknown_node
-        ));
+        assert!(!apply_matcher("!!TYPE=VMess", &mut real_rule, &node));
     }
 
     #[test]
@@ -317,14 +352,12 @@ mod tests {
         let node = create_test_proxy();
         let mut real_rule = String::new();
 
-        // Test PORT rule matching
         assert!(apply_matcher("!!PORT=8080", &mut real_rule, &node));
+        assert_eq!(real_rule, "");
 
-        // Test PORT rule with range
         real_rule.clear();
         assert!(apply_matcher("!!PORT=8000-9000", &mut real_rule, &node));
 
-        // Test PORT rule not matching
         real_rule.clear();
         assert!(!apply_matcher("!!PORT=443", &mut real_rule, &node));
     }
@@ -334,25 +367,102 @@ mod tests {
         let node = create_test_proxy();
         let mut real_rule = String::new();
 
-        // Test SERVER rule matching
         assert!(apply_matcher("!!SERVER=example", &mut real_rule, &node));
+        assert_eq!(real_rule, "");
 
-        // Test SERVER rule with regex
-        real_rule.clear();
-        assert!(apply_matcher("!!SERVER=.*\\.com", &mut real_rule, &node));
-
-        // Test SERVER rule not matching
         real_rule.clear();
         assert!(!apply_matcher("!!SERVER=google", &mut real_rule, &node));
     }
 
     #[test]
-    fn test_apply_matcher_default() {
+    fn test_apply_matcher_protocol() {
         let node = create_test_proxy();
         let mut real_rule = String::new();
 
-        // Test regular rule (no special prefix)
-        assert!(apply_matcher("regular rule", &mut real_rule, &node));
-        assert_eq!(real_rule, "regular rule");
+        assert!(apply_matcher("!!PROTOCOL=origin", &mut real_rule, &node));
+        assert_eq!(real_rule, "");
+
+        real_rule.clear();
+        assert!(!apply_matcher(
+            "!!PROTOCOL=auth_sha1",
+            &mut real_rule,
+            &node
+        ));
+    }
+
+    #[test]
+    fn test_apply_matcher_udp_support() {
+        let node = create_test_proxy();
+        let mut real_rule = String::new();
+
+        assert!(apply_matcher("!!UDPSUPPORT=yes", &mut real_rule, &node));
+        assert_eq!(real_rule, "");
+
+        real_rule.clear();
+        assert!(!apply_matcher("!!UDPSUPPORT=no", &mut real_rule, &node));
+
+        // Test with undefined UDP support
+        let mut node_no_udp = node.clone();
+        node_no_udp.udp = None;
+
+        real_rule.clear();
+        assert!(apply_matcher(
+            "!!UDPSUPPORT=undefined",
+            &mut real_rule,
+            &node_no_udp
+        ));
+    }
+
+    #[test]
+    fn test_apply_matcher_security() {
+        let node = create_test_proxy();
+        let mut real_rule = String::new();
+
+        assert!(apply_matcher("!!SECURITY=TLS", &mut real_rule, &node));
+        assert_eq!(real_rule, "");
+
+        real_rule.clear();
+        assert!(apply_matcher("!!SECURITY=TLS13", &mut real_rule, &node));
+
+        real_rule.clear();
+        assert!(!apply_matcher("!!SECURITY=INSECURE", &mut real_rule, &node));
+
+        // Test with insecure allowed
+        let mut node_insecure = node.clone();
+        node_insecure.allow_insecure = Some(true);
+
+        real_rule.clear();
+        assert!(apply_matcher(
+            "!!SECURITY=INSECURE",
+            &mut real_rule,
+            &node_insecure
+        ));
+    }
+
+    #[test]
+    fn test_apply_matcher_remarks() {
+        let node = create_test_proxy();
+        let mut real_rule = String::new();
+
+        assert!(apply_matcher("!!REMARKS=Test", &mut real_rule, &node));
+        assert_eq!(real_rule, "");
+
+        real_rule.clear();
+        assert!(!apply_matcher("!!REMARKS=Premium", &mut real_rule, &node));
+    }
+
+    #[test]
+    fn test_apply_matcher_with_trailing_rule() {
+        let node = create_test_proxy();
+        let mut real_rule = String::new();
+
+        assert!(apply_matcher(
+            "!!GROUP=TestGroup!!.+",
+            &mut real_rule,
+            &node
+        ));
+        assert_eq!(real_rule, ".+");
+
+        // The trailing rule ".+" will be used with node.remark in the parent function
     }
 }

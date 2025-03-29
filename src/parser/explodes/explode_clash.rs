@@ -1,12 +1,30 @@
-use crate::models::{
-    Proxy, HTTP_DEFAULT_GROUP, HYSTERIA2_DEFAULT_GROUP, HYSTERIA_DEFAULT_GROUP,
-    SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
-    TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP, WG_DEFAULT_GROUP,
+use crate::{
+    models::{
+        Proxy, HTTP_DEFAULT_GROUP, HYSTERIA2_DEFAULT_GROUP, HYSTERIA_DEFAULT_GROUP,
+        SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
+        TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP, WG_DEFAULT_GROUP,
+    },
+    parser::yaml::clash::parse_clash_yaml,
 };
 use serde_yaml::Value;
 
 /// Parse a Clash YAML configuration into a vector of Proxy objects
 pub fn explode_clash(content: &str, nodes: &mut Vec<Proxy>) -> bool {
+    // 首先尝试使用新的YAML解析器
+    match parse_clash_yaml(content) {
+        Ok(mut proxies) => {
+            if !proxies.is_empty() {
+                nodes.append(&mut proxies);
+                return true;
+            }
+        }
+        Err(e) => {
+            // 失败时记录错误并尝试旧的解析方式
+            eprintln!("新YAML解析器失败: {}", e);
+        }
+    }
+
+    // 回退到旧的解析方式
     // Parse the YAML content
     let yaml: Value = match serde_yaml::from_str(content) {
         Ok(y) => y,
