@@ -245,19 +245,19 @@ pub enum ClashProxyYamlInput {
         ports: Option<String>,
         #[serde(default)]
         protocol: Option<String>,
-        #[serde(rename = "obfs-protocol", default)]
+        #[serde(alias = "obfs-protocol", default)]
         obfs_protocol: Option<String>,
         #[serde(default, deserialize_with = "deserialize_string_or_number")]
         up: Option<String>,
-        #[serde(rename = "up-speed", default)]
+        #[serde(alias = "up-speed", default)]
         up_speed: Option<u32>,
         #[serde(default, deserialize_with = "deserialize_string_or_number")]
         down: Option<String>,
-        #[serde(rename = "down-speed", default)]
+        #[serde(alias = "down-speed", default)]
         down_speed: Option<u32>,
         #[serde(default)]
         auth: Option<String>,
-        #[serde(rename = "auth-str", default)]
+        #[serde(alias = "auth-str", default)]
         auth_str: Option<String>,
         #[serde(default)]
         obfs: Option<String>,
@@ -269,19 +269,19 @@ pub enum ClashProxyYamlInput {
         alpn: Option<Vec<String>>,
         #[serde(default)]
         ca: Option<String>,
-        #[serde(rename = "ca-str", default)]
+        #[serde(alias = "ca-str", default)]
         ca_str: Option<String>,
-        #[serde(rename = "recv-window-conn", default)]
+        #[serde(alias = "recv-window-conn", default)]
         recv_window_conn: Option<u32>,
-        #[serde(rename = "recv-window", default)]
+        #[serde(alias = "recv-window", default)]
         recv_window: Option<u32>,
-        #[serde(rename = "disable-mtu-discovery", default)]
+        #[serde(alias = "disable-mtu-discovery", default)]
         disable_mtu_discovery: Option<bool>,
-        #[serde(rename = "fast-open", default)]
+        #[serde(alias = "fast-open", default)]
         fast_open: Option<bool>,
-        #[serde(rename = "hop-interval", default)]
+        #[serde(alias = "hop-interval", default)]
         hop_interval: Option<u32>,
-        #[serde(rename = "skip-cert-verify", default)]
+        #[serde(alias = "skip-cert-verify", default)]
         skip_cert_verify: Option<bool>,
         #[serde(default)]
         tfo: Option<bool>,
@@ -295,7 +295,7 @@ pub enum ClashProxyYamlInput {
         password: String,
         #[serde(default)]
         ports: Option<String>,
-        #[serde(rename = "hop-interval", default)]
+        #[serde(alias = "hop-interval", default)]
         hop_interval: Option<u32>,
         #[serde(default, deserialize_with = "deserialize_string_or_number")]
         up: Option<String>,
@@ -303,7 +303,7 @@ pub enum ClashProxyYamlInput {
         down: Option<String>,
         #[serde(default)]
         obfs: Option<String>,
-        #[serde(rename = "obfs-password", default)]
+        #[serde(alias = "obfs-password", default)]
         obfs_password: Option<String>,
         #[serde(default)]
         fingerprint: Option<String>,
@@ -311,17 +311,17 @@ pub enum ClashProxyYamlInput {
         alpn: Option<String>,
         #[serde(default)]
         ca: Option<String>,
-        #[serde(rename = "ca-str", default)]
+        #[serde(alias = "ca-str", default)]
         ca_str: Option<String>,
         #[serde(default)]
         cwnd: Option<u32>,
-        #[serde(rename = "udp-mtu", default)]
+        #[serde(alias = "udp-mtu", default)]
         udp_mtu: Option<u32>,
         #[serde(default)]
         sni: Option<String>,
-        #[serde(rename = "skip-cert-verify", default)]
+        #[serde(alias = "skip-cert-verify", default)]
         skip_cert_verify: Option<bool>,
-        #[serde(rename = "fast-open", default)]
+        #[serde(alias = "fast-open", default)]
         fast_open: Option<bool>,
         #[serde(default)]
         tfo: Option<bool>,
