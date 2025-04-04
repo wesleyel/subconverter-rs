@@ -34,7 +34,7 @@ pub enum ConfType {
 pub fn add_nodes(
     mut link: String,
     all_nodes: &mut Vec<Proxy>,
-    group_id: u32,
+    group_id: i32,
     parse_settings: &mut ParseSettings,
 ) -> Result<(), String> {
     // Extract references to settings for easier access
@@ -253,7 +253,7 @@ fn filter_nodes(
     nodes: &mut Vec<Proxy>,
     exclude_remarks: Option<&Vec<String>>,
     include_remarks: Option<&Vec<String>>,
-    group_id: u32,
+    group_id: i32,
 ) {
     let mut node_index = 0;
     let mut i = 0;

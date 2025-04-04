@@ -534,7 +534,11 @@ impl Default for ParseOptions {
 /// # Returns
 /// * `Ok(Vec<Proxy>)` - The parsed proxies
 /// * `Err(String)` - Error message if parsing fails
-pub fn parse_subscription(url: &str, options: ParseOptions) -> Result<Vec<Proxy>, String> {
+pub fn parse_subscription(
+    url: &str,
+    options: ParseOptions,
+    group_id: i32,
+) -> Result<Vec<Proxy>, String> {
     // Create a new parse settings instance
     let mut parse_settings = ParseSettings::default();
 
@@ -554,7 +558,7 @@ pub fn parse_subscription(url: &str, options: ParseOptions) -> Result<Vec<Proxy>
 
     // Call add_nodes to do the actual parsing
     // We use group_id = 0 since we don't care about it in this context
-    add_nodes(url.to_string(), &mut nodes, 0, &mut parse_settings)?;
+    add_nodes(url.to_string(), &mut nodes, group_id, &mut parse_settings)?;
 
     Ok(nodes)
 }
@@ -585,10 +589,11 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
     // Parse insert URLs first if needed
     let mut insert_nodes = Vec::new();
     if !config.insert_urls.is_empty() {
+        let mut group_id = -1;
         info!("Fetching node data from insert URLs");
         for url in &config.insert_urls {
             debug!("Parsing insert URL: {}", url);
-            match parse_subscription(url, opts.clone()) {
+            match parse_subscription(url, opts.clone(), group_id) {
                 Ok(mut parsed_nodes) => {
                     info!("Found {} nodes from insert URL", parsed_nodes.len());
                     insert_nodes.append(&mut parsed_nodes);
@@ -600,14 +605,16 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
                     }
                 }
             }
+            group_id += 1;
         }
     }
 
+    let mut group_id = 0;
     // Parse main URLs
     info!("Fetching node data from main URLs");
     for url in &config.urls {
         debug!("Parsing URL: {}", url);
-        match parse_subscription(url, opts.clone()) {
+        match parse_subscription(url, opts.clone(), group_id) {
             Ok(mut parsed_nodes) => {
                 info!("Found {} nodes from URL", parsed_nodes.len());
                 nodes.append(&mut parsed_nodes);
@@ -619,6 +626,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
                 }
             }
         }
+        group_id += 1;
     }
 
     // Exit if found nothing

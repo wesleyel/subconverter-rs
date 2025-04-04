@@ -113,9 +113,7 @@ impl From<Proxy> for HysteriaProxy {
             hysteria.down_speed = Some(proxy.down_speed);
         }
 
-        if let Some(auth_str) = &proxy.auth_str {
-            hysteria.auth = Some(base64_encode(auth_str));
-        }
+        hysteria.auth = proxy.auth;
         hysteria.auth_str = proxy.auth_str;
 
         hysteria.obfs = proxy.obfs.clone();

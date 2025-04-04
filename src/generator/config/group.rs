@@ -47,11 +47,6 @@ pub fn group_generate(
             }
         }
     }
-
-    // Add "DIRECT" if filtered_nodelist is empty and add_direct is true
-    if filtered_nodelist.is_empty() && add_direct {
-        filtered_nodelist.push("DIRECT".to_string());
-    }
 }
 
 #[cfg(test)]

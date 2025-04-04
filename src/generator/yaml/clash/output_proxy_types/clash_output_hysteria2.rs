@@ -17,6 +17,12 @@ pub struct Hysteria2Proxy {
     #[serde(skip_serializing_if = "is_empty_option_string")]
     pub obfs_password: Option<String>,
     #[serde(skip_serializing_if = "is_empty_option_string")]
+    pub ports: Option<String>,
+    #[serde(skip_serializing_if = "is_empty_option_string")]
+    pub up: Option<String>,
+    #[serde(skip_serializing_if = "is_empty_option_string")]
+    pub down: Option<String>,
+    #[serde(skip_serializing_if = "is_empty_option_string")]
     pub fingerprint: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alpn: Option<Vec<String>>,
@@ -24,6 +30,10 @@ pub struct Hysteria2Proxy {
     pub ca: Option<String>,
     #[serde(rename = "ca-str", skip_serializing_if = "is_empty_option_string")]
     pub ca_str: Option<String>,
+    #[serde(skip_serializing_if = "is_u32_option_zero")]
+    pub cwnd: Option<u32>,
+    #[serde(rename = "udp-mtu", skip_serializing_if = "is_u32_option_zero")]
+    pub udp_mtu: Option<u32>,
     #[serde(
         rename = "recv-window-conn",
         skip_serializing_if = "is_u32_option_zero"
@@ -50,10 +60,15 @@ impl Hysteria2Proxy {
             password: None,
             obfs: None,
             obfs_password: None,
+            ports: None,
+            up: None,
+            down: None,
             fingerprint: None,
             alpn: None,
             ca: None,
             ca_str: None,
+            cwnd: None,
+            udp_mtu: None,
             recv_window_conn: None,
             recv_window: None,
             disable_mtu_discovery: None,
@@ -75,12 +90,23 @@ impl From<Proxy> for Hysteria2Proxy {
 
         let mut hysteria2 = Hysteria2Proxy::new(common);
 
-        if let Some(auth_str) = &proxy.auth_str {
-            hysteria2.password = Some(base64_encode(auth_str));
+        if let Some(ca_str) = &proxy.ca_str {
+            hysteria2.ca_str = Some(ca_str.to_owned());
         }
 
+        hysteria2.password = proxy.password;
         hysteria2.obfs = proxy.obfs;
         hysteria2.obfs_password = proxy.obfs_param;
+        hysteria2.ports = proxy.ports;
+
+        if proxy.up_speed > 0 {
+            hysteria2.up = Some(format!("{}Mbps", proxy.up_speed));
+        }
+
+        if proxy.down_speed > 0 {
+            hysteria2.down = Some(format!("{}Mbps", proxy.down_speed));
+        }
+
         hysteria2.fingerprint = proxy.fingerprint;
 
         if !proxy.alpn.is_empty() {
@@ -89,6 +115,14 @@ impl From<Proxy> for Hysteria2Proxy {
 
         hysteria2.ca = proxy.ca;
         hysteria2.ca_str = proxy.ca_str;
+
+        if proxy.cwnd > 0 {
+            hysteria2.cwnd = Some(proxy.cwnd);
+        }
+
+        if proxy.mtu > 0 {
+            hysteria2.udp_mtu = Some(proxy.mtu as u32);
+        }
 
         if proxy.recv_window_conn > 0 {
             hysteria2.recv_window_conn = Some(proxy.recv_window_conn);

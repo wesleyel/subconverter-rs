@@ -1,4 +1,3 @@
-
 use serde::Deserialize;
 
 use crate::models::proxy::Proxy;
@@ -21,15 +20,15 @@ pub struct ClashInputHysteria {
     obfs_protocol: Option<String>,
     #[serde(default, deserialize_with = "deserialize_string_or_number")]
     up: Option<String>,
-    #[serde(alias = "up-speed", default)]
+    #[serde(alias = "up_speed", default)]
     up_speed: Option<u32>,
     #[serde(default, deserialize_with = "deserialize_string_or_number")]
     down: Option<String>,
-    #[serde(alias = "down-speed", default)]
+    #[serde(alias = "down_speed", default)]
     down_speed: Option<u32>,
     #[serde(default)]
     auth: Option<String>,
-    #[serde(alias = "auth-str", default)]
+    #[serde(alias = "auth_str", default)]
     auth_str: Option<String>,
     #[serde(default)]
     obfs: Option<String>,
@@ -47,7 +46,7 @@ pub struct ClashInputHysteria {
     recv_window_conn: Option<u32>,
     #[serde(alias = "recv-window", default)]
     recv_window: Option<u32>,
-    #[serde(alias = "disable-mtu-discovery", default)]
+    #[serde(alias = "disable_mtu_discovery", default)]
     disable_mtu_discovery: Option<bool>,
     #[serde(alias = "fast-open", default)]
     fast_open: Option<bool>,
@@ -163,6 +162,7 @@ impl ClashInputHysteria {
 
 impl Into<Proxy> for ClashInputHysteria {
     fn into(self) -> Proxy {
+        log::info!("into hysteria proxy {:?}", self);
         let mut proxy = Proxy::default();
         proxy.proxy_type = ProxyType::Hysteria;
         proxy.remark = self.name;
@@ -186,7 +186,7 @@ impl Into<Proxy> for ClashInputHysteria {
         }
 
         // Set authentication
-        // proxy.auth = self.auth;
+        proxy.auth = self.auth;
         proxy.auth_str = self.auth_str;
 
         // Set obfuscation
