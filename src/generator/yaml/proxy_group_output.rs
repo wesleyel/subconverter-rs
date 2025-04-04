@@ -1,7 +1,7 @@
-use crate::models::{BalanceStrategy, ProxyGroupConfig, ProxyGroupType};
+use crate::models::{ProxyGroupConfig, ProxyGroupType};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Serialize, Serializer};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Serialize a ProxyGroupConfig for Clash output
 ///

@@ -4,7 +4,7 @@ use crate::models::{
     ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
 use crate::utils::base64::base64_encode;
-use crate::{settings, Settings};
+use crate::Settings;
 use log::error;
 use serde_json::{json, Map, Value as JsonValue};
 

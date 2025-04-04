@@ -8,7 +8,7 @@ use crate::utils::ini_reader::IniReader;
 use crate::utils::network::{hostname_to_ip_addr, is_ipv4, is_ipv6};
 use crate::utils::string::{hash, join, to_lower};
 use crate::utils::tribool::{BoolTriboolExt, TriboolExt};
-use crate::{settings, Settings};
+use crate::Settings;
 use log::error;
 
 /// Generate a WireGuard peer configuration string

@@ -2,7 +2,6 @@ use std::fs::read_to_string as read_file;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
-use std::time::Duration;
 
 use log::{debug, error, info, warn};
 

@@ -1,5 +1,4 @@
 use std::env;
-use std::path::Path;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};

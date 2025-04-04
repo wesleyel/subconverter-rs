@@ -1,7 +1,4 @@
 use serde::Deserialize;
-use serde_yaml::Value;
-use std::collections::HashMap;
-use std::fmt;
 
 use super::input_proxy_types::{
     clash_input_http::ClashInputHttp, clash_input_hysteria::ClashInputHysteria,
@@ -12,7 +9,6 @@ use super::input_proxy_types::{
     clash_input_wireguard::ClashInputWireGuard,
 };
 
-use crate::utils::deserialize::deserialize_string_or_number;
 
 /// Represents a single proxy in Clash configuration
 #[derive(Debug, Clone, Deserialize)]

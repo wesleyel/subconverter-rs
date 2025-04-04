@@ -1,10 +1,5 @@
-use crate::models::proxy_node::combined::CombinedProxy;
-use crate::models::proxy_node::vless::VlessProxy;
-use crate::models::{Proxy, ProxyType};
+use crate::models::Proxy;
 use crate::parser::yaml::clash::clash_proxy_types::ClashProxyYamlInput;
-use crate::utils::tribool::OptionSetExt;
-use serde_yaml::Value as YamlValue;
-use std::collections::{HashMap, HashSet};
 
 use super::ClashYamlInput;
 

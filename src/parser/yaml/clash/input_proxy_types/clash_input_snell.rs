@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
-use serde_yaml::Value;
 
 use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;

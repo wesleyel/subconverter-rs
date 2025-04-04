@@ -3,9 +3,8 @@ use crate::models::ProxyType;
 use crate::utils::base64::base64_encode;
 use crate::utils::string::replace_all_distinct;
 use crate::utils::url::get_url_arg;
-use log::debug;
-use serde_json::{json, Value};
-use std::time::{SystemTime, UNIX_EPOCH};
+use serde_json::json;
+use std::time::SystemTime;
 
 /// Parse string to f64, return default value if parsing fails
 fn parse_f64(s: &str, default: f64) -> f64 {

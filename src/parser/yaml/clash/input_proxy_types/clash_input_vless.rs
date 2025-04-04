@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use serde::Deserialize;
 
@@ -7,8 +6,6 @@ use crate::models::proxy::Proxy;
 use crate::models::proxy::ProxyType;
 use crate::models::proxy_node::combined::CombinedProxy;
 use crate::models::proxy_node::vless::VlessProxy;
-use crate::utils::deserialize::deserialize_string_or_number;
-use crate::utils::tribool::OptionSetExt;
 
 /// Represents a VLESS proxy in Clash configuration
 #[derive(Debug, Clone, Deserialize)]

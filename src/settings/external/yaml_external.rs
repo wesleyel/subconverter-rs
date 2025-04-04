@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
 use crate::models::ruleset::RulesetConfigs;
-use crate::models::{ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs, RulesetConfig};
+use crate::models::{ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs};
 use crate::{settings::import_items, utils::http::parse_proxy, Settings};
 
 // Default value functions

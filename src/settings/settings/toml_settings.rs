@@ -1,7 +1,4 @@
-use super::{
-    super::ini_bindings::{FromIni, FromIniWithDelimiter},
-    Settings,
-};
+use super::Settings;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -10,7 +7,6 @@ use crate::{
         RegexMatchConfigs,
     },
     settings::{
-        import_items,
         import_toml::import_toml_items,
         toml_deserializer::{
             ProxyGroupConfigInToml, RegexMatchRuleInToml, RulesetConfigInToml, TaskConfigInToml,

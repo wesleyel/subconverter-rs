@@ -7,8 +7,6 @@ use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
 use crate::utils::{file_exists, file_get};
-use crate::Settings;
-use std::fs;
 
 /// Equivalent to ConfType enum in C++
 #[derive(Debug, PartialEq, Eq)]

@@ -8,10 +8,7 @@ use crate::{
     models::{
         cron::CronTaskConfigs, ruleset::RulesetConfigs, ProxyGroupConfigs, RegexMatchConfigs,
     },
-    settings::{
-        import_items,
-        settings::{Settings, TomlSettings, YamlSettings},
-    },
+    settings::import_items,
 };
 
 /// Settings structure to hold global configuration

@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use subconverter::settings::settings::settings_struct::Settings;
 use subconverter::settings::settings::update_settings_from_content;
 

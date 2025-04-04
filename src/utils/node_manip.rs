@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use crate::models::{
     extra_settings::ExtraSettings,
     proxy::{Proxy, ProxyType},
-    regex_match_config::{RegexMatchConfig, RegexMatchConfigs},
+    regex_match_config::RegexMatchConfigs,
 };
 use crate::utils::{
     matcher::{apply_matcher, reg_find},

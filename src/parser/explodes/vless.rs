@@ -2,7 +2,6 @@ use crate::models::proxy_node::combined::CombinedProxy;
 use crate::models::proxy_node::vless::VlessProxy;
 use crate::models::{Proxy, ProxyType};
 use crate::utils::url_decode;
-use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use url::Url;
 

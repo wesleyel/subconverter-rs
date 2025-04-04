@@ -1,12 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 
 use crate::models::{
     cron::CronTaskConfig, BalanceStrategy, ProxyGroupConfig, ProxyGroupType, RegexMatchConfig,
     RulesetConfig,
 };
 
-use super::Settings;
 
 pub trait ImportableInToml: serde::de::DeserializeOwned + Clone {
     fn is_import_node(&self) -> bool;

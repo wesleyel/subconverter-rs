@@ -5,7 +5,6 @@ use std::sync::LazyLock;
 use std::sync::RwLock;
 
 use log::info;
-use serde::{Deserialize, Serialize};
 use serde_yaml;
 use toml;
 
@@ -15,7 +14,6 @@ use crate::models::ruleset::RulesetContent;
 use crate::models::RegexMatchConfig;
 use crate::models::RegexMatchConfigs;
 use crate::models::RulesetConfig;
-use crate::settings::import_items;
 use crate::utils::file::copy_file;
 use crate::utils::file_get;
 use crate::utils::http::web_get;

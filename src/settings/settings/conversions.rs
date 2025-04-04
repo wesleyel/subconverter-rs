@@ -1,12 +1,8 @@
 // Conversion implementation for Settings struct
-use std::collections::HashMap;
 
 use super::ini_settings::IniSettings;
 use super::settings_struct::{
-    default_cache_config, default_cache_ruleset, default_cache_subscription,
-    default_listen_address, default_log_level, default_max_concur_threads,
-    default_max_download_size, default_max_pending_conns, default_max_rules, default_max_rulesets,
-    default_true, Settings,
+    default_listen_address, Settings,
 };
 use super::toml_settings::TomlSettings;
 use super::yaml_settings::YamlSettings;
@@ -14,7 +10,6 @@ use super::yaml_settings::YamlSettings;
 use crate::constants::log_level::{
     LOG_LEVEL_DEBUG, LOG_LEVEL_ERROR, LOG_LEVEL_INFO, LOG_LEVEL_VERBOSE, LOG_LEVEL_WARNING,
 };
-use crate::models::proxy_group_config::ProxyGroupConfig;
 
 use serde_yaml;
 use toml;

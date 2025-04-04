@@ -8,12 +8,12 @@ use crate::constants::regex_black_list::REGEX_BLACK_LIST;
 use crate::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
 use crate::models::ruleset::RulesetConfigs;
 use crate::models::{
-    AppState, ExtraSettings, ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs,
+    AppState, ProxyGroupConfigs, RegexMatchConfigs,
     SubconverterTarget,
 };
 use crate::settings::external::ExternalSettings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
-use crate::utils::{file_exists, is_link, match_user_agent, reg_valid, starts_with};
+use crate::utils::{file_exists, is_link, reg_valid, starts_with};
 use crate::{RuleBases, Settings};
 fn default_ver() -> u32 {
     3
