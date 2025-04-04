@@ -60,6 +60,8 @@ jobs:
       
     - name: Build with cross
       run: cross build --release --target ${{ matrix.target }}
+      env:
+        RUSTFLAGS: "-C target-feature=+crt-static"
         
     - name: Prepare artifact
       run: |
