@@ -1,8 +1,7 @@
-use std::env;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
-use clap::{Command, FromArgMatches as _, Parser, Subcommand as _};
+use clap::{FromArgMatches as _, Parser};
 use env_logger::Env;
 use log::{error, info};
 

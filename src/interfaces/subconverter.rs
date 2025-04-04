@@ -656,7 +656,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
     }
 
     // Apply filter script if available
-    if let Some(script) = &config.filter_script {
+    if let Some(_script) = &config.filter_script {
         info!("Applying filter script");
         if config.authorized {
             #[cfg(feature = "js_runtime")]

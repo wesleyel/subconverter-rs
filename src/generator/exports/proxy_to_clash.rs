@@ -1,7 +1,9 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
-use crate::generator::yaml::clash_output::{ClashProxy, ClashProxyCommon, CommonProxyOptions};
+use crate::generator::yaml::clash::clash_output::{
+    ClashProxy, ClashProxyCommon, CommonProxyOptions,
+};
 use crate::generator::yaml::proxy_group_output::convert_proxy_groups;
 use crate::models::{ExtraSettings, ProxyGroupConfigs};
 use crate::models::{Proxy, ProxyType, RulesetContent};
