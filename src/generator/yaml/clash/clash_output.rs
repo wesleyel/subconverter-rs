@@ -1,17 +1,7 @@
+use crate::utils::is_empty_option_string;
+use crate::{generator::yaml::clash::output_proxy_types::*, Proxy, ProxyType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-fn is_empty_option_string(s: &Option<String>) -> bool {
-    s.is_none() || s.as_ref().unwrap().is_empty()
-}
-
-fn is_u32_option_zero(u: &Option<u32>) -> bool {
-    if let Some(u) = u {
-        *u == 0
-    } else {
-        true
-    }
-}
 
 /// Represents a complete Clash configuration output
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +35,7 @@ pub struct ClashYamlOutput {
 
     // Proxy settings
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub proxies: Vec<ClashProxy>,
+    pub proxies: Vec<ClashProxyOutput>,
 
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub proxy_groups: Vec<ClashProxyGroup>,
@@ -129,611 +119,90 @@ pub struct ClashProfile {
     #[serde(flatten)]
     pub extra_options: HashMap<String, serde_yaml::Value>,
 }
-/// Common proxy options that can be used across different proxy types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct CommonProxyOptions {
-    pub name: String,
-    pub server: String,
-    pub port: u16,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub udp: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tfo: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skip_cert_verify: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tls: Option<bool>,
-    #[serde(skip_serializing_if = "is_empty_option_string")]
-    pub fingerprint: Option<String>,
-    #[serde(skip_serializing_if = "is_empty_option_string")]
-    pub client_fingerprint: Option<String>,
-    #[serde(skip_serializing_if = "is_empty_option_string")]
-    pub sni: Option<String>,
-}
-
-/// Factory methods for CommonProxyOptions
-impl CommonProxyOptions {
-    /// Create a new CommonProxyOptions with default values
-    pub fn new(name: String, server: String, port: u16) -> Self {
-        Self {
-            name,
-            server,
-            port,
-            udp: None,
-            tfo: None,
-            skip_cert_verify: None,
-            tls: None,
-            fingerprint: None,
-            client_fingerprint: None,
-            sni: None,
-        }
-    }
-
-    /// Create a builder for CommonProxyOptions
-    pub fn builder(name: String, server: String, port: u16) -> CommonProxyOptionsBuilder {
-        CommonProxyOptionsBuilder {
-            common: Self::new(name, server, port),
-        }
-    }
-}
-
-/// Builder for CommonProxyOptions
-pub struct CommonProxyOptionsBuilder {
-    common: CommonProxyOptions,
-}
-
-impl CommonProxyOptionsBuilder {
-    /// Set UDP option
-    pub fn udp(mut self, value: bool) -> Self {
-        self.common.udp = Some(value);
-        self
-    }
-
-    /// Set TFO (TCP Fast Open) option
-    pub fn tfo(mut self, value: bool) -> Self {
-        self.common.tfo = Some(value);
-        self
-    }
-
-    /// Set skip_cert_verify option
-    pub fn skip_cert_verify(mut self, value: bool) -> Self {
-        self.common.skip_cert_verify = Some(value);
-        self
-    }
-
-    /// Set TLS option
-    pub fn tls(mut self, value: bool) -> Self {
-        self.common.tls = Some(value);
-        self
-    }
-
-    /// Set SNI option
-    pub fn sni(mut self, value: String) -> Self {
-        self.common.sni = Some(value);
-        self
-    }
-
-    /// Set fingerprint option
-    pub fn fingerprint(mut self, value: String) -> Self {
-        self.common.fingerprint = Some(value);
-        self
-    }
-
-    /// Set client_fingerprint option
-    pub fn client_fingerprint(mut self, value: String) -> Self {
-        self.common.client_fingerprint = Some(value);
-        self
-    }
-
-    /// Build the final CommonProxyOptions
-    pub fn build(self) -> CommonProxyOptions {
-        self.common
-    }
-}
 
 /// Represents a single proxy in Clash configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "kebab-case")]
-pub enum ClashProxy {
+pub enum ClashProxyOutput {
     #[serde(rename = "ss")]
-    Shadowsocks {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        cipher: String,
-        password: String,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        plugin: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        plugin_opts: Option<HashMap<String, serde_yaml::Value>>,
-    },
+    Shadowsocks(ShadowsocksProxy),
     #[serde(rename = "ssr")]
-    ShadowsocksR {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        cipher: String,
-        password: String,
-        protocol: String,
-        obfs: String,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        protocol_param: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        obfs_param: Option<String>,
-        // ClashR compatibility
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        protocolparam: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        obfsparam: Option<String>,
-    },
+    ShadowsocksR(ShadowsocksRProxy),
     #[serde(rename = "vmess")]
-    VMess {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        uuid: String,
-        #[serde(rename = "alterId")]
-        alter_id: u32,
-        cipher: String,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        network: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        ws_path: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ws_headers: Option<serde_yaml::Value>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ws_opts: Option<HashMap<String, serde_yaml::Value>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        http_opts: Option<HashMap<String, serde_yaml::Value>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        h2_opts: Option<HashMap<String, serde_yaml::Value>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        grpc_opts: Option<HashMap<String, serde_yaml::Value>>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        servername: Option<String>,
-    },
+    VMess(VmessProxy),
     #[serde(rename = "trojan")]
-    Trojan {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        password: String,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        network: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ws_opts: Option<serde_yaml::Value>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        grpc_opts: Option<HashMap<String, serde_yaml::Value>>,
-    },
+    Trojan(TrojanProxy),
     #[serde(rename = "http")]
-    Http {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        username: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        password: Option<String>,
-    },
+    Http(HttpProxy),
     #[serde(rename = "socks5")]
-    Socks5 {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        username: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        password: Option<String>,
-    },
+    Socks5(Socks5Proxy),
     #[serde(rename = "snell")]
-    Snell {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        psk: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        version: Option<u32>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        obfs: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        obfs_opts: Option<HashMap<String, serde_yaml::Value>>,
-    },
+    Snell(SnellProxy),
     #[serde(rename = "wireguard")]
-    WireGuard {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        #[serde(rename = "private-key")]
-        private_key: String,
-        #[serde(rename = "public-key")]
-        public_key: String,
-        ip: String,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        ipv6: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        preshared_key: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        dns: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        mtu: Option<u32>,
-        #[serde(skip_serializing_if = "Vec::is_empty", default)]
-        allowed_ips: Vec<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        keepalive: Option<u32>,
-    },
+    WireGuard(WireGuardProxy),
     #[serde(rename = "hysteria")]
-    Hysteria {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        ports: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        protocol: Option<String>,
-        #[serde(
-            rename = "obfs-protocol",
-            skip_serializing_if = "is_empty_option_string"
-        )]
-        obfs_protocol: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        up: Option<String>,
-        #[serde(rename = "up-speed", skip_serializing_if = "Option::is_none")]
-        up_speed: Option<u32>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        down: Option<String>,
-        #[serde(rename = "down-speed", skip_serializing_if = "Option::is_none")]
-        down_speed: Option<u32>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        auth: Option<String>,
-        #[serde(rename = "auth-str", skip_serializing_if = "is_empty_option_string")]
-        auth_str: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        obfs: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        fingerprint: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        alpn: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        ca: Option<String>,
-        #[serde(rename = "ca-str", skip_serializing_if = "is_empty_option_string")]
-        ca_str: Option<String>,
-        #[serde(rename = "recv-window-conn", skip_serializing_if = "Option::is_none")]
-        recv_window_conn: Option<u32>,
-        #[serde(rename = "recv-window", skip_serializing_if = "Option::is_none")]
-        recv_window: Option<u32>,
-        #[serde(
-            rename = "disable-mtu-discovery",
-            skip_serializing_if = "Option::is_none"
-        )]
-        disable_mtu_discovery: Option<bool>,
-        #[serde(rename = "fast-open", skip_serializing_if = "Option::is_none")]
-        fast_open: Option<bool>,
-        #[serde(rename = "hop-interval", skip_serializing_if = "Option::is_none")]
-        hop_interval: Option<u32>,
-    },
+    Hysteria(HysteriaProxy),
     #[serde(rename = "hysteria2")]
-    Hysteria2 {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        password: String,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        ports: String,
-        #[serde(rename = "hop-interval", skip_serializing_if = "Option::is_none")]
-        hop_interval: Option<u32>,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        up: String,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        down: String,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        obfs: String,
-        #[serde(rename = "obfs-password", skip_serializing_if = "String::is_empty")]
-        obfs_password: String,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        fingerprint: String,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        alpn: String,
-        #[serde(skip_serializing_if = "String::is_empty")]
-        ca: String,
-        #[serde(rename = "ca-str", skip_serializing_if = "String::is_empty")]
-        ca_str: String,
-        #[serde(skip_serializing_if = "is_u32_option_zero")]
-        cwnd: Option<u32>,
-        #[serde(rename = "udp-mtu", skip_serializing_if = "is_u32_option_zero")]
-        udp_mtu: Option<u32>,
-
-        // quic-go special config
-        #[serde(
-            rename = "initial-stream-receive-window",
-            skip_serializing_if = "Option::is_none"
-        )]
-        initial_stream_receive_window: Option<u64>,
-        #[serde(
-            rename = "max-stream-receive-window",
-            skip_serializing_if = "Option::is_none"
-        )]
-        max_stream_receive_window: Option<u64>,
-        #[serde(
-            rename = "initial-connection-receive-window",
-            skip_serializing_if = "Option::is_none"
-        )]
-        initial_connection_receive_window: Option<u64>,
-        #[serde(
-            rename = "max-connection-receive-window",
-            skip_serializing_if = "Option::is_none"
-        )]
-        max_connection_receive_window: Option<u64>,
-    },
+    Hysteria2(Hysteria2Proxy),
     #[serde(rename = "vless")]
-    VLess {
-        #[serde(flatten)]
-        common: CommonProxyOptions,
-        uuid: String,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        flow: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        alpn: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        packet_addr: Option<bool>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        xudp: Option<bool>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        packet_encoding: Option<String>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        network: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        reality_opts: Option<RealityOptions>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        http_opts: Option<HTTPOptions>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        h2_opts: Option<HTTP2Options>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        grpc_opts: Option<GrpcOptions>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ws_opts: Option<WSOptions>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        ws_path: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        ws_headers: Option<HashMap<String, String>>,
-        #[serde(skip_serializing_if = "is_empty_option_string")]
-        servername: Option<String>,
-    },
-    // Support for generic proxies with extra fields
-    // #[serde(other)]
-    // Other(HashMap<String, >),
-}
-
-/// Reality options for VLESS proxy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct RealityOptions {
-    #[serde(rename = "public-key")]
-    pub public_key: String,
-    #[serde(rename = "short-id")]
-    pub short_id: String,
-}
-
-/// HTTP options for VLESS proxy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct HTTPOptions {
-    #[serde(skip_serializing_if = "is_empty_option_string")]
-    pub method: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub path: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub headers: Option<HashMap<String, Vec<String>>>,
-}
-
-/// HTTP2 options for VLESS proxy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct HTTP2Options {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "is_empty_option_string")]
-    pub path: Option<String>,
-}
-
-/// gRPC options for VLESS proxy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct GrpcOptions {
-    #[serde(
-        rename = "grpc-service-name",
-        skip_serializing_if = "is_empty_option_string"
-    )]
-    pub grpc_service_name: Option<String>,
-}
-
-/// WebSocket options for VLESS proxy
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct WSOptions {
-    #[serde(skip_serializing_if = "is_empty_option_string")]
-    pub path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub headers: Option<HashMap<String, String>>,
-    #[serde(rename = "max-early-data", skip_serializing_if = "Option::is_none")]
-    pub max_early_data: Option<i32>,
-    #[serde(
-        rename = "early-data-header-name",
-        skip_serializing_if = "is_empty_option_string"
-    )]
-    pub early_data_header_name: Option<String>,
-    #[serde(rename = "v2ray-http-upgrade", skip_serializing_if = "Option::is_none")]
-    pub v2ray_http_upgrade: Option<bool>,
-    #[serde(
-        rename = "v2ray-http-upgrade-fast-open",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub v2ray_http_upgrade_fast_open: Option<bool>,
+    VLess(VLessProxy),
 }
 
 /// Factory methods for creating various proxy types
-impl ClashProxy {
+impl ClashProxyOutput {
     /// Create a new Shadowsocks proxy
     pub fn new_shadowsocks(common: CommonProxyOptions) -> Self {
-        ClashProxy::Shadowsocks {
-            common,
-            cipher: String::new(),
-            password: String::new(),
-            plugin: None,
-            plugin_opts: None,
-        }
+        ClashProxyOutput::Shadowsocks(ShadowsocksProxy::new(common))
     }
 
     /// Create a new ShadowsocksR proxy
     pub fn new_shadowsocksr(common: CommonProxyOptions) -> Self {
-        ClashProxy::ShadowsocksR {
-            common,
-            cipher: String::new(),
-            password: String::new(),
-            protocol: String::new(),
-            obfs: String::new(),
-            protocol_param: None,
-            obfs_param: None,
-            protocolparam: None,
-            obfsparam: None,
-        }
+        ClashProxyOutput::ShadowsocksR(ShadowsocksRProxy::new(common))
     }
 
     /// Create a new VMess proxy
     pub fn new_vmess(common: CommonProxyOptions) -> Self {
-        ClashProxy::VMess {
-            common,
-            uuid: String::new(),
-            alter_id: 0,
-            cipher: String::new(),
-            network: None,
-            ws_path: None,
-            ws_headers: None,
-            ws_opts: None,
-            http_opts: None,
-            h2_opts: None,
-            grpc_opts: None,
-            servername: None,
-        }
+        ClashProxyOutput::VMess(VmessProxy::new(common))
     }
 
     /// Create a new HTTP proxy
     pub fn new_http(common: CommonProxyOptions) -> Self {
-        ClashProxy::Http {
-            common,
-            username: None,
-            password: None,
-        }
+        ClashProxyOutput::Http(HttpProxy::new(common))
     }
 
     /// Create a new Trojan proxy
     pub fn new_trojan(common: CommonProxyOptions) -> Self {
-        ClashProxy::Trojan {
-            common,
-            password: String::new(),
-            network: None,
-            ws_opts: None,
-            grpc_opts: None,
-        }
+        ClashProxyOutput::Trojan(TrojanProxy::new(common))
     }
 
     /// Create a new Socks5 proxy
     pub fn new_socks5(common: CommonProxyOptions) -> Self {
-        ClashProxy::Socks5 {
-            common,
-            username: None,
-            password: None,
-        }
+        ClashProxyOutput::Socks5(Socks5Proxy::new(common))
     }
 
     /// Create a new Snell proxy
     pub fn new_snell(common: CommonProxyOptions) -> Self {
-        ClashProxy::Snell {
-            common,
-            psk: String::new(),
-            version: None,
-            obfs: None,
-            obfs_opts: None,
-        }
+        ClashProxyOutput::Snell(SnellProxy::new(common))
     }
 
     /// Create a new WireGuard proxy
     pub fn new_wireguard(common: CommonProxyOptions) -> Self {
-        ClashProxy::WireGuard {
-            common,
-            ip: String::new(),
-            ipv6: None,
-            preshared_key: None,
-            dns: None,
-            mtu: None,
-            allowed_ips: Vec::new(),
-            keepalive: None,
-            private_key: String::new(),
-            public_key: String::new(),
-        }
+        ClashProxyOutput::WireGuard(WireGuardProxy::new(common))
     }
 
     /// Create a new Hysteria proxy
     pub fn new_hysteria(common: CommonProxyOptions) -> Self {
-        Self::Hysteria {
-            common,
-            ports: None,
-            protocol: None,
-            obfs_protocol: None,
-            up: None,
-            up_speed: None,
-            down: None,
-            down_speed: None,
-            auth: None,
-            auth_str: None,
-            obfs: None,
-            fingerprint: None,
-            alpn: None,
-            ca: None,
-            ca_str: None,
-            recv_window_conn: None,
-            recv_window: None,
-            disable_mtu_discovery: None,
-            fast_open: None,
-            hop_interval: None,
-        }
+        ClashProxyOutput::Hysteria(HysteriaProxy::new(common))
     }
 
     /// Create a new Hysteria2 proxy
     pub fn new_hysteria2(common: CommonProxyOptions) -> Self {
-        ClashProxy::Hysteria2 {
-            common,
-            password: String::new(),
-            ports: String::new(),
-            hop_interval: None,
-            up: String::new(),
-            down: String::new(),
-            obfs: String::new(),
-            obfs_password: String::new(),
-            fingerprint: String::new(),
-            alpn: String::new(),
-            ca: String::new(),
-            ca_str: String::new(),
-            cwnd: None,
-            udp_mtu: None,
-            initial_stream_receive_window: None,
-            max_stream_receive_window: None,
-            initial_connection_receive_window: None,
-            max_connection_receive_window: None,
-        }
+        ClashProxyOutput::Hysteria2(Hysteria2Proxy::new(common))
     }
 
     /// Create a new VLESS proxy
     pub fn new_vless(common: CommonProxyOptions) -> Self {
-        ClashProxy::VLess {
-            common,
-            uuid: String::new(),
-            flow: None,
-            alpn: None,
-            packet_addr: None,
-            xudp: None,
-            packet_encoding: None,
-            network: None,
-            reality_opts: None,
-            http_opts: None,
-            h2_opts: None,
-            grpc_opts: None,
-            ws_opts: None,
-            ws_path: None,
-            ws_headers: None,
-            servername: None,
-        }
+        ClashProxyOutput::VLess(VLessProxy::new(common))
     }
 }
 
@@ -776,36 +245,36 @@ pub trait ClashProxyCommon {
     }
 }
 
-impl ClashProxyCommon for ClashProxy {
+impl ClashProxyCommon for ClashProxyOutput {
     fn common(&self) -> &CommonProxyOptions {
         match self {
-            ClashProxy::Shadowsocks { common, .. } => common,
-            ClashProxy::ShadowsocksR { common, .. } => common,
-            ClashProxy::VMess { common, .. } => common,
-            ClashProxy::Trojan { common, .. } => common,
-            ClashProxy::Http { common, .. } => common,
-            ClashProxy::Socks5 { common, .. } => common,
-            ClashProxy::Snell { common, .. } => common,
-            ClashProxy::WireGuard { common, .. } => common,
-            ClashProxy::Hysteria { common, .. } => common,
-            ClashProxy::Hysteria2 { common, .. } => common,
-            ClashProxy::VLess { common, .. } => common,
+            ClashProxyOutput::Shadowsocks(proxy) => &proxy.common,
+            ClashProxyOutput::ShadowsocksR(proxy) => &proxy.common,
+            ClashProxyOutput::VMess(proxy) => &proxy.common,
+            ClashProxyOutput::Trojan(proxy) => &proxy.common,
+            ClashProxyOutput::Http(proxy) => &proxy.common,
+            ClashProxyOutput::Socks5(proxy) => &proxy.common,
+            ClashProxyOutput::Snell(proxy) => &proxy.common,
+            ClashProxyOutput::WireGuard(proxy) => &proxy.common,
+            ClashProxyOutput::Hysteria(proxy) => &proxy.common,
+            ClashProxyOutput::Hysteria2(proxy) => &proxy.common,
+            ClashProxyOutput::VLess(proxy) => &proxy.common,
         }
     }
 
     fn common_mut(&mut self) -> &mut CommonProxyOptions {
         match self {
-            ClashProxy::Shadowsocks { common, .. } => common,
-            ClashProxy::ShadowsocksR { common, .. } => common,
-            ClashProxy::VMess { common, .. } => common,
-            ClashProxy::Trojan { common, .. } => common,
-            ClashProxy::Http { common, .. } => common,
-            ClashProxy::Socks5 { common, .. } => common,
-            ClashProxy::Snell { common, .. } => common,
-            ClashProxy::WireGuard { common, .. } => common,
-            ClashProxy::Hysteria { common, .. } => common,
-            ClashProxy::Hysteria2 { common, .. } => common,
-            ClashProxy::VLess { common, .. } => common,
+            ClashProxyOutput::Shadowsocks(proxy) => &mut proxy.common,
+            ClashProxyOutput::ShadowsocksR(proxy) => &mut proxy.common,
+            ClashProxyOutput::VMess(proxy) => &mut proxy.common,
+            ClashProxyOutput::Trojan(proxy) => &mut proxy.common,
+            ClashProxyOutput::Http(proxy) => &mut proxy.common,
+            ClashProxyOutput::Socks5(proxy) => &mut proxy.common,
+            ClashProxyOutput::Snell(proxy) => &mut proxy.common,
+            ClashProxyOutput::WireGuard(proxy) => &mut proxy.common,
+            ClashProxyOutput::Hysteria(proxy) => &mut proxy.common,
+            ClashProxyOutput::Hysteria2(proxy) => &mut proxy.common,
+            ClashProxyOutput::VLess(proxy) => &mut proxy.common,
         }
     }
 }
@@ -884,9 +353,6 @@ pub enum ClashProxyGroup {
         #[serde(skip_serializing_if = "Option::is_none")]
         r#use: Option<Vec<String>>,
     },
-    // Support for generic proxy groups with extra fields
-    // #[serde(other)]
-    // Other(HashMap<String, serde_yaml::Value>),
 }
 
 // Implement Default trait for ClashYamlOutput
@@ -910,6 +376,53 @@ impl Default for ClashYamlOutput {
             tun: None,
             profile: None,
             extra_options: HashMap::new(),
+        }
+    }
+}
+
+/// Implementation of From trait for ClashProxyOutput
+impl From<Proxy> for ClashProxyOutput {
+    fn from(proxy: Proxy) -> Self {
+        match proxy.proxy_type {
+            ProxyType::Shadowsocks => ClashProxyOutput::Shadowsocks(ShadowsocksProxy::from(proxy)),
+            ProxyType::ShadowsocksR => {
+                ClashProxyOutput::ShadowsocksR(ShadowsocksRProxy::from(proxy))
+            }
+            ProxyType::VMess => ClashProxyOutput::VMess(VmessProxy::from(proxy)),
+            ProxyType::Vless => ClashProxyOutput::VLess(VLessProxy::from(proxy)),
+            ProxyType::Trojan => ClashProxyOutput::Trojan(TrojanProxy::from(proxy)),
+            ProxyType::HTTP | ProxyType::HTTPS => ClashProxyOutput::Http(HttpProxy::from(proxy)),
+            ProxyType::Socks5 => ClashProxyOutput::Socks5(Socks5Proxy::from(proxy)),
+            ProxyType::Snell => {
+                // Skip Snell v4+ if exists - exactly matching C++ behavior
+                if proxy.snell_version >= 4 {
+                    // 为了处理这种特殊情况，我们返回一个默认的Snell代理
+                    // 调用方应该检查snell_version并据此跳过这个代理
+                    let common = CommonProxyOptions::builder(
+                        proxy.remark.clone(),
+                        proxy.hostname.clone(),
+                        proxy.port,
+                    )
+                    .build();
+                    ClashProxyOutput::Snell(SnellProxy::new(common))
+                } else {
+                    ClashProxyOutput::Snell(SnellProxy::from(proxy))
+                }
+            }
+            ProxyType::WireGuard => ClashProxyOutput::WireGuard(WireGuardProxy::from(proxy)),
+            ProxyType::Hysteria => ClashProxyOutput::Hysteria(HysteriaProxy::from(proxy)),
+            ProxyType::Hysteria2 => ClashProxyOutput::Hysteria2(Hysteria2Proxy::from(proxy)),
+            _ => {
+                // 遇到不支持的类型，返回一个默认的HTTP代理
+                // 实际使用时应该在转换前检查并筛选掉不支持的类型
+                let common = CommonProxyOptions::builder(
+                    proxy.remark.clone(),
+                    proxy.hostname.clone(),
+                    proxy.port,
+                )
+                .build();
+                ClashProxyOutput::Http(HttpProxy::new(common))
+            }
         }
     }
 }

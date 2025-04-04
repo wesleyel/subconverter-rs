@@ -38,32 +38,35 @@ async fn main() -> std::io::Result<()> {
     // Initialize settings with config file path if provided
     init_settings(args.config.as_deref().unwrap_or("")).unwrap();
 
-    // Get a mutable reference to the current settings
-    let mut settings_guard = Settings::current_mut();
-    let settings = Arc::make_mut(&mut *settings_guard);
-
-    // Override settings with command line arguments if provided
-    if let Some(address) = args.address {
-        settings.listen_address = address;
-    }
-    if let Some(port) = args.port {
-        settings.listen_port = port;
-    }
-
     // Ensure we have a valid listen address
-    let listen_address = if settings.listen_address.trim().is_empty() {
-        error!("Empty listen_address in settings, defaulting to 127.0.0.1");
-        format!("127.0.0.1:{}", settings.listen_port)
-    } else {
-        // Check if the address contains a port
-        if settings.listen_address.contains(':') {
-            // Already has a port, use as is
-            settings.listen_address.clone()
+    let listen_address = {
+        // Get a mutable reference to the current settings
+        let mut settings_guard = Settings::current_mut();
+        let settings = Arc::make_mut(&mut *settings_guard);
+
+        // Override settings with command line arguments if provided
+        if let Some(address) = args.address {
+            settings.listen_address = address;
+        }
+        if let Some(port) = args.port {
+            settings.listen_port = port;
+        }
+        if settings.listen_address.trim().is_empty() {
+            error!("Empty listen_address in settings, defaulting to 127.0.0.1");
+            format!("127.0.0.1:{}", settings.listen_port)
         } else {
-            // No port specified, use the one from settings
-            format!("{}:{}", settings.listen_address, settings.listen_port)
+            // Check if the address contains a port
+            if settings.listen_address.contains(':') {
+                // Already has a port, use as is
+                settings.listen_address.clone()
+            } else {
+                // No port specified, use the one from settings
+                format!("{}:{}", settings.listen_address, settings.listen_port)
+            }
         }
     };
+
+    let max_concur_threads = Settings::current().max_concur_threads;
 
     info!("Subconverter starting on {}", listen_address);
 
@@ -84,7 +87,7 @@ async fn main() -> std::io::Result<()> {
             .route("/", web::get().to(|| async { "Subconverter is running!" }))
     })
     .bind(listen_address)?
-    .workers(settings.max_concur_threads as usize)
+    .workers(max_concur_threads as usize)
     .run()
     .await
 }

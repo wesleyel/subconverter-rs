@@ -7,11 +7,13 @@ pub mod matcher;
 pub mod network;
 pub mod node_manip;
 pub mod regexp;
+pub mod serialize;
 pub mod string;
 pub mod system;
 pub mod tribool;
 pub mod url;
 pub mod useragent;
+
 // Re-export common utilities
 pub use file::{file_exists, file_get};
 pub use http::{get_sub_info_from_header, web_get};
@@ -21,6 +23,7 @@ pub use node_manip::{append_type_to_remark, preprocess_nodes};
 pub use regexp::{
     reg_find, reg_get_all_match, reg_get_match, reg_match, reg_replace, reg_trim, reg_valid,
 };
+pub use serialize::{is_empty_option_string, is_u32_option_zero};
 pub use string::{
     ends_with, md5, remove_emoji, replace_all_distinct, starts_with, to_lower, trim,
     trim_whitespace,

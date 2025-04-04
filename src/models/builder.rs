@@ -168,6 +168,35 @@ impl Proxy {
             tls13,
             underlying_proxy,
         );
+
+        // Set up the combined proxy with ShadowsocksProxy
+        let ss_proxy = crate::models::proxy_node::shadowsocks::ShadowsocksProxy {
+            server: server.to_string(),
+            port,
+            password: password.to_string(),
+            cipher: method.to_string(),
+            udp,
+            tfo,
+            skip_cert_verify: scv,
+            plugin: if plugin.is_empty() {
+                None
+            } else {
+                Some(plugin.to_string())
+            },
+            plugin_opts: if plugin_opts.is_empty() {
+                None
+            } else {
+                Some(plugin_opts.to_string())
+            },
+            udp_over_tcp: None,
+            udp_over_tcp_version: None,
+            client_fingerprint: None,
+        };
+
+        proxy.combined_proxy =
+            Some(crate::models::proxy_node::combined::CombinedProxy::Shadowsocks(ss_proxy));
+
+        // Keep the old fields for backward compatibility
         proxy.password = Some(password.to_owned());
         proxy.encrypt_method = Some(method.to_owned());
         proxy.plugin = Some(plugin.to_owned());

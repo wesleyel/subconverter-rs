@@ -299,7 +299,10 @@ impl Settings {
         GLOBAL.read().unwrap()
     }
 
-    fn load_from_content(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    fn load_from_content(
+        content: &str,
+        file_path: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         // Try to parse as YAML first
         if content.contains("common:") {
             let mut yaml_settings: crate::settings::settings::yaml_settings::YamlSettings =
@@ -309,6 +312,13 @@ impl Settings {
             let mut _settings = Settings::from(yaml_settings);
 
             return Ok(_settings);
+        }
+        if file_path.ends_with(".yml") || file_path.ends_with(".yaml") {
+            return Err(format!(
+                "The file content as YAML is not match the file extension: {}",
+                file_path
+            )
+            .into());
         }
 
         // Try to parse as TOML
@@ -326,6 +336,14 @@ impl Settings {
             }
 
             return Ok(settings);
+        }
+
+        if file_path.ends_with(".toml") {
+            return Err(format!(
+                "The file content as TOML is not match the file extension: {}",
+                file_path
+            )
+            .into());
         }
 
         // Default to INI
@@ -354,7 +372,7 @@ impl Settings {
         } else {
             _content = file_get(path, None)?;
         }
-        let mut settings = Settings::load_from_content(&_content)?;
+        let mut settings = Settings::load_from_content(&_content, path)?;
         settings.pref_path = path.to_owned();
         Ok(settings)
     }
@@ -403,8 +421,13 @@ pub fn update_settings_from_file(
 
 pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     if !args_path.is_empty() {
-        update_settings_from_file(args_path);
-        return Ok(());
+        match update_settings_from_file(args_path) {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                eprintln!("Failed to load settings from {}: {}", args_path, e);
+                return Err(e);
+            }
+        }
     }
     let default_config_paths = vec!["pref.toml", "pref.yml", "pref.ini"];
     let default_example_paths = vec!["pref.example.toml", "pref.example.yml", "pref.example.ini"];
@@ -442,7 +465,7 @@ pub fn update_settings_from_content(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let content = content.to_string();
     let handle = std::thread::spawn(move || {
-        let settings = Settings::load_from_content(&content).unwrap();
+        let settings = Settings::load_from_content(&content, "").unwrap();
         *GLOBAL.write().unwrap() = Arc::new(settings);
     });
     handle.join().map_err(|_| "Failed to join thread".into())

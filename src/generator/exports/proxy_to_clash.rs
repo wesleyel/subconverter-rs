@@ -2,20 +2,15 @@ use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
 use crate::generator::yaml::clash::clash_output::{
-    ClashProxy, ClashProxyCommon, CommonProxyOptions,
+    ClashProxyGroup, ClashProxyOutput, ClashYamlOutput,
 };
 use crate::generator::yaml::proxy_group_output::convert_proxy_groups;
-use crate::models::{ExtraSettings, ProxyGroupConfigs};
-use crate::models::{Proxy, ProxyType, RulesetContent};
-use crate::utils::base64::base64_encode;
-use crate::utils::replace_all_distinct;
-use crate::utils::tribool::{OptionSetExt, TriboolExt};
-use crate::utils::url::get_url_arg;
+use crate::models::{ExtraSettings, Proxy, ProxyGroupConfigs, ProxyType, RulesetContent};
+use crate::utils::tribool::*;
+use lazy_static::lazy_static;
 use log::error;
-use serde::{Deserialize, Serialize};
 use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 // Lists of supported protocols and encryption methods for filtering in ClashR
 lazy_static::lazy_static! {
@@ -225,35 +220,58 @@ pub fn proxy_to_clash_yaml(
         remarks_list.push(remark.clone());
 
         // Define tribool values with defaults from ext and override with node-specific values if present
-        // This matches C++ logic where tribool can be in three states: true, false, or undef
         let udp = node.udp.define(ext.udp);
         let tfo = node.tcp_fast_open.define(ext.tfo);
         let scv = node.allow_insecure.define(ext.skip_cert_verify);
 
-        // Check if proxy type is supported
-        let mut clash_proxy = match node.proxy_type {
-            ProxyType::Shadowsocks => handle_shadowsocks(node, &remark, &scv, ext),
-            ProxyType::ShadowsocksR => handle_shadowsocksr(node, &remark, &scv, clash_r, ext),
-            ProxyType::VMess => handle_vmess(node, &remark, &scv, ext),
-            ProxyType::Trojan => handle_trojan(node, &remark, &scv),
-            ProxyType::HTTP | ProxyType::HTTPS => handle_http(node, &remark, &scv),
-            ProxyType::Socks5 => handle_socks5(node, &remark, &scv),
-            ProxyType::Snell => handle_snell(node, &remark),
-            ProxyType::WireGuard => handle_wireguard(node, &remark),
-            ProxyType::Hysteria => handle_hysteria(node, &remark, &scv),
-            ProxyType::Hysteria2 => handle_hysteria2(node, &remark, &scv),
-            _ => continue,
+        // Check if this proxy type should be skipped
+        let should_skip = match node.proxy_type {
+            // Skip Snell v4+ if exists - exactly matching C++ behavior
+            ProxyType::Snell if node.snell_version >= 4 => true,
+
+            // Skip if not using ClashR or if using deprecated features with ShadowsocksR
+            ProxyType::ShadowsocksR if !clash_r && ext.filter_deprecated => true,
+
+            // Skip chacha20 encryption if filter_deprecated is enabled
+            ProxyType::Shadowsocks
+                if ext.filter_deprecated && node.encrypt_method.as_deref() == Some("chacha20") =>
+            {
+                true
+            }
+
+            // Skip ShadowsocksR with deprecated features if filter_deprecated is enabled
+            ProxyType::ShadowsocksR if ext.filter_deprecated => {
+                let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
+                let protocol = node.protocol.as_deref().unwrap_or("");
+                let obfs = node.obfs.as_deref().unwrap_or("");
+
+                !CLASH_SSR_CIPHERS.contains(encrypt_method)
+                    || !CLASHR_PROTOCOLS.contains(protocol)
+                    || !CLASHR_OBFS.contains(obfs)
+            }
+
+            // Skip unsupported proxy types
+            ProxyType::Unknown | ProxyType::HTTPS => true,
+
+            // Process all other types
+            _ => false,
         };
 
-        // Add common fields using tribool logic from C++
-        // In C++: only add field if tribool is not undefined
-        if let Some(ref mut obj) = clash_proxy {
-            obj.common_mut().udp.set_if_some(udp.clone());
-            obj.common_mut().tfo.set_if_some(tfo.clone());
-            obj.common_mut().skip_cert_verify.set_if_some(scv.clone());
+        if should_skip {
+            continue;
         }
 
-        // Add to proxies array
+        // 创建代理副本，并应用所有必要的属性设置
+        let proxy_copy = node.clone().set_remark(remark).apply_default_values(
+            ext.udp,
+            ext.tfo,
+            ext.skip_cert_verify,
+        );
+
+        // 使用 From trait 自动转换为 ClashProxyOutput
+        let clash_proxy = ClashProxyOutput::from(proxy_copy);
+
+        // 添加到代理列表
         proxies_json.push(clash_proxy);
     }
 
@@ -357,575 +375,4 @@ pub fn proxy_to_clash_yaml(
             }
         }
     }
-}
-
-fn build_common_proxy_options(
-    node: &Proxy,
-    remark: &str,
-    udp: &Option<bool>,
-    tfo: &Option<bool>,
-    scv: &Option<bool>,
-) -> CommonProxyOptions {
-    let mut common_builder =
-        CommonProxyOptions::builder(remark.to_string(), node.hostname.clone(), node.port);
-
-    if let Some(udp) = udp {
-        common_builder = common_builder.udp(*udp);
-    }
-    if let Some(tfo) = tfo {
-        common_builder = common_builder.tfo(*tfo);
-    }
-
-    // Add skip-cert-verify if defined
-    if let Some(skip_cert_verify) = scv {
-        common_builder = common_builder.skip_cert_verify(*skip_cert_verify);
-    }
-    common_builder.build()
-}
-
-// Helper functions for each proxy type
-fn handle_shadowsocks(
-    node: &Proxy,
-    remark: &str,
-    scv: &Option<bool>,
-    ext: &ExtraSettings,
-) -> Option<ClashProxy> {
-    // Skip chacha20 encryption if filter_deprecated is enabled
-    if ext.filter_deprecated && node.encrypt_method.as_deref() == Some("chacha20") {
-        return None;
-    }
-
-    let plugin_options =
-        replace_all_distinct(node.plugin_option.as_deref().unwrap_or(""), &";", &"&");
-
-    let mut proxy =
-        ClashProxy::new_shadowsocks(build_common_proxy_options(node, remark, &None, &None, scv));
-
-    if let ClashProxy::Shadowsocks {
-        plugin,
-        plugin_opts,
-        cipher,
-        password,
-        ..
-    } = &mut proxy
-    {
-        *cipher = node.encrypt_method.clone().unwrap_or("".to_string());
-        *password = node.password.clone().unwrap_or("".to_string());
-
-        let mut opts = HashMap::new();
-        match node.plugin.as_deref() {
-            Some("simple-obfs" | "obfs-local") => {
-                *plugin = Some("obfs".to_string());
-
-                let obfs_mode = get_url_arg(&plugin_options, "obfs");
-                let obfs_host = get_url_arg(&plugin_options, "obfs-host");
-
-                opts.insert("mode".to_string(), serde_yaml::Value::String(obfs_mode));
-                if !obfs_host.is_empty() {
-                    opts.insert("host".to_string(), serde_yaml::Value::String(obfs_host));
-                }
-                *plugin_opts = Some(opts);
-            }
-            Some("v2ray-plugin") => {
-                *plugin = Some("v2ray-plugin".to_string());
-
-                let mode = get_url_arg(&plugin_options, "mode");
-                if !mode.is_empty() {
-                    opts.insert("mode".to_string(), serde_yaml::Value::String(mode));
-                }
-
-                let host = get_url_arg(&plugin_options, "host");
-                if !host.is_empty() {
-                    opts.insert("host".to_string(), serde_yaml::Value::String(host));
-                }
-
-                let path = get_url_arg(&plugin_options, "path");
-                if !path.is_empty() {
-                    opts.insert("path".to_string(), serde_yaml::Value::String(path));
-                }
-
-                if plugin_options.contains("tls") {
-                    opts.insert("tls".to_string(), serde_yaml::Value::Bool(true));
-                }
-
-                if plugin_options.contains("mux") {
-                    opts.insert("mux".to_string(), serde_yaml::Value::Bool(true));
-                }
-
-                if let Some(skip_cert_verify) = scv {
-                    opts.insert(
-                        "skip-cert-verify".to_string(),
-                        serde_yaml::Value::Bool(*skip_cert_verify),
-                    );
-                }
-                *plugin_opts = Some(opts);
-            }
-            _ => {}
-        }
-    }
-
-    Some(proxy)
-}
-
-fn handle_shadowsocksr(
-    node: &Proxy,
-    remark: &str,
-    scv: &Option<bool>,
-    clash_r: bool,
-    ext: &ExtraSettings,
-) -> Option<ClashProxy> {
-    let mut proxy =
-        ClashProxy::new_shadowsocksr(build_common_proxy_options(node, remark, &None, &None, scv));
-    // Skip if not using ClashR or if using deprecated features
-    if ext.filter_deprecated {
-        if !clash_r {
-            return None;
-        }
-
-        let encrypt_method = node.encrypt_method.as_deref().unwrap_or("");
-        if !CLASH_SSR_CIPHERS.contains(encrypt_method) {
-            return None;
-        }
-
-        let protocol = node.protocol.as_deref().unwrap_or("");
-        if !CLASHR_PROTOCOLS.contains(protocol) {
-            return None;
-        }
-
-        let obfs = node.obfs.as_deref().unwrap_or("");
-        if !CLASHR_OBFS.contains(obfs) {
-            return None;
-        }
-    }
-
-    if let ClashProxy::ShadowsocksR {
-        cipher,
-        password,
-        protocol,
-        obfs,
-        protocol_param,
-        obfs_param,
-        protocolparam,
-        obfsparam,
-        ..
-    } = &mut proxy
-    {
-        *cipher = match node.encrypt_method.as_deref() {
-            None => "dummy".to_string(),
-            Some("none") => "dummy".to_string(),
-            Some(encrypt_method) => encrypt_method.to_string(),
-        };
-        *password = node.password.as_deref().unwrap_or("").to_string();
-        *protocol = node.protocol.as_deref().unwrap_or("").to_string();
-        *obfs = node.obfs.as_deref().unwrap_or("").to_string();
-
-        if clash_r {
-            *protocolparam = Some(node.protocol_param.as_deref().unwrap_or("").to_string());
-            *obfsparam = Some(node.obfs_param.as_deref().unwrap_or("").to_string());
-        } else {
-            *protocol_param = Some(node.protocol_param.as_deref().unwrap_or("").to_string());
-            *obfs_param = Some(node.obfs_param.as_deref().unwrap_or("").to_string());
-        }
-    }
-
-    Some(proxy)
-}
-
-fn handle_vmess(
-    node: &Proxy,
-    remark: &str,
-    scv: &Option<bool>,
-    _ext: &ExtraSettings,
-) -> Option<ClashProxy> {
-    let mut proxy =
-        ClashProxy::new_vmess(build_common_proxy_options(node, remark, &None, &None, scv));
-
-    proxy.common_mut().tls = Some(node.tls_secure);
-    proxy.common_mut().skip_cert_verify.set_if_some(scv.clone());
-
-    if let ClashProxy::VMess {
-        uuid,
-        alter_id,
-        cipher,
-        network,
-        ws_opts,
-        ws_path,
-        ws_headers,
-        http_opts,
-        h2_opts,
-        grpc_opts,
-        servername,
-        ..
-    } = &mut proxy
-    {
-        *servername = node.server_name.clone();
-        *uuid = node.user_id.as_deref().unwrap_or("").to_string();
-        *alter_id = node.alter_id as u32;
-        *cipher = node.encrypt_method.as_deref().unwrap_or("").to_string();
-
-        match node.transfer_protocol.as_deref() {
-            Some("tcp") => {}
-            Some("ws") => {
-                *network = Some("ws".to_string());
-                let mut opts = HashMap::new();
-                if let Some(path) = &node.path {
-                    opts.insert("path".to_string(), serde_yaml::Value::String(path.clone()));
-                    *ws_path = Some(path.clone());
-                }
-                let mut headers = serde_yaml::mapping::Mapping::new();
-                if let Some(host) = &node.host {
-                    headers.insert(
-                        serde_yaml::Value::String("Host".to_string()),
-                        serde_yaml::Value::String(host.clone()),
-                    );
-                }
-                if let Some(edge) = &node.edge {
-                    headers.insert(
-                        serde_yaml::Value::String("Edge".to_string()),
-                        serde_yaml::Value::String(edge.clone()),
-                    );
-                }
-                if !headers.is_empty() {
-                    opts.insert(
-                        "headers".to_string(),
-                        serde_yaml::Value::Mapping(headers.clone()),
-                    );
-                    *ws_headers = Some(serde_yaml::Value::Mapping(headers));
-                }
-                *ws_opts = Some(opts);
-            }
-            Some("http") => {
-                *network = Some("http".to_string());
-                let mut opts = HashMap::new();
-                opts.insert(
-                    "method".to_string(),
-                    serde_yaml::Value::String("GET".to_string()),
-                );
-                if let Some(path) = &node.path {
-                    opts.insert("path".to_string(), serde_yaml::Value::String(path.clone()));
-                }
-                let mut headers = serde_yaml::mapping::Mapping::new();
-                if let Some(host) = &node.host {
-                    headers.insert(
-                        serde_yaml::Value::String("Host".to_string()),
-                        serde_yaml::Value::String(host.clone()),
-                    );
-                }
-                if let Some(edge) = &node.edge {
-                    headers.insert(
-                        serde_yaml::Value::String("Edge".to_string()),
-                        serde_yaml::Value::String(edge.clone()),
-                    );
-                }
-                opts.insert("headers".to_string(), serde_yaml::Value::Mapping(headers));
-                *http_opts = Some(opts);
-            }
-            Some("h2") => {
-                *network = Some("h2".to_string());
-                let mut opts = HashMap::new();
-                if let Some(path) = &node.path {
-                    opts.insert("path".to_string(), serde_yaml::Value::String(path.clone()));
-                }
-                if let Some(host) = &node.host {
-                    opts.insert("host".to_string(), serde_yaml::Value::String(host.clone()));
-                }
-
-                *h2_opts = Some(opts);
-            }
-            Some("grpc") => {
-                *network = Some("grpc".to_string());
-                *servername = node.host.clone();
-                let mut opts = HashMap::new();
-                if let Some(path) = &node.path {
-                    opts.insert(
-                        "grpc-service-name".to_string(),
-                        serde_yaml::Value::String(path.clone()),
-                    );
-                }
-                *grpc_opts = Some(opts);
-            }
-            _ => {}
-        }
-    }
-
-    Some(proxy)
-}
-
-fn handle_trojan(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<ClashProxy> {
-    let mut proxy =
-        ClashProxy::new_trojan(build_common_proxy_options(node, remark, &None, &None, scv));
-
-    proxy.common_mut().sni.set_if_some(node.host.clone());
-    proxy.common_mut().skip_cert_verify.set_if_some(scv.clone());
-
-    if let ClashProxy::Trojan {
-        password,
-        network,
-        ws_opts,
-        grpc_opts,
-        ..
-    } = &mut proxy
-    {
-        *password = node.password.as_deref().unwrap_or("").to_string();
-        match node.transfer_protocol.as_deref() {
-            Some("tcp") => {}
-            Some("grpc") => {
-                *network = Some("grpc".to_string());
-                if let Some(path) = &node.path {
-                    *grpc_opts = Some(HashMap::from([(
-                        "grpc-service-name".to_string(),
-                        serde_yaml::Value::String(path.clone()),
-                    )]));
-                }
-            }
-            Some("ws") => {
-                *network = Some("ws".to_string());
-                #[derive(Debug, Default, Serialize, Deserialize)]
-                #[serde()]
-                struct WsOpts {
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    path: Option<String>,
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    host: Option<String>,
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    headers: Option<HashMap<String, String>>,
-                }
-                let mut opts = WsOpts::default();
-                opts.path = node.path.clone();
-                if let Some(host) = &node.host {
-                    opts.headers = Some(HashMap::from([("Host".to_string(), host.clone())]));
-                }
-                *ws_opts = Some(serde_yaml::to_value(opts).unwrap());
-            }
-            _ => {}
-        }
-    }
-
-    Some(proxy)
-}
-
-fn handle_http(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<ClashProxy> {
-    let mut proxy =
-        ClashProxy::new_http(build_common_proxy_options(node, remark, &None, &None, scv));
-    if let ClashProxy::Http {
-        username, password, ..
-    } = &mut proxy
-    {
-        *username = Some(node.username.as_deref().unwrap_or("").to_string());
-        *password = Some(node.password.as_deref().unwrap_or("").to_string());
-    }
-
-    // Set TLS for HTTPS
-    if node.proxy_type == ProxyType::HTTPS {
-        proxy.common_mut().tls = Some(true);
-    }
-
-    proxy.common_mut().skip_cert_verify.set_if_some(scv.clone());
-
-    Some(proxy)
-}
-
-fn handle_socks5(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<ClashProxy> {
-    let mut proxy =
-        ClashProxy::new_socks5(build_common_proxy_options(node, remark, &None, &None, scv));
-
-    if let ClashProxy::Socks5 {
-        username, password, ..
-    } = &mut proxy
-    {
-        *username = node.username.clone();
-        *password = node.password.clone();
-    }
-
-    proxy.common_mut().skip_cert_verify.set_if_some(scv.clone());
-    Some(proxy)
-}
-
-fn handle_snell(node: &Proxy, remark: &str) -> Option<ClashProxy> {
-    // Skip Snell v4+ if exists - exactly matching C++ behavior
-    if node.snell_version >= 4 {
-        return None;
-    }
-
-    let mut proxy = ClashProxy::new_snell(build_common_proxy_options(
-        node, remark, &None, &None, &None,
-    ));
-
-    if let ClashProxy::Snell {
-        psk,
-        version,
-
-        obfs_opts,
-        ..
-    } = &mut proxy
-    {
-        *psk = node.password.as_deref().unwrap_or("").to_string();
-        *version = Some(node.snell_version as u32);
-
-        let mut opts = HashMap::new();
-
-        if let Some(obfs) = &node.obfs {
-            opts.insert("mode".to_string(), serde_yaml::Value::String(obfs.clone()));
-        }
-        if let Some(obfs_host) = &node.host {
-            opts.insert(
-                "host".to_string(),
-                serde_yaml::Value::String(obfs_host.clone()),
-            );
-        }
-        *obfs_opts = Some(opts);
-    }
-
-    Some(proxy)
-}
-
-fn handle_wireguard(node: &Proxy, remark: &str) -> Option<ClashProxy> {
-    let mut proxy = ClashProxy::new_wireguard(build_common_proxy_options(
-        node, remark, &None, &None, &None,
-    ));
-
-    if let ClashProxy::WireGuard {
-        public_key,
-        private_key,
-        ip,
-        ipv6,
-        preshared_key,
-        dns,
-        mtu,
-        allowed_ips,
-        keepalive,
-        ..
-    } = &mut proxy
-    {
-        *public_key = node.public_key.as_deref().unwrap_or("").to_string();
-        *private_key = node.private_key.as_deref().unwrap_or("").to_string();
-        *ip = node.self_ip.as_deref().unwrap_or("").to_string();
-        *ipv6 = node.self_ipv6.clone();
-        *preshared_key = node.pre_shared_key.clone();
-        if !node.dns_servers.is_empty() {
-            *dns = Some(node.dns_servers.iter().map(|s| s.clone()).collect());
-        }
-        if node.mtu > 0 {
-            *mtu = Some(node.mtu as u32);
-        }
-        if !node.allowed_ips.is_empty() {
-            *allowed_ips = node
-                .allowed_ips
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .collect();
-        }
-        if node.keep_alive > 0 {
-            *keepalive = Some(node.keep_alive as u32);
-        }
-    }
-    Some(proxy)
-}
-
-fn handle_hysteria(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<ClashProxy> {
-    let mut proxy =
-        ClashProxy::new_hysteria(build_common_proxy_options(node, remark, &None, &None, scv));
-
-    if let ClashProxy::Hysteria {
-        ports,
-        protocol,
-        obfs_protocol,
-        up,
-        down,
-        auth,
-        auth_str,
-        obfs,
-        fingerprint,
-        alpn,
-        ca,
-        ca_str,
-        recv_window_conn,
-        recv_window,
-        disable_mtu_discovery,
-        hop_interval,
-        ..
-    } = &mut proxy
-    {
-        *ports = node.ports.clone();
-        *protocol = node.protocol.clone();
-        *obfs_protocol = node.obfs.clone();
-        *up = Some(format!("{}Mbps", node.up_speed));
-        *down = Some(format!("{}Mbps", node.down_speed));
-        if let Some(auth_str) = &node.auth_str {
-            *auth = Some(base64_encode(&auth_str));
-        }
-        *auth_str = node.auth_str.clone();
-        *obfs = node.obfs.clone();
-        *fingerprint = node.fingerprint.clone();
-        *alpn = Some(node.alpn.iter().map(|s| s.clone()).collect());
-        *ca = node.ca.clone();
-        *ca_str = node.ca_str.clone();
-        if node.recv_window_conn > 0 {
-            *recv_window_conn = Some(node.recv_window_conn);
-        }
-        if node.recv_window > 0 {
-            *recv_window = Some(node.recv_window);
-        }
-        *disable_mtu_discovery = node.disable_mtu_discovery;
-
-        if node.hop_interval > 0 {
-            *hop_interval = Some(node.hop_interval);
-        }
-    }
-
-    proxy.common_mut().sni.set_if_some(node.sni.clone());
-    proxy.common_mut().skip_cert_verify.set_if_some(scv.clone());
-    proxy
-        .common_mut()
-        .tfo
-        .set_if_some(node.tcp_fast_open.clone());
-    Some(proxy)
-}
-
-fn handle_hysteria2(node: &Proxy, remark: &str, scv: &Option<bool>) -> Option<ClashProxy> {
-    let mut proxy =
-        ClashProxy::new_hysteria2(build_common_proxy_options(node, remark, &None, &None, scv));
-
-    if let ClashProxy::Hysteria2 {
-        ports,
-        hop_interval,
-        up,
-        down,
-        password,
-        obfs,
-        obfs_password,
-        fingerprint,
-        alpn,
-        ca,
-        ca_str,
-        cwnd,
-        ..
-    } = &mut proxy
-    {
-        *ports = node.ports.clone().unwrap_or_default();
-        if node.up_speed > 0 {
-            *up = format!("{}Mbps", node.up_speed);
-        }
-        if node.down_speed > 0 {
-            *down = format!("{}Mbps", node.down_speed);
-        }
-        *password = node.password.clone().unwrap_or_default();
-        *obfs = node.obfs.clone().unwrap_or_default();
-        *obfs_password = node.obfs_param.clone().unwrap_or_default();
-        *fingerprint = node.fingerprint.clone().unwrap_or_default();
-        *alpn = node.alpn.iter().map(|s| s.clone()).collect();
-        *ca = node.ca.clone().unwrap_or_default();
-        *ca_str = node.ca_str.clone().unwrap_or_default();
-        *cwnd = Some(node.cwnd);
-
-        if node.hop_interval > 0 {
-            *hop_interval = Some(node.hop_interval);
-        }
-    }
-
-    proxy.common_mut().sni.set_if_some(node.sni.clone());
-    proxy.common_mut().skip_cert_verify.set_if_some(scv.clone());
-    proxy.common_mut().tfo.set_if_some(node.tcp_fast_open);
-
-    Some(proxy)
 }

@@ -60,6 +60,8 @@ pub fn explode_vless(vless: &str, node: &mut Proxy) -> bool {
 
     let sni = params.get("sni").map(|s| s.to_string());
 
+    let flow = params.get("flow").map(|s| s.to_string());
+
     let packet_encoding = params.get("packetEncoding").map(|s| s.to_string());
     let packet_addr = packet_encoding.as_deref() == Some("packet");
     let xudp = packet_encoding.as_deref() != Some("none");
@@ -85,6 +87,7 @@ pub fn explode_vless(vless: &str, node: &mut Proxy) -> bool {
     vless_proxy.fingerprint = Some(fingerprint);
     vless_proxy.servername = sni;
     vless_proxy.client_fingerprint = Some("chrome".to_string());
+    vless_proxy.flow = flow;
 
     // Handle Reality options
     if let Some(public_key) = params.get("pbk") {
@@ -160,7 +163,7 @@ pub fn explode_vless(vless: &str, node: &mut Proxy) -> bool {
 
     node.proxy_type = ProxyType::Vless;
     node.combined_proxy = Some(CombinedProxy::Vless(vless_proxy));
-    node.remark = url.fragment().unwrap_or("").to_string();
+    node.remark = url_decode(url.fragment().unwrap_or(""));
     node.hostname = host.to_string();
     node.port = port;
 

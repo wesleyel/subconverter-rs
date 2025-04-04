@@ -7,10 +7,7 @@ use std::sync::Arc;
 use crate::constants::regex_black_list::REGEX_BLACK_LIST;
 use crate::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
 use crate::models::ruleset::RulesetConfigs;
-use crate::models::{
-    AppState, ProxyGroupConfigs, RegexMatchConfigs,
-    SubconverterTarget,
-};
+use crate::models::{AppState, ProxyGroupConfigs, RegexMatchConfigs, SubconverterTarget};
 use crate::settings::external::ExternalSettings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
 use crate::utils::{file_exists, is_link, reg_valid, starts_with};

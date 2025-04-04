@@ -192,7 +192,77 @@ impl Default for Proxy {
 
 impl Proxy {
     pub fn is_combined_proxy(&self) -> bool {
-        matches!(self.proxy_type, ProxyType::Vless)
+        matches!(self.proxy_type, ProxyType::Vless | ProxyType::Shadowsocks)
+    }
+
+    /// 设置 UDP 支持，如果值已存在则不覆盖
+    pub fn with_udp(mut self, udp: Option<bool>) -> Self {
+        if self.udp.is_none() {
+            self.udp = udp;
+        }
+        self
+    }
+
+    /// 强制设置 UDP 支持，不论是否已存在值
+    pub fn set_udp(mut self, udp: bool) -> Self {
+        self.udp = Some(udp);
+        self
+    }
+
+    /// 设置 TCP Fast Open，如果值已存在则不覆盖
+    pub fn with_tfo(mut self, tfo: Option<bool>) -> Self {
+        if self.tcp_fast_open.is_none() {
+            self.tcp_fast_open = tfo;
+        }
+        self
+    }
+
+    /// 强制设置 TCP Fast Open，不论是否已存在值
+    pub fn set_tfo(mut self, tfo: bool) -> Self {
+        self.tcp_fast_open = Some(tfo);
+        self
+    }
+
+    /// 设置 Skip Cert Verify，如果值已存在则不覆盖
+    pub fn with_skip_cert_verify(mut self, scv: Option<bool>) -> Self {
+        if self.allow_insecure.is_none() {
+            self.allow_insecure = scv;
+        }
+        self
+    }
+
+    /// 强制设置 Skip Cert Verify，不论是否已存在值
+    pub fn set_skip_cert_verify(mut self, scv: bool) -> Self {
+        self.allow_insecure = Some(scv);
+        self
+    }
+
+    /// 设置代理备注
+    pub fn set_remark(mut self, remark: String) -> Self {
+        self.remark = remark;
+        self
+    }
+
+    /// 使用默认值应用 tribool 属性，如果属性值为 None 则设置为提供的默认值
+    pub fn apply_default_values(
+        mut self,
+        default_udp: Option<bool>,
+        default_tfo: Option<bool>,
+        default_scv: Option<bool>,
+    ) -> Self {
+        if self.udp.is_none() {
+            self.udp = default_udp;
+        }
+
+        if self.tcp_fast_open.is_none() {
+            self.tcp_fast_open = default_tfo;
+        }
+
+        if self.allow_insecure.is_none() {
+            self.allow_insecure = default_scv;
+        }
+
+        self
     }
 }
 

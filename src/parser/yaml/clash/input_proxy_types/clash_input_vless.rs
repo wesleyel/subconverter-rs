@@ -222,7 +222,7 @@ impl Into<Proxy> for ClashInputVLess {
         vless_proxy.uuid = self.uuid;
         vless_proxy.flow = self.flow;
         vless_proxy.tls = self.tls.unwrap_or(false);
-        vless_proxy.udp = self.udp;
+        vless_proxy.udp = self.udp.unwrap_or(true);
         vless_proxy.packet_addr = self.packet_addr;
         vless_proxy.xudp = self.xudp;
         vless_proxy.packet_encoding = self.packet_encoding;
