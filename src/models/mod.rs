@@ -57,6 +57,7 @@ pub mod extra_settings;
 pub mod ini_bindings;
 pub mod proxy;
 pub mod proxy_group_config;
+pub mod proxy_node;
 pub mod regex_match_config;
 pub mod ruleset;
 pub mod subconverter_target;

@@ -4,6 +4,8 @@
 
 use std::collections::HashSet;
 
+use super::proxy_node::combined::CombinedProxy;
+
 /// Represents the type of a proxy.
 /// This is the canonical enum used for proxy type identification across the application.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -20,6 +22,8 @@ pub enum ProxyType {
     WireGuard,
     Hysteria,
     Hysteria2,
+    // new proxy types could be added as enum combined proxy types
+    Vless,
 }
 
 /// Converts a `ProxyType` into a human-readable name.
@@ -37,6 +41,7 @@ impl ProxyType {
             ProxyType::WireGuard => "WireGuard",
             ProxyType::Hysteria => "Hysteria",
             ProxyType::Hysteria2 => "Hysteria2",
+            ProxyType::Vless => "Vless",
             ProxyType::Unknown => "Unknown",
         }
     }
@@ -46,6 +51,7 @@ impl ProxyType {
 #[derive(Debug, Clone)]
 pub struct Proxy {
     pub proxy_type: ProxyType,
+    pub combined_proxy: Option<CombinedProxy>,
     pub id: u32,
     pub group_id: u32,
     pub group: String,
@@ -122,6 +128,7 @@ impl Default for Proxy {
     fn default() -> Self {
         Proxy {
             proxy_type: ProxyType::Unknown,
+            combined_proxy: None,
             id: 0,
             group_id: 0,
             group: String::new(),
@@ -180,6 +187,12 @@ impl Default for Proxy {
             alpn: HashSet::new(),
             cwnd: 0,
         }
+    }
+}
+
+impl Proxy {
+    pub fn is_combined_proxy(&self) -> bool {
+        matches!(self.proxy_type, ProxyType::Vless)
     }
 }
 

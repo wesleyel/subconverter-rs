@@ -1,5 +1,5 @@
-mod explode_clash;
 mod common;
+mod explode_clash;
 mod http;
 mod httpsub;
 mod hysteria;
@@ -13,11 +13,12 @@ mod ssr;
 mod sstap;
 mod surge;
 mod trojan;
+mod vless;
 mod vmess;
 mod wireguard;
 
-pub use explode_clash::explode_clash;
 pub use common::{explode, explode_conf_content, explode_sub};
+pub use explode_clash::explode_clash;
 pub use http::explode_http;
 pub use httpsub::explode_http_sub;
 pub use hysteria::explode_hysteria;
@@ -31,6 +32,7 @@ pub use ssr::{explode_ssr, explode_ssr_conf};
 pub use sstap::explode_sstap;
 pub use surge::explode_surge;
 pub use trojan::{explode_trojan, explode_trojan_go};
+pub use vless::explode_vless;
 pub use vmess::{
     explode_kitsunebi, explode_shadowrocket, explode_std_vmess, explode_vmess, explode_vmess_conf,
 };

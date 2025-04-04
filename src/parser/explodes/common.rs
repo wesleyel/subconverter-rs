@@ -65,6 +65,8 @@ pub fn explode(link: &str, node: &mut Proxy) -> bool {
     } else if link.starts_with("vmess+") {
         false
         // super::vmess::explode_std_vmess(link, node)
+    } else if link.starts_with("vless://") {
+        super::vless::explode_vless(link, node)
     } else {
         false
     }

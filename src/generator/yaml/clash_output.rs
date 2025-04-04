@@ -456,9 +456,110 @@ pub enum ClashProxy {
         )]
         max_connection_receive_window: Option<u64>,
     },
+    #[serde(rename = "vless")]
+    VLess {
+        #[serde(flatten)]
+        common: CommonProxyOptions,
+        uuid: String,
+        #[serde(skip_serializing_if = "is_empty_option_string")]
+        flow: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        alpn: Option<Vec<String>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        packet_addr: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        xudp: Option<bool>,
+        #[serde(skip_serializing_if = "is_empty_option_string")]
+        packet_encoding: Option<String>,
+        #[serde(skip_serializing_if = "is_empty_option_string")]
+        network: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reality_opts: Option<RealityOptions>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        http_opts: Option<HTTPOptions>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        h2_opts: Option<HTTP2Options>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        grpc_opts: Option<GrpcOptions>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        ws_opts: Option<WSOptions>,
+        #[serde(skip_serializing_if = "is_empty_option_string")]
+        ws_path: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        ws_headers: Option<HashMap<String, String>>,
+        #[serde(skip_serializing_if = "is_empty_option_string")]
+        servername: Option<String>,
+    },
     // Support for generic proxies with extra fields
     // #[serde(other)]
     // Other(HashMap<String, >),
+}
+
+/// Reality options for VLESS proxy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct RealityOptions {
+    #[serde(rename = "public-key")]
+    pub public_key: String,
+    #[serde(rename = "short-id")]
+    pub short_id: String,
+}
+
+/// HTTP options for VLESS proxy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct HTTPOptions {
+    #[serde(skip_serializing_if = "is_empty_option_string")]
+    pub method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, Vec<String>>>,
+}
+
+/// HTTP2 options for VLESS proxy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct HTTP2Options {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "is_empty_option_string")]
+    pub path: Option<String>,
+}
+
+/// gRPC options for VLESS proxy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct GrpcOptions {
+    #[serde(
+        rename = "grpc-service-name",
+        skip_serializing_if = "is_empty_option_string"
+    )]
+    pub grpc_service_name: Option<String>,
+}
+
+/// WebSocket options for VLESS proxy
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct WSOptions {
+    #[serde(skip_serializing_if = "is_empty_option_string")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
+    #[serde(rename = "max-early-data", skip_serializing_if = "Option::is_none")]
+    pub max_early_data: Option<i32>,
+    #[serde(
+        rename = "early-data-header-name",
+        skip_serializing_if = "is_empty_option_string"
+    )]
+    pub early_data_header_name: Option<String>,
+    #[serde(rename = "v2ray-http-upgrade", skip_serializing_if = "Option::is_none")]
+    pub v2ray_http_upgrade: Option<bool>,
+    #[serde(
+        rename = "v2ray-http-upgrade-fast-open",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub v2ray_http_upgrade_fast_open: Option<bool>,
 }
 
 /// Factory methods for creating various proxy types
@@ -612,6 +713,28 @@ impl ClashProxy {
             max_connection_receive_window: None,
         }
     }
+
+    /// Create a new VLESS proxy
+    pub fn new_vless(common: CommonProxyOptions) -> Self {
+        ClashProxy::VLess {
+            common,
+            uuid: String::new(),
+            flow: None,
+            alpn: None,
+            packet_addr: None,
+            xudp: None,
+            packet_encoding: None,
+            network: None,
+            reality_opts: None,
+            http_opts: None,
+            h2_opts: None,
+            grpc_opts: None,
+            ws_opts: None,
+            ws_path: None,
+            ws_headers: None,
+            servername: None,
+        }
+    }
 }
 
 /// Trait for common operations on all ClashProxy variants
@@ -666,6 +789,7 @@ impl ClashProxyCommon for ClashProxy {
             ClashProxy::WireGuard { common, .. } => common,
             ClashProxy::Hysteria { common, .. } => common,
             ClashProxy::Hysteria2 { common, .. } => common,
+            ClashProxy::VLess { common, .. } => common,
         }
     }
 
@@ -681,6 +805,7 @@ impl ClashProxyCommon for ClashProxy {
             ClashProxy::WireGuard { common, .. } => common,
             ClashProxy::Hysteria { common, .. } => common,
             ClashProxy::Hysteria2 { common, .. } => common,
+            ClashProxy::VLess { common, .. } => common,
         }
     }
 }

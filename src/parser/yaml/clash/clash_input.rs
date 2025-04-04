@@ -1,5 +1,6 @@
-use crate::parser::yaml::clash::proxy_types::ClashProxyYamlInput;
+use crate::parser::yaml::clash::clash_proxy_types::ClashProxyYamlInput;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 /// Represents a Clash configuration input structure
 #[derive(Debug, Clone, Deserialize)]
