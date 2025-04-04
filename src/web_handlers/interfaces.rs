@@ -324,7 +324,21 @@ pub async fn sub_handler(
                         &mut rule_bases.quanx_rule_base,
                         &global.base_path,
                     );
-
+                    check_external_base(
+                        &extconf.loon_rule_base,
+                        &mut rule_bases.loon_rule_base,
+                        &global.base_path,
+                    );
+                    check_external_base(
+                        &extconf.sssub_rule_base,
+                        &mut rule_bases.sssub_rule_base,
+                        &global.base_path,
+                    );
+                    check_external_base(
+                        &extconf.singbox_rule_base,
+                        &mut rule_bases.singbox_rule_base,
+                        &global.base_path,
+                    );
                     builder.rule_bases(rule_bases);
                     if !target.is_simple() {
                         if !extconf.custom_rulesets.is_empty() {

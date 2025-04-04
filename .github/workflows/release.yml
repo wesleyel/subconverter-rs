@@ -20,18 +20,22 @@ jobs:
             artifact: subconverter-linux-x86
             os: ubuntu-latest
             docker_arch: x86
+            target: i686-unknown-linux-gnu
           - arch: amd64
             artifact: subconverter-linux-amd64
             os: ubuntu-latest
             docker_arch: amd64
+            target: x86_64-unknown-linux-gnu
           - arch: armv7
             artifact: subconverter-linux-armv7
             os: ubuntu-latest
             docker_arch: armhf
+            target: armv7-unknown-linux-gnueabihf
           - arch: aarch64
             artifact: subconverter-linux-aarch64
             os: ubuntu-latest
             docker_arch: aarch64
+            target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     name: Linux ${{ matrix.arch }} Build
     steps:
@@ -54,14 +58,18 @@ jobs:
           rust:slim /bin/bash -c "
             cd /workdir && \
             apt-get update && \
-            apt-get install -y pkg-config libssl-dev && \
-            cargo build --release
+            apt-get install -y pkg-config libssl-dev gcc-multilib g++-multilib \
+            $([[ '${{ matrix.arch }}' == 'armv7' ]] && echo 'gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf libc6-dev-armhf-cross' || echo '') \
+            $([[ '${{ matrix.arch }}' == 'aarch64' ]] && echo 'gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross' || echo '') \
+            $([[ '${{ matrix.arch }}' == 'x86' ]] && echo 'gcc-i686-linux-gnu g++-i686-linux-gnu libc6-dev-i386-cross' || echo '') && \
+            rustup target add ${{ matrix.target }} && \
+            cargo build --release --target ${{ matrix.target }}
           "
         
     - name: Prepare artifact
       run: |
         mkdir -p subconverter/
-        cp target/release/subconverter subconverter/
+        cp target/${{ matrix.target }}/release/subconverter subconverter/
         cp -r base/* subconverter/
         
     - name: Upload artifact
