@@ -289,8 +289,14 @@ impl Settings {
         Self::default()
     }
 
-    pub fn current() -> Arc<Settings> {
-        GLOBAL.read().unwrap().clone()
+    /// Get a mutable reference to the current settings
+    pub fn current_mut() -> std::sync::RwLockWriteGuard<'static, Arc<Settings>> {
+        GLOBAL.write().unwrap()
+    }
+
+    /// Get a read-only reference to the current settings
+    pub fn current() -> std::sync::RwLockReadGuard<'static, Arc<Settings>> {
+        GLOBAL.read().unwrap()
     }
 
     fn load_from_content(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
@@ -396,6 +402,10 @@ pub fn update_settings_from_file(
 }
 
 pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if !args_path.is_empty() {
+        update_settings_from_file(args_path);
+        return Ok(());
+    }
     let default_config_paths = vec!["pref.toml", "pref.yml", "pref.ini"];
     let default_example_paths = vec!["pref.example.toml", "pref.example.yml", "pref.example.ini"];
     for path in default_config_paths {

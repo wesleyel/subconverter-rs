@@ -2,6 +2,7 @@ use std::env;
 use std::sync::Arc;
 
 use actix_web::{web, App, HttpServer};
+use clap::{Command, FromArgMatches as _, Parser, Subcommand as _};
 use env_logger::Env;
 use log::{error, info};
 
@@ -10,17 +11,45 @@ use subconverter::settings::settings::settings_struct::init_settings;
 use subconverter::web_handlers::interfaces;
 use subconverter::Settings;
 
+/// A more powerful utility to convert between proxy subscription format
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Path to the configuration file
+    #[arg(short, long, value_name = "FILE")]
+    config: Option<String>,
+
+    /// Listen address (e.g., 127.0.0.1 or 0.0.0.0)
+    #[arg(short, long, value_name = "ADDRESS")]
+    address: Option<String>,
+
+    /// Listen port
+    #[arg(short, long, value_name = "PORT")]
+    port: Option<u32>,
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Initialize the logger
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
-    // Check for a config file path from command line
-    let args: Vec<String> = env::args().collect();
-    init_settings("").unwrap();
+    // Parse command line arguments
+    let args = Args::parse();
 
-    // Get the current settings
-    let settings = Settings::current();
+    // Initialize settings with config file path if provided
+    init_settings(args.config.as_deref().unwrap_or("")).unwrap();
+
+    // Get a mutable reference to the current settings
+    let mut settings_guard = Settings::current_mut();
+    let settings = Arc::make_mut(&mut *settings_guard);
+
+    // Override settings with command line arguments if provided
+    if let Some(address) = args.address {
+        settings.listen_address = address;
+    }
+    if let Some(port) = args.port {
+        settings.listen_port = port;
+    }
 
     // Ensure we have a valid listen address
     let listen_address = if settings.listen_address.trim().is_empty() {
