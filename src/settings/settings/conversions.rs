@@ -9,8 +9,6 @@ use crate::constants::log_level::{
     LOG_LEVEL_DEBUG, LOG_LEVEL_ERROR, LOG_LEVEL_INFO, LOG_LEVEL_VERBOSE, LOG_LEVEL_WARNING,
 };
 
-use serde_yaml;
-use toml;
 
 // Conversion from YamlSettings to Settings
 impl From<YamlSettings> for Settings {

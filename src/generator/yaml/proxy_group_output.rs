@@ -1,5 +1,5 @@
 use crate::models::{ProxyGroupConfig, ProxyGroupType};
-use serde::ser::{SerializeMap, SerializeSeq};
+use serde::ser::SerializeMap;
 use serde::{Serialize, Serializer};
 use std::collections::HashMap;
 

@@ -1,6 +1,5 @@
 use super::CommonProxyOptions;
 use crate::models::Proxy;
-use crate::utils::base64::base64_encode;
 use crate::utils::is_empty_option_string;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -100,12 +99,4 @@ impl From<Proxy> for ShadowsocksProxy {
 
         ss
     }
-}
-
-// Helper function to extract URL arguments
-fn get_url_arg(url: &str, key: &str) -> Option<String> {
-    url.split('&')
-        .find(|s| s.starts_with(key))
-        .and_then(|s| s.split('=').nth(1))
-        .map(|s| s.to_string())
 }

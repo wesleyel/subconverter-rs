@@ -25,17 +25,6 @@ pub fn import_toml_items<T: ImportableInToml>(
         let path = item.get_import_path().unwrap();
         log::info!("Trying to import items from {}", path);
 
-        // Function to determine content line breaks
-        let get_line_break = |content: &str| -> char {
-            if content.contains("\r\n") {
-                '\n' // Windows style but we normalize to '\n'
-            } else if content.contains('\r') {
-                '\r' // Old Mac style
-            } else {
-                '\n' // Unix style
-            }
-        };
-
         let content = if path.starts_with("http://") || path.starts_with("https://") {
             // Fetch from URL
             let (data, _) = crate::utils::http::web_get(&path, &proxy_config, None)?;

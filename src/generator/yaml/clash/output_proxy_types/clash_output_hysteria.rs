@@ -1,6 +1,5 @@
 use super::CommonProxyOptions;
 use crate::models::Proxy;
-use crate::utils::base64::base64_encode;
 use crate::utils::{is_empty_option_string, is_u32_option_zero};
 use serde::{Deserialize, Serialize};
 

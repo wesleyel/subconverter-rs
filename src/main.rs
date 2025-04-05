@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use actix_web::body::MessageBody;
-use actix_web::{test, web, App, HttpRequest, HttpServer};
-use clap::{FromArgMatches as _, Parser};
+use actix_web::{test, web, App, HttpServer};
+use clap::Parser;
 use env_logger::Env;
 use log::{error, info};
 
@@ -98,7 +98,7 @@ async fn main() -> std::io::Result<()> {
                 }
                 Err(e) => error!("Failed to convert response body to string: {}", e),
             },
-            Err(e) => {
+            Err(_) => {
                 error!("Failed to read response body...");
             }
         }

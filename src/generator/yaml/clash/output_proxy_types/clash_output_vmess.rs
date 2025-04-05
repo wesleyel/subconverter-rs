@@ -19,18 +19,18 @@ pub struct VmessProxy {
     #[serde(skip_serializing_if = "is_empty_option_string")]
     pub network: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ws_opts: Option<WsOptions>,
+    pub ws_opts: Option<VmessWsOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub http_opts: Option<HttpOptions>,
+    pub http_opts: Option<VmessHttpOptions>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub h2_opts: Option<H2Options>,
+    pub h2_opts: Option<VmessH2Options>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub grpc_opts: Option<GrpcOptions>,
+    pub grpc_opts: Option<VmessGrpcOptions>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct WsOptions {
+pub struct VmessWsOptions {
     #[serde(skip_serializing_if = "is_empty_option_string")]
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,7 +39,7 @@ pub struct WsOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct HttpOptions {
+pub struct VmessHttpOptions {
     #[serde(skip_serializing_if = "is_empty_option_string")]
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,7 +48,7 @@ pub struct HttpOptions {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct H2Options {
+pub struct VmessH2Options {
     #[serde(skip_serializing_if = "is_empty_option_string")]
     pub path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -57,7 +57,7 @@ pub struct H2Options {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct GrpcOptions {
+pub struct VmessGrpcOptions {
     #[serde(skip_serializing_if = "is_empty_option_string")]
     pub service_name: Option<String>,
 }
@@ -99,7 +99,7 @@ impl From<Proxy> for VmessProxy {
         if let Some(network) = &proxy.transfer_protocol {
             match network.as_str() {
                 "ws" => {
-                    let mut ws_opts = WsOptions {
+                    let mut ws_opts = VmessWsOptions {
                         path: None,
                         headers: None,
                     };
@@ -117,7 +117,7 @@ impl From<Proxy> for VmessProxy {
                     vmess.ws_opts = Some(ws_opts);
                 }
                 "http" => {
-                    let mut http_opts = HttpOptions {
+                    let mut http_opts = VmessHttpOptions {
                         path: None,
                         headers: None,
                     };
@@ -135,7 +135,7 @@ impl From<Proxy> for VmessProxy {
                     vmess.http_opts = Some(http_opts);
                 }
                 "h2" => {
-                    let mut h2_opts = H2Options {
+                    let mut h2_opts = VmessH2Options {
                         path: None,
                         host: None,
                     };
@@ -151,7 +151,7 @@ impl From<Proxy> for VmessProxy {
                     vmess.h2_opts = Some(h2_opts);
                 }
                 "grpc" => {
-                    let mut grpc_opts = GrpcOptions { service_name: None };
+                    let mut grpc_opts = VmessGrpcOptions { service_name: None };
 
                     if let Some(path) = &proxy.path {
                         grpc_opts.service_name = Some(path.clone());

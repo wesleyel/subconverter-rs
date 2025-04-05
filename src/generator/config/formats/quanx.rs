@@ -9,7 +9,6 @@ use crate::utils::string::{hash, join, replace_all_distinct, trim};
 use crate::utils::tribool::BoolTriboolExt;
 use crate::utils::url::get_url_arg;
 use log::error;
-use std::collections::HashMap;
 
 /// Convert proxies to QuantumultX format (main entry point)
 ///

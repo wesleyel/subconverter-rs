@@ -1,13 +1,10 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
 use crate::generator::ruleconvert::ruleset_to_clash_str;
-use crate::generator::yaml::clash::clash_output::{
-    ClashProxyGroup, ClashProxyOutput, ClashYamlOutput,
-};
+use crate::generator::yaml::clash::clash_output::ClashProxyOutput;
 use crate::generator::yaml::proxy_group_output::convert_proxy_groups;
 use crate::models::{ExtraSettings, Proxy, ProxyGroupConfigs, ProxyType, RulesetContent};
 use crate::utils::tribool::*;
-use lazy_static::lazy_static;
 use log::error;
 use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::{HashMap, HashSet};
@@ -218,12 +215,6 @@ pub fn proxy_to_clash_yaml(
         // Process remark with optional remarks list
         process_remark(&mut remark, &remarks_list, false);
         remarks_list.push(remark.clone());
-
-        // Define tribool values with defaults from ext and override with node-specific values if present
-        let udp = node.udp.define(ext.udp);
-        let tfo = node.tcp_fast_open.define(ext.tfo);
-        let scv = node.allow_insecure.define(ext.skip_cert_verify);
-
         // Check if this proxy type should be skipped
         let should_skip = match node.proxy_type {
             // Skip Snell v4+ if exists - exactly matching C++ behavior

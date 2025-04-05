@@ -190,17 +190,6 @@ impl IniReader {
             .replace('\t', "\\t");
     }
 
-    /// Detect line break character in content
-    fn get_line_break(content: &str) -> char {
-        if content.contains("\r\n") {
-            '\n' // We'll handle CRLF when splitting
-        } else if content.contains('\n') {
-            '\n'
-        } else {
-            '\r'
-        }
-    }
-
     /// Erase all data from the INI
     pub fn erase_all(&mut self) {
         self.content.clear();
@@ -296,7 +285,6 @@ impl IniReader {
                         }
 
                         self.content.insert(cur_section.clone(), item_group);
-                        item_group = Vec::new();
                     }
                 }
 
@@ -309,7 +297,7 @@ impl IniReader {
                 let pos_equal = line.find('=');
 
                 // Handle lines without equals sign (or direct save sections)
-                if ((self.store_any_line && pos_equal.is_none()) || in_direct_save_section) {
+                if (self.store_any_line && pos_equal.is_none()) || in_direct_save_section {
                     item_group.push(("{NONAME}".to_string(), line));
                 }
                 // Handle key=value pairs

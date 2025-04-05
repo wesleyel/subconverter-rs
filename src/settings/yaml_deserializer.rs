@@ -5,7 +5,6 @@ use serde::{
     Deserialize,
 };
 
-use crate::settings::settings::yaml_settings::TemplateVariable;
 
 use super::settings::yaml_settings::TemplateSettings;
 

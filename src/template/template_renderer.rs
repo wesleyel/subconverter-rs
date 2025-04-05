@@ -1,14 +1,13 @@
-use log::{error, warn};
-use minijinja::{context, escape_formatter, Environment, Error as JinjaError, ErrorKind, Value};
+use log::error;
+use minijinja::{escape_formatter, Environment, Error as JinjaError, ErrorKind, Value};
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
+use crate::utils::file_get;
 use crate::utils::http::parse_proxy;
-use crate::utils::{file_get, is_link, starts_with};
 use crate::Settings;
 
 /// Template arguments container
@@ -36,30 +35,6 @@ struct TemplateContext {
     node_list: HashMap<String, String>,
 }
 
-/// Template environment with caching
-static TEMPLATE_ENV: Lazy<Mutex<Environment>> = Lazy::new(|| {
-    let mut env = Environment::new();
-
-    // Configure the environment
-    env.set_formatter(escape_formatter);
-    env.add_filter("trim", filter_trim);
-    env.add_filter("trim_of", filter_trim_of);
-    env.add_filter("url_encode", filter_url_encode);
-    env.add_filter("url_decode", filter_url_decode);
-    env.add_filter("replace", filter_replace);
-    env.add_filter("find", filter_find);
-
-    // Add global functions
-    env.add_function("getLink", fn_get_link);
-    env.add_function("startsWith", fn_starts_with);
-    env.add_function("endsWith", fn_ends_with);
-    env.add_function("bool", fn_to_bool);
-    env.add_function("string", fn_to_string);
-    env.add_function("fetch", fn_web_get);
-
-    Mutex::new(env)
-});
-
 /// Render a template with the given arguments
 ///
 /// # Arguments
@@ -73,14 +48,14 @@ static TEMPLATE_ENV: Lazy<Mutex<Environment>> = Lazy::new(|| {
 pub fn render_template(
     content: &str,
     args: &TemplateArgs,
-    include_scope: &str,
+    _include_scope: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let env_lock = match TEMPLATE_ENV.lock() {
-        Ok(env) => env,
-        Err(e) => {
-            return Err(format!("Failed to acquire template environment lock: {}", e).into());
-        }
-    };
+    // let env_lock = match TEMPLATE_ENV.lock() {
+    //     Ok(env) => env,
+    //     Err(e) => {
+    //         return Err(format!("Failed to acquire template environment lock: {}", e).into());
+    //     }
+    // };
 
     // Create a new environment for this template
     let mut env = Environment::new();

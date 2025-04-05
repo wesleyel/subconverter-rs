@@ -10,7 +10,7 @@ use crate::models::ruleset::RulesetConfigs;
 use crate::models::{AppState, ProxyGroupConfigs, RegexMatchConfigs, SubconverterTarget};
 use crate::settings::external::ExternalSettings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
-use crate::utils::{file_exists, is_link, reg_valid, starts_with, url_decode};
+use crate::utils::reg_valid;
 use crate::{RuleBases, Settings, TemplateArgs};
 fn default_ver() -> u32 {
     3
