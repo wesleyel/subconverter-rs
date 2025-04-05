@@ -327,7 +327,7 @@ target = "/render?path=templates/test.tpl"
 #timeout = 3
 
 [server]
-listen = "0.0.0.0"
+listen = "127.0.0.1"
 port = 25500
 serve_file_root = "web"
 
