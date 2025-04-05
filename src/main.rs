@@ -30,6 +30,10 @@ struct Args {
     /// Subscription URL to process directly instead of starting the server
     #[arg(long, value_name = "URL")]
     url: Option<String>,
+
+    /// Output file path for subscription conversion (must be used with --url)
+    #[arg(short, long, value_name = "OUTPUT_FILE")]
+    output: Option<String>,
 }
 
 #[actix_web::main]
@@ -39,6 +43,12 @@ async fn main() -> std::io::Result<()> {
 
     // Parse command line arguments
     let args = Args::parse();
+
+    // Check if only one of url or output is provided
+    if args.url.is_some() != args.output.is_some() {
+        eprintln!("Error: --url and -o/--output must be used together");
+        std::process::exit(1);
+    }
 
     // Initialize settings with config file path if provided
     init_settings(args.config.as_deref().unwrap_or("")).unwrap();
@@ -51,7 +61,14 @@ async fn main() -> std::io::Result<()> {
 
     // Check if URL is provided for direct processing
     if let Some(url) = args.url {
-        info!("Processing subscription from URL: {}", url);
+        let output_file = args
+            .output
+            .as_ref()
+            .expect("Output file must be provided with URL");
+        info!(
+            "Processing subscription from URL: {} to file: {}",
+            url, output_file
+        );
 
         // --- Start URL Processing Logic ---
         // Create a default query, setting the URL and a default target
@@ -72,7 +89,13 @@ async fn main() -> std::io::Result<()> {
         // Process the response
         match response.into_body().try_into_bytes() {
             Ok(body_bytes) => match String::from_utf8(body_bytes.to_vec()) {
-                Ok(body_string) => println!("{}", body_string),
+                Ok(body_string) => {
+                    // Write to file instead of printing to stdout
+                    match std::fs::write(output_file, body_string) {
+                        Ok(_) => info!("Successfully wrote subscription to {}", output_file),
+                        Err(e) => error!("Failed to write to output file: {}", e),
+                    }
+                }
                 Err(e) => error!("Failed to convert response body to string: {}", e),
             },
             Err(e) => {
