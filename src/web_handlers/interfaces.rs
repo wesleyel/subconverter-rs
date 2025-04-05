@@ -112,15 +112,6 @@ pub fn parse_query_string(query: &str) -> HashMap<String, String> {
     params
 }
 
-fn check_external_base(path: &str, dest: &mut String, base_path: &str) -> bool {
-    if is_link(path) || starts_with(path, base_path) && file_exists(path) {
-        *dest = path.to_string();
-        true
-    } else {
-        false
-    }
-}
-
 /// Handler for subscription conversion
 pub async fn sub_handler(
     req: HttpRequest,
@@ -294,51 +285,7 @@ pub async fn sub_handler(
                         sssub_rule_base: global.ssub_base.clone(),
                         singbox_rule_base: global.singbox_base.clone(),
                     };
-                    check_external_base(
-                        &extconf.clash_rule_base,
-                        &mut rule_bases.clash_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.surge_rule_base,
-                        &mut rule_bases.surge_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.surfboard_rule_base,
-                        &mut rule_bases.surfboard_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.mellow_rule_base,
-                        &mut rule_bases.mellow_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.quan_rule_base,
-                        &mut rule_bases.quan_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.quanx_rule_base,
-                        &mut rule_bases.quanx_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.loon_rule_base,
-                        &mut rule_bases.loon_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.sssub_rule_base,
-                        &mut rule_bases.sssub_rule_base,
-                        &global.base_path,
-                    );
-                    check_external_base(
-                        &extconf.singbox_rule_base,
-                        &mut rule_bases.singbox_rule_base,
-                        &global.base_path,
-                    );
+                    rule_bases.check_external_bases(&extconf, &global.base_path);
                     builder.rule_bases(rule_bases);
                     if !target.is_simple() {
                         if !extconf.custom_rulesets.is_empty() {

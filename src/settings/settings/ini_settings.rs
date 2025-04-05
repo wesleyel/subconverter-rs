@@ -474,9 +474,11 @@ impl IniSettings {
         match key {
             "template_path" => self.template_path = value.to_string(),
             _ => {
-                // Store template variables
-                self.template_vars
-                    .insert(key.to_string(), value.to_string());
+                // Store template variables - ensure the key is not empty
+                if !key.is_empty() {
+                    self.template_vars
+                        .insert(key.to_string(), value.to_string());
+                }
             }
         }
     }

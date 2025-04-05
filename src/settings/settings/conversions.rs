@@ -1,9 +1,7 @@
 // Conversion implementation for Settings struct
 
 use super::ini_settings::IniSettings;
-use super::settings_struct::{
-    default_listen_address, Settings,
-};
+use super::settings_struct::{default_listen_address, Settings};
 use super::toml_settings::TomlSettings;
 use super::yaml_settings::YamlSettings;
 
@@ -110,17 +108,7 @@ impl From<YamlSettings> for Settings {
 
         // Template
         settings.template_path = yaml_settings.template.template_path;
-
-        // Process template variables
-        for var in yaml_settings.template.globals {
-            let value = match var.value {
-                serde_yaml::Value::String(s) => s,
-                serde_yaml::Value::Number(n) => n.to_string(),
-                serde_yaml::Value::Bool(b) => b.to_string(),
-                _ => continue,
-            };
-            settings.template_vars.insert(var.key, value);
-        }
+        settings.template_vars = yaml_settings.template.globals;
 
         // Ruleset settings
         settings.enable_rule_gen = yaml_settings.rulesets.enabled;
@@ -240,18 +228,7 @@ impl From<TomlSettings> for Settings {
 
         // Template
         settings.template_path = toml_settings.template.template_path.clone();
-
-        // Process template variables
-        for var in &toml_settings.template.globals {
-            let value = match &var.value {
-                toml::Value::String(s) => s.clone(),
-                toml::Value::Integer(i) => i.to_string(),
-                toml::Value::Float(f) => f.to_string(),
-                toml::Value::Boolean(b) => b.to_string(),
-                _ => continue,
-            };
-            settings.template_vars.insert(var.key.clone(), value);
-        }
+        settings.template_vars = toml_settings.template.globals;
 
         // Ruleset settings
         if !toml_settings.rulesets.is_empty() && toml_settings.rulesets[0].ruleset.is_some() {

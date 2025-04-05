@@ -1,10 +1,12 @@
+use serde::de::{MapAccess, Visitor};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::models::{
     cron::CronTaskConfig, BalanceStrategy, ProxyGroupConfig, ProxyGroupType, RegexMatchConfig,
     RulesetConfig,
 };
-
+use crate::settings::settings::toml_settings::TemplateSettings;
 
 pub trait ImportableInToml: serde::de::DeserializeOwned + Clone {
     fn is_import_node(&self) -> bool;
@@ -211,4 +213,37 @@ impl Into<CronTaskConfig> for TaskConfigInToml {
             timeout: self.timeout,
         }
     }
+}
+
+pub fn deserialize_template_settings<'de, D>(deserializer: D) -> Result<TemplateSettings, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct TemplateSettingsVisitor;
+
+    impl<'de> Visitor<'de> for TemplateSettingsVisitor {
+        type Value = TemplateSettings;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a TemplateSettings struct")
+        }
+
+        fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+        where
+            V: MapAccess<'de>,
+        {
+            let mut template_settings = TemplateSettings::default();
+            while let Some(key) = map.next_key::<String>()? {
+                let value = map.next_value::<String>()?;
+                if key == "template_path" {
+                    template_settings.template_path = value.clone();
+                } else {
+                    template_settings.globals.insert(key, value);
+                }
+            }
+            Ok(template_settings)
+        }
+    }
+
+    deserializer.deserialize_any(TemplateSettingsVisitor)
 }

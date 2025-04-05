@@ -62,6 +62,7 @@ pub struct Settings {
     pub log_level: u32,
     pub max_allowed_download_size: i64,
     pub template_path: String,
+    /// Template variables used for template rendering
     pub template_vars: HashMap<String, String>,
     pub prepend_proxy_direct_ruleset: bool,
 

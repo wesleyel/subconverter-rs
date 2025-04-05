@@ -10,13 +10,6 @@
 [![GPL-3.0+ License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/subconverter.svg)](https://crates.io/crates/subconverter)
 
-subconverter-rs 借鉴了原始 [subconverter](https://github.com/tindy2013/subconverter) 项目的强大功能，并用 Rust 重新实现，带来内存安全、无数据竞争的并发处理以及显著提升的性能。
-
-## 为什么选择 Rust？
-原始的 subconverter 不易使用且难以贡献代码，超过一半的 PR 都被放弃。
-
-然而，subconverter 几乎是唯一一个能够提供各种代理工具兼容性的工具。
-
 ## 路线图
 
 | 功能 | 状态 | 优先级 | 描述 |

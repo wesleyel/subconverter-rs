@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
 use serde::Deserialize;
 
@@ -220,7 +222,7 @@ impl Default for TemplateVariable {
 #[serde(default)]
 pub struct TemplateSettings {
     pub template_path: String,
-    pub globals: Vec<TemplateVariable>,
+    pub globals: HashMap<String, String>,
 }
 
 /// Alias configuration
@@ -289,6 +291,7 @@ pub struct YamlSettings {
     #[serde(alias = "proxy_group")]
     pub proxy_groups: ProxyGroupsSettings,
 
+    #[serde(deserialize_with = "deserialize_template_settings")]
     pub template: TemplateSettings,
     pub aliases: Vec<AliasConfig>,
     pub tasks: Vec<TaskConfigInYaml>,
@@ -383,7 +386,13 @@ impl YamlSettings {
         self.parsed_ruleset = RulesetConfigs::from_ini(&rulesets);
 
         // read proxy groups
-        let mut proxy_groups = Vec::new();
+        let mut proxy_groups = self
+            .proxy_groups
+            .custom_proxy_group
+            .iter()
+            .map(|group| group.to_ini())
+            .collect::<Vec<String>>();
+
         import_items(
             &mut proxy_groups,
             false,

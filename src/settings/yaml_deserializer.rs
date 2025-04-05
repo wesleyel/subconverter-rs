@@ -1,4 +1,13 @@
-use serde::Deserialize;
+use std::fmt;
+
+use serde::{
+    de::{MapAccess, Visitor},
+    Deserialize,
+};
+
+use crate::settings::settings::yaml_settings::TemplateVariable;
+
+use super::settings::yaml_settings::TemplateSettings;
 
 /// Stream rule configuration
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -115,6 +124,67 @@ pub struct ProxyGroupConfigInYaml {
     pub import: Option<String>,
 }
 
+impl ToIni for ProxyGroupConfigInYaml {
+    fn to_ini(&self) -> String {
+        // Check for import first
+        if let Some(import) = &self.import {
+            if !import.is_empty() {
+                return format!("!!import:{}", import);
+            }
+        }
+
+        // Create initial array with name and type
+        let mut temp_array = vec![self.name.clone(), self.group_type.clone()];
+
+        // Add all rules
+        for rule in &self.rule {
+            temp_array.push(rule.clone());
+        }
+
+        // Check if we have enough elements based on group type
+        match self.group_type.as_str() {
+            "select" => {
+                if temp_array.len() < 3 {
+                    return String::new();
+                }
+            }
+            "ssid" => {
+                if temp_array.len() < 4 {
+                    return String::new();
+                }
+            }
+            _ => {
+                if temp_array.len() < 3 {
+                    return String::new();
+                }
+
+                // Add url
+                temp_array.push(
+                    self.url
+                        .clone()
+                        .unwrap_or_else(|| "http://www.gstatic.com/generate_204".to_string()),
+                );
+
+                // Add interval, timeout, tolerance as a combined string
+                let interval = self.interval.unwrap_or(300).to_string();
+                let timeout = match self.timeout {
+                    Some(t) => t.to_string(),
+                    None => String::new(),
+                };
+                let tolerance = match self.tolerance {
+                    Some(t) => t.to_string(),
+                    None => String::new(),
+                };
+
+                temp_array.push(format!("{},{},{}", interval, timeout, tolerance));
+            }
+        }
+
+        // Join all elements with backtick
+        temp_array.join("`")
+    }
+}
+
 fn default_test_url() -> Option<String> {
     Some("http://www.gstatic.com/generate_204".to_string())
 }
@@ -143,4 +213,37 @@ pub struct RulesetConfigInYaml {
     pub group: String,
     pub interval: Option<u32>,
     pub import: Option<String>,
+}
+
+pub fn deserialize_template_settings<'de, D>(deserializer: D) -> Result<TemplateSettings, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct TemplateSettingsVisitor;
+
+    impl<'de> Visitor<'de> for TemplateSettingsVisitor {
+        type Value = TemplateSettings;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a TemplateSettings struct")
+        }
+
+        fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+        where
+            V: MapAccess<'de>,
+        {
+            let mut template_settings = TemplateSettings::default();
+            while let Some(key) = map.next_key::<String>()? {
+                let value = map.next_value::<String>()?;
+                if key == "template_path" {
+                    template_settings.template_path = value.clone();
+                } else {
+                    template_settings.globals.insert(key, value);
+                }
+            }
+            Ok(template_settings)
+        }
+    };
+
+    deserializer.deserialize_any(TemplateSettingsVisitor)
 }

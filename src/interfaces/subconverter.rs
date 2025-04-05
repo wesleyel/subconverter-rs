@@ -1130,4 +1130,72 @@ impl RuleBases {
 
         base_content
     }
+
+    /// Check and update rule bases with external configuration paths
+    ///
+    /// This method checks if paths from external configuration are valid
+    /// (either links or existing files) and updates the corresponding rule bases.
+    pub fn check_external_bases(
+        &mut self,
+        ext_conf: &crate::settings::external::ExternalSettings,
+        base_path: &str,
+    ) {
+        Self::check_external_base(
+            &ext_conf.clash_rule_base,
+            &mut self.clash_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.surge_rule_base,
+            &mut self.surge_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.surfboard_rule_base,
+            &mut self.surfboard_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.mellow_rule_base,
+            &mut self.mellow_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.quan_rule_base,
+            &mut self.quan_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.quanx_rule_base,
+            &mut self.quanx_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.loon_rule_base,
+            &mut self.loon_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.sssub_rule_base,
+            &mut self.sssub_rule_base,
+            base_path,
+        );
+        Self::check_external_base(
+            &ext_conf.singbox_rule_base,
+            &mut self.singbox_rule_base,
+            base_path,
+        );
+    }
+
+    /// Check if a path is a link or exists in the base path and update the destination if valid
+    fn check_external_base(path: &str, dest: &mut String, base_path: &str) -> bool {
+        if crate::utils::is_link(path)
+            || (crate::utils::starts_with(path, base_path) && crate::utils::file_exists(path))
+        {
+            *dest = path.to_string();
+            true
+        } else {
+            false
+        }
+    }
 }

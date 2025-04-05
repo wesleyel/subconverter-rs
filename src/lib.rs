@@ -5,6 +5,7 @@ pub mod models;
 pub mod parser;
 pub mod rulesets;
 pub mod settings;
+pub mod template;
 pub mod utils;
 pub mod web_handlers;
 
@@ -27,3 +28,6 @@ pub use models::SubconverterTarget;
 
 // Re-export interfaces
 pub use interfaces::*;
+
+// Re-export template functionality
+pub use template::{render_template, TemplateArgs};

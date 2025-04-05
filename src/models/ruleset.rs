@@ -78,7 +78,7 @@ pub struct RulesetContent {
     // Similar to std::shared_future<std::string> in C++
     // Arc provides shared ownership, RwLock provides interior mutability,
     // Option allows for content to be present or not
-    rule_content: Arc<RwLock<Option<String>>>,
+    pub rule_content: Arc<RwLock<Option<String>>>,
 
     pub update_interval: u32, // update_interval in C++
 }

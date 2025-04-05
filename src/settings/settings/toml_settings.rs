@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::Settings;
 use serde::{Deserialize, Serialize};
 
@@ -219,7 +221,7 @@ impl Default for TemplateVariable {
 #[serde(default)]
 pub struct TemplateSettings {
     pub template_path: String,
-    pub globals: Vec<TemplateVariable>,
+    pub globals: HashMap<String, String>,
 }
 
 /// Alias configuration
