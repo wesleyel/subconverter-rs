@@ -194,7 +194,7 @@ pub async fn sub_handler(
     }
 
     let urls = match query.url.as_deref() {
-        Some(url) => url_decode(url).split('|').map(|s| s.to_owned()).collect(),
+        Some(query_url) => query_url.split('|').map(|s| s.to_owned()).collect(),
         None => {
             if authorized {
                 global.default_urls.clone()
