@@ -436,7 +436,10 @@ pub async fn sub_handler(
     // Run subconverter
     let subconverter_result = std::thread::spawn(move || subconverter(config));
 
-    match subconverter_result.join().unwrap() {
+    match subconverter_result
+        .join()
+        .unwrap_or(Err(format!("Subconverter thread panicked")))
+    {
         Ok(result) => {
             let mut resp = HttpResponse::Ok();
 
