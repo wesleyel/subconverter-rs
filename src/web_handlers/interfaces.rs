@@ -10,7 +10,7 @@ use crate::models::ruleset::RulesetConfigs;
 use crate::models::{AppState, ProxyGroupConfigs, RegexMatchConfigs, SubconverterTarget};
 use crate::settings::external::ExternalSettings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
-use crate::utils::{file_exists, is_link, reg_valid, starts_with};
+use crate::utils::{file_exists, is_link, reg_valid, starts_with, url_decode};
 use crate::{RuleBases, Settings, TemplateArgs};
 fn default_ver() -> u32 {
     3
@@ -194,7 +194,7 @@ pub async fn sub_handler(
     }
 
     let urls = match query.url.as_deref() {
-        Some(url) => url.split('|').map(|s| s.to_owned()).collect(),
+        Some(url) => url_decode(url).split('|').map(|s| s.to_owned()).collect(),
         None => {
             if authorized {
                 global.default_urls.clone()
