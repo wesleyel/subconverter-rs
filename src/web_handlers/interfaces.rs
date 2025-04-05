@@ -260,10 +260,10 @@ pub async fn sub_handler(
     builder.remove_emoji(global.remove_emoji);
     builder.enable_rule_generator(global.enable_rule_gen);
 
-    let ext_config = query
-        .config
-        .as_deref()
-        .unwrap_or(&global.default_ext_config);
+    let ext_config = match query.config.as_deref() {
+        Some(config) => url_decode(config),
+        None => global.default_ext_config.clone(),
+    };
     if !ext_config.is_empty() {
         let ext_config_clone = ext_config.to_string();
         let handler = std::thread::spawn(move || {
