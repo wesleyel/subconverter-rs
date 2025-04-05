@@ -2,6 +2,19 @@ use crate::models::{ExtraSettings, Proxy, ProxyType, SSR_CIPHERS, SS_CIPHERS};
 use crate::utils::base64::{base64_encode, url_safe_base64_encode};
 use crate::utils::url::url_encode;
 use log::error;
+// Bitflags for proxy types used in conversions
+use bitflags::bitflags;
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct ProxyUriTypes: u32 {
+        const SS = 0b0001;
+        const SSR = 0b0010;
+        const VMESS = 0b0100;
+        const TROJAN = 0b1000;
+        const MIXED = Self::SS.bits() | Self::SSR.bits() | Self::VMESS.bits() | Self::TROJAN.bits();
+    }
+}
 
 /// Generate a VMess link
 ///
@@ -63,19 +76,17 @@ fn vmess_link_construct(
 ///
 /// # Arguments
 /// * `nodes` - List of proxy nodes to convert
-/// * `types` - Bitmask of types to include (SS=1, SSR=2, VMess=4, Trojan=8)
+/// * `types` - Bitflags indicating which proxy types to include (SS, SSR, VMess, Trojan)
 /// * `ext` - Extra settings for conversion
 ///
 /// # Returns
 /// * String containing the converted proxies
-pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettings) -> String {
+pub fn proxy_to_single(
+    nodes: &mut Vec<Proxy>,
+    types: ProxyUriTypes,
+    ext: &mut ExtraSettings,
+) -> String {
     let mut all_links = String::new();
-
-    // Extract proxy type flags from the bitmask
-    let ss = (types & 1) != 0;
-    let ssr = (types & 2) != 0;
-    let vmess = (types & 4) != 0;
-    let trojan = (types & 8) != 0;
 
     for node in nodes {
         let remark = &node.remark;
@@ -104,7 +115,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
 
         match node.proxy_type {
             ProxyType::Shadowsocks => {
-                if ss {
+                if types.contains(ProxyUriTypes::SS) {
                     // SS format
                     _proxy_str = format!(
                         "ss://{}@{}:{}",
@@ -121,7 +132,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                     }
 
                     _proxy_str.push_str(&format!("#{}", url_encode(remark)));
-                } else if ssr {
+                } else if types.contains(ProxyUriTypes::SSR) {
                     // Convert SS to SSR if compatible
                     if SSR_CIPHERS.contains(&method) && plugin.is_empty() {
                         _proxy_str = format!(
@@ -144,7 +155,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                 }
             }
             ProxyType::ShadowsocksR => {
-                if ssr {
+                if types.contains(ProxyUriTypes::SSR) {
                     // SSR format
                     _proxy_str = format!(
                         "ssr://{}",
@@ -162,7 +173,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                             url_safe_base64_encode(protocol_param)
                         ))
                     );
-                } else if ss {
+                } else if types.contains(ProxyUriTypes::SS) {
                     // Convert SSR to SS if compatible
                     if SS_CIPHERS.contains(&method) && protocol == "origin" && obfs == "plain" {
                         _proxy_str = format!(
@@ -180,7 +191,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                 }
             }
             ProxyType::VMess => {
-                if !vmess {
+                if !types.contains(ProxyUriTypes::VMESS) {
                     continue;
                 }
 
@@ -201,7 +212,7 @@ pub fn proxy_to_single(nodes: &mut Vec<Proxy>, types: i32, ext: &mut ExtraSettin
                 _proxy_str = format!("vmess://{}", base64_encode(&vmess_json));
             }
             ProxyType::Trojan => {
-                if !trojan {
+                if !types.contains(ProxyUriTypes::TROJAN) {
                     continue;
                 }
 

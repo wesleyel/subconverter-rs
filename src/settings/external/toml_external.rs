@@ -86,6 +86,7 @@ pub struct CustomSettings {
 #[serde(default)]
 pub struct TomlExternalSettings {
     pub custom: CustomSettings,
+    #[serde(deserialize_with = "deserialize_template_args_as_hash_map")]
     pub tpl_args: Option<HashMap<String, String>>,
 
     // Processed fields

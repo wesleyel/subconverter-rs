@@ -11,7 +11,8 @@ use crate::{
     settings::{
         import_toml::import_toml_items,
         toml_deserializer::{
-            ProxyGroupConfigInToml, RegexMatchRuleInToml, RulesetConfigInToml, TaskConfigInToml,
+            deserialize_template_as_template_settings, ProxyGroupConfigInToml,
+            RegexMatchRuleInToml, RulesetConfigInToml, TaskConfigInToml,
         },
     },
     utils::http::parse_proxy,
@@ -290,6 +291,10 @@ pub struct TomlSettings {
     pub rulesets: Vec<RulesetConfigInToml>,
     #[serde(rename = "custom_groups")]
     pub custom_proxy_groups: Vec<ProxyGroupConfigInToml>,
+    #[serde(
+        rename = "template.globals",
+        deserialize_with = "deserialize_template_as_template_settings"
+    )]
     pub template: TemplateSettings,
     pub aliases: Vec<AliasConfig>,
     pub tasks: Vec<TaskConfigInToml>,

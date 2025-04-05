@@ -1,3 +1,4 @@
+use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -5,6 +6,7 @@ use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
 use crate::models::ruleset::RulesetConfigs;
 use crate::models::{ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs};
 use crate::{settings::import_items, utils::http::parse_proxy, Settings};
+use crate::settings::yaml_deserializer::deserialize_template_args_as_hash_map;
 
 // Default value functions
 fn default_true() -> bool {
@@ -89,6 +91,7 @@ pub struct CustomSettings {
 #[serde(default)]
 pub struct YamlExternalSettings {
     pub custom: CustomSettings,
+    #[serde(deserialize_with = "deserialize_template_args_as_hash_map")]
     pub tpl_args: Option<HashMap<String, String>>,
 
     // Processed fields

@@ -137,10 +137,10 @@ pub fn ruleset_to_surge(
 
     // Handle overwriting original rules
     if overwrite_original_rules {
-        base_rule.remove_current_section();
+        base_rule.erase_section();
         match surge_ver {
-            -1 => base_rule.remove_section("filter_remote"),
-            -4 => base_rule.remove_section("Remote Rule"),
+            -1 => base_rule.erase_section_by_name("filter_remote"),
+            -4 => base_rule.erase_section_by_name("Remote Rule"),
             _ => {}
         }
     }

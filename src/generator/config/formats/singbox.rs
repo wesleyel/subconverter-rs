@@ -1,5 +1,6 @@
 use crate::generator::config::group::group_generate;
 use crate::generator::config::remark::process_remark;
+use crate::generator::ruleconvert::ruleset_to_sing_box::ruleset_to_sing_box;
 use crate::models::{
     ExtraSettings, Proxy, ProxyGroupConfigs, ProxyGroupType, ProxyType, RulesetContent,
 };
@@ -162,7 +163,7 @@ fn string_array_to_json_array(array: &str, delimiter: &str) -> JsonValue {
 pub fn proxy_to_singbox(
     nodes: &mut Vec<Proxy>,
     base_conf: &str,
-    _ruleset_content_array: &mut Vec<RulesetContent>,
+    ruleset_content_array: &mut Vec<RulesetContent>,
     extra_proxy_group: &ProxyGroupConfigs,
     ext: &mut ExtraSettings,
 ) -> String {
@@ -760,24 +761,14 @@ pub fn proxy_to_singbox(
     }
 
     // Generate rules
-    // ruleset_to_singbox(
-    //     &mut json,
-    //     ruleset_content_array,
-    //     ext.overwrite_original_rules,
-    // );
+    ruleset_to_sing_box(
+        &mut json,
+        ruleset_content_array,
+        ext.overwrite_original_rules,
+    );
 
     serde_json::to_string_pretty(&json).unwrap_or_default()
 }
-
-// Add placeholder for ruleset_to_singbox until proper implementation is available
-// fn ruleset_to_singbox(
-//     json: &mut JsonValue,
-//     ruleset_content_array: &mut Vec<RulesetContent>,
-//     overwrite_original_rules: bool,
-// ) {
-//     // Placeholder implementation - to be properly implemented later
-//     warn!("ruleset_to_singbox is not fully implemented yet");
-// }
 
 /// Generate a Sing-Box configuration
 pub fn generate_singbox(

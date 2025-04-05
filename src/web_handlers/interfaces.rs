@@ -11,7 +11,7 @@ use crate::models::{AppState, ProxyGroupConfigs, RegexMatchConfigs, Subconverter
 use crate::settings::external::ExternalSettings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
 use crate::utils::{file_exists, is_link, reg_valid, starts_with};
-use crate::{RuleBases, Settings};
+use crate::{RuleBases, Settings, TemplateArgs};
 fn default_ver() -> u32 {
     3
 }
@@ -207,7 +207,15 @@ pub async fn sub_handler(
 
     // TODO: what if urls still empty after insert?
 
-    // TODO: template args
+    // Create template args from request parameters and other settings
+    let mut template_args = TemplateArgs::default();
+    template_args.global_vars = global.template_vars.clone();
+
+    template_args.request_params = url::form_urlencoded::parse(req.query_string().as_bytes())
+        .into_owned()
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
 
     builder.append_proxy_type(query.append_type.unwrap_or(global.append_type));
 
@@ -287,6 +295,13 @@ pub async fn sub_handler(
                     };
                     rule_bases.check_external_bases(&extconf, &global.base_path);
                     builder.rule_bases(rule_bases);
+
+                    if let Some(tpl_args) = extconf.tpl_args {
+                        template_args.local_vars = tpl_args;
+                    }
+
+                    builder.template_args(template_args);
+
                     if !target.is_simple() {
                         if !extconf.custom_rulesets.is_empty() {
                             ruleset_configs = extconf.custom_rulesets;

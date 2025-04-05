@@ -71,7 +71,7 @@ static TEMPLATE_ENV: Lazy<Mutex<Environment>> = Lazy::new(|| {
 /// * `Ok(String)` - The rendered template
 /// * `Err(String)` - Error message if rendering fails
 pub fn render_template(
-    path: &str,
+    content: &str,
     args: &TemplateArgs,
     include_scope: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -102,21 +102,6 @@ pub fn render_template(
     env.add_function("bool", fn_to_bool);
     env.add_function("string", fn_to_string);
     env.add_function("fetch", fn_web_get);
-
-    let content;
-    let file_path = Path::new(path);
-    if file_path.is_file() {
-        content = file_get(
-            path,
-            if include_scope.is_empty() {
-                None
-            } else {
-                Some(include_scope)
-            },
-        )?;
-    } else {
-        return Err(format!("Template file not found: {}", path).into());
-    }
 
     // Build context object
     let mut global_vars = HashMap::new();
@@ -151,7 +136,7 @@ pub fn render_template(
     };
 
     // Parse and render the template
-    match env.template_from_str(&content) {
+    match env.template_from_str(content) {
         Ok(template) => match template.render(context) {
             Ok(result) => Ok(result),
             Err(e) => {
@@ -166,6 +151,39 @@ pub fn render_template(
             Err(Box::new(e))
         }
     }
+}
+
+/// Render a template from a file with the given arguments
+///
+/// # Arguments
+/// * `path` - Path to the template file
+/// * `args` - Template arguments
+/// * `include_scope` - The directory scope for included templates
+///
+/// # Returns
+/// * `Ok(String)` - The rendered template
+/// * `Err(String)` - Error message if rendering fails
+pub fn render_template_file(
+    path: &str,
+    args: &TemplateArgs,
+    include_scope: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let content;
+    let file_path = Path::new(path);
+    if file_path.is_file() {
+        content = file_get(
+            path,
+            if include_scope.is_empty() {
+                None
+            } else {
+                Some(include_scope)
+            },
+        )?;
+    } else {
+        return Err(format!("Template file not found: {}", path).into());
+    }
+
+    render_template(&content, args, include_scope)
 }
 
 // Filter implementations

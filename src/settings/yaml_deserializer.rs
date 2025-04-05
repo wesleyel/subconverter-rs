@@ -1,7 +1,7 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use serde::{
-    de::{MapAccess, Visitor},
+    de::{MapAccess, SeqAccess, Visitor},
     Deserialize,
 };
 
@@ -215,7 +215,9 @@ pub struct RulesetConfigInYaml {
     pub import: Option<String>,
 }
 
-pub fn deserialize_template_settings<'de, D>(deserializer: D) -> Result<TemplateSettings, D::Error>
+pub fn deserialize_template_as_template_settings<'de, D>(
+    deserializer: D,
+) -> Result<TemplateSettings, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -246,4 +248,78 @@ where
     };
 
     deserializer.deserialize_any(TemplateSettingsVisitor)
+}
+
+/// Template argument
+#[derive(Debug, Clone, Deserialize, Default)]
+struct TemplateArgument {
+    pub key: String,
+    pub value: String,
+}
+
+pub fn deserialize_template_args_as_hash_map<'de, D>(
+    deserializer: D,
+) -> Result<Option<HashMap<String, String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct TemplateArgsVisitor;
+
+    impl<'de> Visitor<'de> for TemplateArgsVisitor {
+        type Value = Option<HashMap<String, String>>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a sequence of template arguments or null")
+        }
+
+        fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
+        where
+            S: SeqAccess<'de>,
+        {
+            let mut template_args = HashMap::new();
+
+            while let Some(item) = seq.next_element::<TemplateArgument>()? {
+                template_args.insert(item.key, item.value);
+            }
+
+            if template_args.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(template_args))
+            }
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            let mut template_args = HashMap::new();
+
+            while let Some((key, value)) = map.next_entry::<String, String>()? {
+                template_args.insert(key, value);
+            }
+
+            if template_args.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(template_args))
+            }
+        }
+    }
+
+    deserializer.deserialize_any(TemplateArgsVisitor)
 }

@@ -392,7 +392,7 @@ fn proxy_to_quanx_internal(
 
     // Process policy section
     ini.set_current_section("policy");
-    let mut original_groups = HashMap::new();
+    let mut original_groups = Vec::new();
     if let Ok(items) = ini.get_items("policy") {
         original_groups = items;
     }

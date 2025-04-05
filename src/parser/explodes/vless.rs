@@ -64,7 +64,6 @@ pub fn explode_vless(vless: &str, node: &mut Proxy) -> bool {
 
     let packet_encoding = params.get("packetEncoding").map(|s| s.to_string());
     let packet_addr = packet_encoding.as_deref() == Some("packet");
-    let xudp = packet_encoding.as_deref() != Some("none");
 
     let network = params
         .get("type")
@@ -80,13 +79,15 @@ pub fn explode_vless(vless: &str, node: &mut Proxy) -> bool {
     vless_proxy.uuid = uuid;
     vless_proxy.tls = tls;
     vless_proxy.alpn = alpn;
-    vless_proxy.packet_addr = Some(packet_addr);
-    vless_proxy.xudp = Some(xudp);
-    vless_proxy.packet_encoding = packet_encoding;
+    if let Some(packet_encoding) = packet_encoding {
+        let xudp = packet_encoding != "none";
+        vless_proxy.xudp = Some(xudp);
+        vless_proxy.packet_encoding = Some(packet_encoding);
+        vless_proxy.packet_addr = Some(packet_addr);
+    }
     vless_proxy.network = Some(network.clone());
-    vless_proxy.fingerprint = Some(fingerprint);
     vless_proxy.servername = sni;
-    vless_proxy.client_fingerprint = Some("chrome".to_string());
+    vless_proxy.client_fingerprint = Some(fingerprint);
     vless_proxy.flow = flow;
 
     // Handle Reality options

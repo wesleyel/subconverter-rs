@@ -1815,6 +1815,7 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "base64",
+ "bitflags",
  "clap",
  "configparser",
  "env_logger",

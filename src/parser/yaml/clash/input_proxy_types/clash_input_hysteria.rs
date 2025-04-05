@@ -162,7 +162,6 @@ impl ClashInputHysteria {
 
 impl Into<Proxy> for ClashInputHysteria {
     fn into(self) -> Proxy {
-        log::info!("into hysteria proxy {:?}", self);
         let mut proxy = Proxy::default();
         proxy.proxy_type = ProxyType::Hysteria;
         proxy.remark = self.name;

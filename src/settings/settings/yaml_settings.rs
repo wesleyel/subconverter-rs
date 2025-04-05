@@ -291,7 +291,7 @@ pub struct YamlSettings {
     #[serde(alias = "proxy_group")]
     pub proxy_groups: ProxyGroupsSettings,
 
-    #[serde(deserialize_with = "deserialize_template_settings")]
+    #[serde(deserialize_with = "deserialize_template_as_template_settings")]
     pub template: TemplateSettings,
     pub aliases: Vec<AliasConfig>,
     pub tasks: Vec<TaskConfigInYaml>,
