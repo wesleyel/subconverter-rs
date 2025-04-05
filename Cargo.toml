@@ -51,5 +51,4 @@ winapi = { version = "0.3.9", features = ["winreg", "winerror", "minwindef"] }
 opt-level = "s"
 lto = "fat"
 codegen-units = 1
-panic = 'abort'
 strip = "symbols"
