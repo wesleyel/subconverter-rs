@@ -261,7 +261,7 @@ pub async fn sub_handler(
     builder.enable_rule_generator(global.enable_rule_gen);
 
     let ext_config = match query.config.as_deref() {
-        Some(config) => url_decode(config),
+        Some(config) => config.to_owned(),
         None => global.default_ext_config.clone(),
     };
     if !ext_config.is_empty() {
@@ -279,7 +279,7 @@ pub async fn sub_handler(
             }
         });
         // Process external config if provided
-        match handler.join().unwrap() {
+        match handler.join().unwrap_or(None) {
             Some(extconf) => {
                 if !nodelist {
                     let mut rule_bases = RuleBases {
