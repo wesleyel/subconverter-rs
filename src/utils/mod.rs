@@ -1,7 +1,15 @@
 pub mod base64;
 pub mod deserialize;
 pub mod file;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod file_std;
+#[cfg(target_arch = "wasm32")]
+pub mod file_wasm;
 pub mod http;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod http_std;
+#[cfg(target_arch = "wasm32")]
+pub mod http_wasm;
 pub mod ini_reader;
 pub mod matcher;
 pub mod network;

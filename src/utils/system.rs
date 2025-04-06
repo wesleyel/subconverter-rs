@@ -43,6 +43,14 @@ pub fn get_env(name: &str) -> String {
 ///
 /// The system proxy server string or empty string if not found
 pub fn get_system_proxy() -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // In WASM environment, we can't access system proxy settings
+        // Return empty string to indicate no proxy
+        return String::new();
+    }
+    
+    #[cfg(not(target_arch = "wasm32"))]
     #[cfg(target_os = "windows")]
     {
         use std::ffi::OsString;

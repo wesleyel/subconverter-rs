@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use actix_web::body::MessageBody;
 use actix_web::{test, web, App, HttpServer};
 use clap::Parser;
 use env_logger::Env;
 use log::{error, info};
+use std::fs;
 
 use subconverter::models::AppState;
 use subconverter::settings::settings::settings_struct::init_settings;
-use subconverter::web_handlers::interfaces::{self, sub_handler, SubconverterQuery};
-use subconverter::Settings;
+use subconverter::{api, web_handlers, Settings};
 
 /// A more powerful utility to convert between proxy subscription format
 #[derive(Parser, Debug)]
@@ -70,39 +69,32 @@ async fn main() -> std::io::Result<()> {
             url, output_file
         );
 
-        // --- Start URL Processing Logic ---
-        // Create a default query, setting the URL and a default target
-        // TODO: Consider making target configurable via args or settings
-        let mut query = SubconverterQuery::default();
-        query.url = Some(url.clone());
-        query.target = Some("clash".to_string()); // Defaulting to clash, might need adjustment
+        // Create a test app with the same configuration as the web app
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(Arc::clone(&app_state)))
+                .configure(web_handlers::config),
+        )
+        .await;
 
-        // Create a mock HttpRequest
-        let req = test::TestRequest::default().to_http_request();
+        // Create a test request with the correct URI
+        let req = test::TestRequest::get().uri(&url).to_request();
 
-        // Wrap app_state for the handler
-        let app_data = web::Data::new(Arc::clone(&app_state));
+        // Execute the request
+        let resp = test::call_service(&app, req).await;
 
-        // Call the sub_handler
-        let response = sub_handler(req, web::Query(query), app_data).await;
+        // Check if the response is successful
+        if resp.status().is_success() {
+            // Get response body
+            let body = test::read_body(resp).await;
 
-        // Process the response
-        match response.into_body().try_into_bytes() {
-            Ok(body_bytes) => match String::from_utf8(body_bytes.to_vec()) {
-                Ok(body_string) => {
-                    // Write to file instead of printing to stdout
-                    match std::fs::write(output_file, body_string) {
-                        Ok(_) => info!("Successfully wrote subscription to {}", output_file),
-                        Err(e) => error!("Failed to write to output file: {}", e),
-                    }
-                }
-                Err(e) => error!("Failed to convert response body to string: {}", e),
-            },
-            Err(_) => {
-                error!("Failed to read response body...");
-            }
+            // Write the response to the output file
+            fs::write(output_file, body)?;
+            info!("Successfully wrote result to {}", output_file);
+        } else {
+            error!("API request failed with status: {}", resp.status());
+            std::process::exit(1);
         }
-        // --- End URL Processing Logic ---
 
         Ok(()) // Exit after processing the URL
     } else {
@@ -145,7 +137,7 @@ async fn main() -> std::io::Result<()> {
                 // Add app state
                 .app_data(web::Data::new(Arc::clone(&app_state)))
                 // Register web handlers
-                .configure(interfaces::config)
+                .configure(web_handlers::config)
                 // For health check
                 .route("/", web::get().to(|| async { "Subconverter is running!" }))
         })

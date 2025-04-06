@@ -1,17 +1,16 @@
-use actix_web::{web, HttpRequest, HttpResponse};
 use log::{debug, error};
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::constants::regex_black_list::REGEX_BLACK_LIST;
 use crate::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
 use crate::models::ruleset::RulesetConfigs;
-use crate::models::{AppState, ProxyGroupConfigs, RegexMatchConfigs, SubconverterTarget};
+use crate::models::{ProxyGroupConfigs, RegexMatchConfigs, SubconverterTarget};
 use crate::settings::external::ExternalSettings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
 use crate::utils::reg_valid;
 use crate::{RuleBases, Settings, TemplateArgs};
+
 fn default_ver() -> u32 {
     3
 }
@@ -112,12 +111,45 @@ pub fn parse_query_string(query: &str) -> HashMap<String, String> {
     params
 }
 
+/// Struct to represent a subscription process response
+#[derive(Debug)]
+pub struct SubResponse {
+    pub content: String,
+    pub content_type: String,
+    pub headers: HashMap<String, String>,
+    pub status_code: u16,
+}
+
+impl SubResponse {
+    pub fn ok(content: String, content_type: String) -> Self {
+        Self {
+            content,
+            content_type,
+            headers: HashMap::new(),
+            status_code: 200,
+        }
+    }
+
+    pub fn error(content: String, status_code: u16) -> Self {
+        Self {
+            content,
+            content_type: "text/plain".to_string(),
+            headers: HashMap::new(),
+            status_code,
+        }
+    }
+
+    pub fn with_headers(mut self, headers: HashMap<String, String>) -> Self {
+        self.headers = headers;
+        self
+    }
+}
+
 /// Handler for subscription conversion
-pub async fn sub_handler(
-    req: HttpRequest,
-    query: web::Query<SubconverterQuery>,
-    app_state: web::Data<Arc<AppState>>,
-) -> HttpResponse {
+pub async fn sub_process(
+    req_url: String,
+    query: SubconverterQuery,
+) -> Result<SubResponse, Box<dyn std::error::Error>> {
     debug!("Received subconverter request: {:?}", query);
     let mut global = Settings::current();
 
@@ -147,17 +179,25 @@ pub async fn sub_handler(
                     //         //      &query.ver);
                     //     }
                     // }
-                    return HttpResponse::BadRequest()
-                        .body("Auto user agent is not supported for now.");
+                    return Ok(SubResponse::error(
+                        "Auto user agent is not supported for now.".to_string(),
+                        400,
+                    ));
                 }
                 builder.target(_target);
             }
             None => {
-                return HttpResponse::BadRequest().body("Invalid target parameter");
+                return Ok(SubResponse::error(
+                    "Invalid target parameter".to_string(),
+                    400,
+                ));
             }
         }
     } else {
-        return HttpResponse::BadRequest().body("Missing target parameter");
+        return Ok(SubResponse::error(
+            "Missing target parameter".to_string(),
+            400,
+        ));
     }
 
     builder.update_interval(match query.interval {
@@ -179,7 +219,10 @@ pub async fn sub_handler(
             .clone()
             .is_some_and(|exclude| REGEX_BLACK_LIST.contains(&exclude))
     {
-        return HttpResponse::BadRequest().body("Invalid regex in request!");
+        return Ok(SubResponse::error(
+            "Invalid regex in request!".to_string(),
+            400,
+        ));
     }
 
     let enable_insert = match query.insert {
@@ -210,12 +253,14 @@ pub async fn sub_handler(
     // Create template args from request parameters and other settings
     let mut template_args = TemplateArgs::default();
     template_args.global_vars = global.template_vars.clone();
+    let uri = match url::Url::parse(&req_url) {
+        Ok(parsed_url) => parsed_url,
+        Err(e) => {
+            return Ok(SubResponse::error(format!("Invalid URL: {}", e), 400));
+        }
+    };
 
-    template_args.request_params = url::form_urlencoded::parse(req.query_string().as_bytes())
-        .into_owned()
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
+    template_args.request_params = uri.query_pairs().into_owned().collect();
 
     builder.append_proxy_type(query.append_type.unwrap_or(global.append_type));
 
@@ -429,7 +474,10 @@ pub async fn sub_handler(
         Ok(cfg) => cfg,
         Err(e) => {
             error!("Failed to build subconverter config: {}", e);
-            return HttpResponse::BadRequest().body(format!("Configuration error: {}", e));
+            return Ok(SubResponse::error(
+                format!("Configuration error: {}", e),
+                400,
+            ));
         }
     };
 
@@ -441,82 +489,21 @@ pub async fn sub_handler(
         .unwrap_or(Err(format!("Subconverter thread panicked")))
     {
         Ok(result) => {
-            let mut resp = HttpResponse::Ok();
-
-            // Add headers from result
-            for (name, value) in result.headers {
-                resp.append_header((name, value));
-            }
-
-            // Set content type based on target
-            match target {
+            // Determine content type based on target
+            let content_type = match target {
                 SubconverterTarget::Clash
                 | SubconverterTarget::ClashR
-                | SubconverterTarget::SingBox => {
-                    resp.content_type("application/yaml");
-                }
-                SubconverterTarget::SSSub | SubconverterTarget::SSD => {
-                    resp.content_type("application/json");
-                }
-                _ => {
-                    resp.content_type("text/plain");
-                }
-            }
+                | SubconverterTarget::SingBox => "application/yaml",
+                SubconverterTarget::SSSub | SubconverterTarget::SSD => "application/json",
+                _ => "text/plain",
+            };
 
-            // Return the response with the conversion result
-            resp.body(result.content)
+            Ok(SubResponse::ok(result.content, content_type.to_string())
+                .with_headers(result.headers))
         }
         Err(e) => {
             error!("Subconverter error: {}", e);
-            HttpResponse::InternalServerError().body(format!("Conversion error: {}", e))
+            Ok(SubResponse::error(format!("Conversion error: {}", e), 500))
         }
     }
-}
-
-/// Handler for simple conversion (no rules)
-pub async fn simple_handler(
-    req: HttpRequest,
-    path: web::Path<(String,)>,
-    query: web::Query<SubconverterQuery>,
-    app_state: web::Data<Arc<AppState>>,
-) -> HttpResponse {
-    let target_type = &path.0;
-
-    // Set appropriate target based on path
-    match target_type.as_str() {
-        "clash" | "clashr" | "surge" | "quan" | "quanx" | "loon" | "ss" | "ssr" | "ssd"
-        | "v2ray" | "trojan" | "mixed" | "singbox" => {
-            // Create a modified query with the target set
-            let mut modified_query = query.into_inner();
-            modified_query.target = Some(target_type.clone());
-
-            // Reuse the sub_handler
-            sub_handler(req, web::Query(modified_query), app_state).await
-        }
-        _ => HttpResponse::BadRequest().body(format!("Unsupported target type: {}", target_type)),
-    }
-}
-
-/// Handler for Clash from Surge configuration
-pub async fn surge_to_clash_handler(
-    req: HttpRequest,
-    query: web::Query<SubconverterQuery>,
-    app_state: web::Data<Arc<AppState>>,
-) -> HttpResponse {
-    // Create a modified query with the target set to Clash
-    let mut modified_query = query.into_inner();
-    modified_query.target = Some("clash".to_string());
-
-    // Set nodelist to true for this special case
-    modified_query.list = Some(true);
-
-    // Reuse the sub_handler
-    sub_handler(req, web::Query(modified_query), app_state).await
-}
-
-/// Register the API endpoints with Actix Web
-pub fn config(cfg: &mut web::ServiceConfig) {
-    cfg.route("/sub", web::get().to(sub_handler))
-        .route("/surge2clash", web::get().to(surge_to_clash_handler))
-        .route("/{target_type}", web::get().to(simple_handler));
 }
