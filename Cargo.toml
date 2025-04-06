@@ -46,9 +46,3 @@ tempfile = "3.10.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["winreg", "winerror", "minwindef"] }
-
-[profile.release]
-opt-level = "s"
-lto = "fat"
-codegen-units = 1
-strip = "symbols"
