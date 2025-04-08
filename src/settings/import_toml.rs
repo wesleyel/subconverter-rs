@@ -6,7 +6,7 @@ use super::toml_deserializer::ImportableInToml;
 ///
 /// This function processes configuration items that start with "!!import:"
 /// and replaces them with the content from the specified file or URL.
-pub fn import_toml_items<T: ImportableInToml>(
+pub async fn import_toml_items<T: ImportableInToml>(
     target: &mut Vec<T>,
     scope_limit: bool,
     import_key: &str,
@@ -27,7 +27,7 @@ pub fn import_toml_items<T: ImportableInToml>(
 
         let content = if path.starts_with("http://") || path.starts_with("https://") {
             // Fetch from URL
-            let (data, _) = crate::utils::http::web_get(&path, &proxy_config, None)?;
+            let (data, _) = crate::utils::http::web_get_async(&path, &proxy_config, None).await?;
             data
         } else if std::path::Path::new(&path).exists() {
             // Read from file

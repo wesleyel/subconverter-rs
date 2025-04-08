@@ -2,11 +2,11 @@ use crate::models::Proxy;
 use crate::parser::explodes::*;
 use crate::parser::infoparser::{get_sub_info_from_nodes, get_sub_info_from_ssd};
 use crate::parser::parse_settings::ParseSettings;
-use crate::utils::http::{get_sub_info_from_header, web_get};
+use crate::utils::http::get_sub_info_from_header;
 use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
-use crate::utils::{file_exists, file_get};
+use crate::utils::{file_exists, file_get, web_get_async};
 
 /// Equivalent to ConfType enum in C++
 #[derive(Debug, PartialEq, Eq)]
@@ -31,7 +31,7 @@ pub enum ConfType {
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err(String)` with error message on failure
-pub fn add_nodes(
+pub async fn add_nodes(
     mut link: String,
     all_nodes: &mut Vec<Proxy>,
     group_id: i32,
@@ -102,7 +102,7 @@ pub fn add_nodes(
             }
 
             // Download subscription content
-            let (sub_content, headers) = match web_get(&link, proxy, request_header) {
+            let (sub_content, headers) = match web_get_async(&link, proxy, request_header).await {
                 Ok((content, headers)) => (content, headers),
                 Err(err) => return Err(format!("Cannot download subscription data: {}", err)),
             };

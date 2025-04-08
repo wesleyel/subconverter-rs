@@ -51,7 +51,7 @@ pub async fn web_get_async(
     // In WASM environment, we use the fetch API
     // Note: Proxy configuration is not supported in WASM environment
     let mut opts = RequestInit::new();
-    opts.method("GET");
+    opts.set_method("GET");
     opts.mode(RequestMode::Cors);
 
     // Create request object

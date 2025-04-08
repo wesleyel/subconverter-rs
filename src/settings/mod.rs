@@ -11,7 +11,7 @@ pub mod utils;
 pub mod yaml_deserializer;
 
 // Re-export settings struct and functions
-pub use external::{load_external_config, ExternalSettings};
+pub use external::ExternalSettings;
 pub use import::*;
 pub use ini_bindings::*;
 pub use settings::settings_struct::{refresh_configuration, update_settings_from_file, Settings};

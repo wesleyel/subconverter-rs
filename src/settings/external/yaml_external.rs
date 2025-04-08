@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use super::super::ini_bindings::{FromIni, FromIniWithDelimiter};
 use crate::models::ruleset::RulesetConfigs;
 use crate::models::{ProxyGroupConfigs, RegexMatchConfig, RegexMatchConfigs};
-use crate::{settings::import_items, utils::http::parse_proxy, Settings};
 use crate::settings::yaml_deserializer::deserialize_template_args_as_hash_map;
+use crate::{settings::import_items, utils::http::parse_proxy, Settings};
 
 // Default value functions
 fn default_true() -> bool {
@@ -105,7 +105,7 @@ pub struct YamlExternalSettings {
 }
 
 impl YamlExternalSettings {
-    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let global = Settings::current();
         let proxy_config = parse_proxy(&global.proxy_config);
 
@@ -115,7 +115,8 @@ impl YamlExternalSettings {
             false,
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_rename =
             RegexMatchConfigs::from_ini_with_delimiter(&self.custom.rename_nodes, "@");
 
@@ -125,7 +126,8 @@ impl YamlExternalSettings {
             false,
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_emojis = RegexMatchConfigs::from_ini_with_delimiter(&self.custom.emojis, ",");
 
         // Process imports for rulesets
@@ -134,7 +136,8 @@ impl YamlExternalSettings {
             global.api_mode,
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_rulesets = RulesetConfigs::from_ini(&self.custom.rulesets);
 
         // Process imports for proxy groups
@@ -143,7 +146,8 @@ impl YamlExternalSettings {
             global.api_mode,
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_custom_proxy_groups = ProxyGroupConfigs::from_ini(&self.custom.proxy_groups);
 
         Ok(())

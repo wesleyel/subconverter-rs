@@ -11,8 +11,9 @@ use crate::models::{
 };
 use crate::parser::parse_settings::ParseSettings;
 use crate::parser::subparser::add_nodes;
+use crate::utils::file_get_async;
 use crate::utils::http::parse_proxy;
-use crate::utils::{file_get, web_get};
+use crate::utils::http::web_get_async;
 use crate::{Settings, TemplateArgs};
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
@@ -540,7 +541,7 @@ impl Default for ParseOptions {
 /// # Returns
 /// * `Ok(Vec<Proxy>)` - The parsed proxies
 /// * `Err(String)` - Error message if parsing fails
-pub fn parse_subscription(
+pub async fn parse_subscription(
     url: &str,
     options: ParseOptions,
     group_id: i32,
@@ -564,13 +565,13 @@ pub fn parse_subscription(
 
     // Call add_nodes to do the actual parsing
     // We use group_id = 0 since we don't care about it in this context
-    add_nodes(url.to_string(), &mut nodes, group_id, &mut parse_settings)?;
+    add_nodes(url.to_string(), &mut nodes, group_id, &mut parse_settings).await?;
 
     Ok(nodes)
 }
 
 /// Process a subscription conversion request
-pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, String> {
+pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, String> {
     let mut response_headers = HashMap::new();
     let mut nodes = Vec::new();
     let global = Settings::current();
@@ -594,7 +595,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
         info!("Fetching node data from insert URLs");
         for url in &config.insert_urls {
             debug!("Parsing insert URL: {}", url);
-            match parse_subscription(url, opts.clone(), group_id) {
+            match parse_subscription(url, opts.clone(), group_id).await {
                 Ok(mut parsed_nodes) => {
                     info!("Found {} nodes from insert URL", parsed_nodes.len());
                     insert_nodes.append(&mut parsed_nodes);
@@ -615,7 +616,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
     info!("Fetching node data from main URLs");
     for url in &config.urls {
         debug!("Parsing URL: {}", url);
-        match parse_subscription(url, opts.clone(), group_id) {
+        match parse_subscription(url, opts.clone(), group_id).await {
             Ok(mut parsed_nodes) => {
                 info!("Found {} nodes from URL", parsed_nodes.len());
                 nodes.append(&mut parsed_nodes);
@@ -730,7 +731,7 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             // Refresh rulesets with custom configuration
             info!("Refreshing rulesets with custom configuration");
             use crate::rulesets::ruleset::refresh_rulesets;
-            refresh_rulesets(&config.ruleset_configs, &mut ruleset_content);
+            refresh_rulesets(&config.ruleset_configs, &mut ruleset_content).await;
         }
 
         // Prepend proxy direct ruleset if needed
@@ -745,7 +746,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Clash");
             let base = config
                 .rule_bases
-                .get_base_content(&SubconverterTarget::Clash, config.template_args.as_ref());
+                .get_base_content(&SubconverterTarget::Clash, config.template_args.as_ref())
+                .await;
             proxy_to_clash(
                 &mut nodes,
                 &base,
@@ -759,7 +761,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: ClashR");
             let base = config
                 .rule_bases
-                .get_base_content(&SubconverterTarget::ClashR, config.template_args.as_ref());
+                .get_base_content(&SubconverterTarget::ClashR, config.template_args.as_ref())
+                .await;
             proxy_to_clash(
                 &mut nodes,
                 &base,
@@ -773,7 +776,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Surge {}", ver);
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             let output = proxy_to_surge(
                 &mut nodes,
                 &base,
@@ -812,7 +816,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Surfboard");
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             let output = proxy_to_surge(
                 &mut nodes,
                 &base,
@@ -850,7 +855,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Mellow");
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             proxy_to_mellow(
                 &mut nodes,
                 &base,
@@ -863,7 +869,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: SS Subscription");
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             proxy_to_ss_sub(&base, &mut nodes, &mut config.extra.clone())
         }
         SubconverterTarget::SS => {
@@ -894,7 +901,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Quantumult");
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             proxy_to_quan(
                 &mut nodes,
                 &base,
@@ -907,7 +915,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Quantumult X");
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             proxy_to_quanx(
                 &mut nodes,
                 &base,
@@ -920,7 +929,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Loon");
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             proxy_to_loon(
                 &mut nodes,
                 &base,
@@ -942,7 +952,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: SingBox");
             let base = config
                 .rule_bases
-                .get_base_content(&config.target, config.template_args.as_ref());
+                .get_base_content(&config.target, config.template_args.as_ref())
+                .await;
             proxy_to_singbox(
                 &mut nodes,
                 &base,
@@ -957,7 +968,8 @@ pub fn subconverter(config: SubconverterConfig) -> Result<SubconverterResult, St
             info!("Generate target: Auto (defaulting to Clash)");
             let base = config
                 .rule_bases
-                .get_base_content(&SubconverterTarget::Clash, config.template_args.as_ref());
+                .get_base_content(&SubconverterTarget::Clash, config.template_args.as_ref())
+                .await;
             proxy_to_clash(
                 &mut nodes,
                 &base,
@@ -1032,21 +1044,21 @@ fn prepend_proxy_direct_ruleset(ruleset_content: &mut Vec<RulesetContent>, nodes
 
 impl RuleBases {
     /// Load rule base content from files or URLs
-    pub fn load_content(&self) -> HashMap<SubconverterTarget, String> {
+    pub async fn load_content(&self) -> HashMap<SubconverterTarget, String> {
         let mut base_content = HashMap::new();
 
         let global = Settings::current();
         let proxy_config = parse_proxy(&global.proxy_config);
 
         // Helper function to load content from file or URL
-        let load_content = |path: &str| -> Option<String> {
+        let load_content = async move |path: &str| -> Option<String> {
             if path.is_empty() {
                 return None;
             }
 
             // Check if path is a URL
             if path.starts_with("http://") || path.starts_with("https://") {
-                match web_get(path, &proxy_config, None) {
+                match web_get_async(path, &proxy_config, None).await {
                     Ok((content, _)) => {
                         debug!("Loaded rule base from URL: {}", path);
                         Some(content)
@@ -1058,7 +1070,7 @@ impl RuleBases {
                 }
             } else {
                 // Treat as file path
-                match file_get(path, None) {
+                match file_get_async(path, None).await {
                     Ok(content) => {
                         debug!("Loaded rule base from file: {}", path);
                         Some(content)
@@ -1072,41 +1084,41 @@ impl RuleBases {
         };
 
         // Load rule bases for each target format
-        if let Some(content) = load_content(&self.clash_rule_base) {
+        if let Some(content) = load_content(&self.clash_rule_base).await {
             base_content.insert(SubconverterTarget::Clash, content.clone());
             base_content.insert(SubconverterTarget::ClashR, content);
         }
 
-        if let Some(content) = load_content(&self.surge_rule_base) {
+        if let Some(content) = load_content(&self.surge_rule_base).await {
             base_content.insert(SubconverterTarget::Surge(3), content.clone());
             base_content.insert(SubconverterTarget::Surge(4), content);
         }
 
-        if let Some(content) = load_content(&self.surfboard_rule_base) {
+        if let Some(content) = load_content(&self.surfboard_rule_base).await {
             base_content.insert(SubconverterTarget::Surfboard, content);
         }
 
-        if let Some(content) = load_content(&self.mellow_rule_base) {
+        if let Some(content) = load_content(&self.mellow_rule_base).await {
             base_content.insert(SubconverterTarget::Mellow, content);
         }
 
-        if let Some(content) = load_content(&self.quan_rule_base) {
+        if let Some(content) = load_content(&self.quan_rule_base).await {
             base_content.insert(SubconverterTarget::Quantumult, content);
         }
 
-        if let Some(content) = load_content(&self.quanx_rule_base) {
+        if let Some(content) = load_content(&self.quanx_rule_base).await {
             base_content.insert(SubconverterTarget::QuantumultX, content);
         }
 
-        if let Some(content) = load_content(&self.loon_rule_base) {
+        if let Some(content) = load_content(&self.loon_rule_base).await {
             base_content.insert(SubconverterTarget::Loon, content);
         }
 
-        if let Some(content) = load_content(&self.sssub_rule_base) {
+        if let Some(content) = load_content(&self.sssub_rule_base).await {
             base_content.insert(SubconverterTarget::SSSub, content);
         }
 
-        if let Some(content) = load_content(&self.singbox_rule_base) {
+        if let Some(content) = load_content(&self.singbox_rule_base).await {
             base_content.insert(SubconverterTarget::SingBox, content);
         }
 
@@ -1114,7 +1126,7 @@ impl RuleBases {
     }
 
     /// Get base content for a specific target
-    pub fn get_base_content(
+    pub async fn get_base_content(
         &self,
         target: &SubconverterTarget,
         template_args: Option<&TemplateArgs>,
@@ -1123,14 +1135,14 @@ impl RuleBases {
         let proxy_config = parse_proxy(&global.proxy_config);
 
         // Helper function to load content from file or URL
-        let load_content = |path: &str| -> String {
+        let load_content = async move |path: &str| -> String {
             if path.is_empty() {
                 return String::new();
             }
 
             // Check if path is a URL
             if path.starts_with("http://") || path.starts_with("https://") {
-                match web_get(path, &proxy_config, None) {
+                match web_get_async(path, &proxy_config, None).await {
                     Ok((content, _)) => {
                         debug!("Loaded rule base from URL: {}", path);
                         content
@@ -1142,7 +1154,7 @@ impl RuleBases {
                 }
             } else {
                 // Treat as file path
-                match file_get(path, None) {
+                match file_get_async(path, None).await {
                     Ok(content) => {
                         debug!("Loaded rule base from file: {}", path);
                         content
@@ -1170,7 +1182,7 @@ impl RuleBases {
         };
 
         // Load the base content
-        let content = load_content(path);
+        let content = load_content(path).await;
         if content.is_empty() {
             return content;
         }

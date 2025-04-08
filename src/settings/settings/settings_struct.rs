@@ -16,8 +16,8 @@ use crate::models::RegexMatchConfigs;
 use crate::models::RulesetConfig;
 use crate::utils::file::copy_file;
 use crate::utils::file_get;
-use crate::utils::http::web_get;
 use crate::utils::http::ProxyConfig;
+use crate::utils::web_get_async;
 
 /// Settings structure to hold global configuration
 #[derive(Debug, Clone)]
@@ -300,7 +300,7 @@ impl Settings {
         GLOBAL.read().unwrap()
     }
 
-    fn load_from_content(
+    pub async fn load_from_content(
         content: &str,
         file_path: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -308,7 +308,7 @@ impl Settings {
         if content.contains("common:") {
             let mut yaml_settings: crate::settings::settings::yaml_settings::YamlSettings =
                 serde_yaml::from_str(&content)?;
-            yaml_settings.process_imports_and_inis()?;
+            yaml_settings.process_imports_and_inis().await?;
 
             let mut _settings = Settings::from(yaml_settings);
 
@@ -327,7 +327,7 @@ impl Settings {
             let mut toml_settings: crate::settings::settings::toml_settings::TomlSettings =
                 toml::from_str(&content)?;
 
-            toml_settings.process_imports()?;
+            toml_settings.process_imports().await?;
 
             let mut settings = Settings::from(toml_settings);
 
@@ -350,7 +350,7 @@ impl Settings {
         // Default to INI
         let mut ini_settings = crate::settings::settings::ini_settings::IniSettings::new();
         ini_settings.load_from_ini(&content)?;
-        ini_settings.process_imports()?;
+        ini_settings.process_imports().await?;
 
         let mut settings = Settings::from(ini_settings);
 
@@ -362,18 +362,18 @@ impl Settings {
         Ok(settings)
     }
 
-    /// Load settings from file or URL
-    fn load_from_file_sync(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Load settings from file or URL asynchronously
+    pub async fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let mut _content = String::new();
 
         // Try to load the content from file or URL
         if path.starts_with("http://") || path.starts_with("https://") {
-            let (data, _) = web_get(path, &ProxyConfig::default(), None)?;
+            let (data, _) = web_get_async(path, &ProxyConfig::default(), None).await?;
             _content = data;
         } else {
             _content = file_get(path, None)?;
         }
-        let mut settings = Settings::load_from_content(&_content, path)?;
+        let mut settings = Settings::load_from_content(&_content, path).await?;
         settings.pref_path = path.to_owned();
         Ok(settings)
     }
@@ -383,30 +383,27 @@ impl Settings {
 pub static GLOBAL: LazyLock<RwLock<Arc<Settings>>> =
     LazyLock::new(|| RwLock::new(Arc::new(Settings::new())));
 
-/// Refresh the configuration
-pub fn refresh_configuration() {
+/// Refresh the configuration asynchronously
+pub async fn refresh_configuration() {
     let settings = GLOBAL.read().unwrap();
     let path = settings.pref_path.clone();
     drop(settings); // Release the lock before potential long operation
 
-    std::thread::spawn(move || match Settings::load_from_file_sync(&path) {
+    match Settings::load_from_file(&path).await {
         Ok(new_settings) => {
             *GLOBAL.write().unwrap() = Arc::new(new_settings);
         }
         Err(err) => {
             eprintln!("Failed to refresh configuration from '{}': {}", path, err);
         }
-    })
-    .join()
-    .unwrap()
+    }
 }
 
 /// Update settings directly from file path with proper locking
-pub fn update_settings_from_file(
-    path: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn update_settings_from_file(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let path = path.to_owned();
-    std::thread::spawn(move || match Settings::load_from_file_sync(&path) {
+
+    match Settings::load_from_file(&path).await {
         Ok(new_settings) => {
             *GLOBAL.write().unwrap() = Arc::new(new_settings);
             Ok(())
@@ -415,14 +412,12 @@ pub fn update_settings_from_file(
             eprintln!("Failed to refresh configuration from '{}': {}", path, err);
             Err(format!("Failed to refresh configuration: {}", err).into())
         }
-    })
-    .join()
-    .unwrap_or(Err("Failed to join thread".into()))
+    }
 }
 
-pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     if !args_path.is_empty() {
-        match update_settings_from_file(args_path) {
+        match update_settings_from_file(args_path).await {
             Ok(_) => return Ok(()),
             Err(e) => {
                 eprintln!("Failed to load settings from {}: {}", args_path, e);
@@ -435,7 +430,7 @@ pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> 
     for path in default_config_paths {
         if Path::new(path).exists() {
             info!("Loading settings from {}", path);
-            match update_settings_from_file(path) {
+            match update_settings_from_file(path).await {
                 Ok(_) => return Ok(()),
                 Err(e) => {
                     eprintln!("Failed to load settings from {}: {}", path, e);
@@ -454,20 +449,25 @@ pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> 
             // copy
             copy_file(&path, &new_path)?;
 
-            update_settings_from_file(&new_path).unwrap();
+            update_settings_from_file(&new_path).await?;
             return Ok(());
         }
     }
     Err("No settings file found".into())
 }
 
-pub fn update_settings_from_content(
-    content: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+/// Update settings from content asynchronously
+pub async fn update_settings_from_content(content: &str) -> Result<(), Box<dyn std::error::Error>> {
     let content = content.to_string();
-    let handle = std::thread::spawn(move || {
-        let settings = Settings::load_from_content(&content, "").unwrap();
-        *GLOBAL.write().unwrap() = Arc::new(settings);
-    });
-    handle.join().map_err(|_| "Failed to join thread".into())
+
+    match Settings::load_from_content(&content, "").await {
+        Ok(settings) => {
+            *GLOBAL.write().unwrap() = Arc::new(settings);
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("Failed to load settings from content: {}", err);
+            Err(format!("Failed to load settings from content: {}", err).into())
+        }
+    }
 }

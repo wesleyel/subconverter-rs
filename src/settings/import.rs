@@ -1,10 +1,10 @@
-use crate::utils::{file_get, http::ProxyConfig};
+use crate::utils::{file_get, file_get_async, http::ProxyConfig};
 
 /// Import items from external files or URLs
 ///
 /// This function processes configuration items that start with "!!import:"
 /// and replaces them with the content from the specified file or URL.
-pub fn import_items(
+pub async fn import_items(
     target: &mut Vec<String>,
     scope_limit: bool,
     proxy_config: &ProxyConfig,
@@ -35,14 +35,14 @@ pub fn import_items(
 
         let content = if path.starts_with("http://") || path.starts_with("https://") {
             // Fetch from URL
-            let (data, _) = crate::utils::http::web_get(&path, &proxy_config, None)?;
+            let (data, _) = crate::utils::http::web_get_async(&path, &proxy_config, None).await?;
             data
         } else if std::path::Path::new(&path).exists() {
             // Read from file
             if scope_limit {
-                file_get(&path, Some(base_path))?
+                file_get_async(&path, Some(base_path)).await?
             } else {
-                file_get(&path, None)?
+                file_get_async(&path, None).await?
             }
         } else {
             log::error!("File not found or not a valid URL: {}", path);

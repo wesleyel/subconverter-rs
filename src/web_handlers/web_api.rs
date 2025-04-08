@@ -32,7 +32,7 @@ impl SubResponse {
 pub async fn sub_handler(req: HttpRequest, query: web::Query<SubconverterQuery>) -> HttpResponse {
     let req_url = req.uri().to_string();
 
-    match sub_process(req_url, query.into_inner()).await {
+    match sub_process(Some(req_url), query.into_inner()).await {
         Ok(response) => response.to_http_response(),
         Err(e) => {
             error!("Subconverter process error: {}", e);
@@ -59,7 +59,7 @@ pub async fn simple_handler(
             modified_query.target = Some(target_type.clone());
 
             // Reuse the sub_handler logic
-            match sub_process(req_url, modified_query).await {
+            match sub_process(Some(req_url), modified_query).await {
                 Ok(response) => response.to_http_response(),
                 Err(e) => {
                     error!("Subconverter process error: {}", e);
@@ -87,7 +87,7 @@ pub async fn surge_to_clash_handler(
     modified_query.list = Some(true);
 
     // Reuse the sub_process logic
-    match sub_process(req_url, modified_query).await {
+    match sub_process(Some(req_url), modified_query).await {
         Ok(response) => response.to_http_response(),
         Err(e) => {
             error!("Subconverter process error: {}", e);

@@ -5,7 +5,7 @@ use toml;
 
 use crate::models::{ProxyGroupConfig, RegexMatchConfig, RulesetConfig};
 use crate::settings::Settings;
-use crate::utils::file::{load_content, load_content_async};
+use crate::utils::file::load_content_async;
 // TODO: Implement template rendering module similar to C++ render_template function
 
 use super::ini_external::IniExternalSettings;
@@ -55,23 +55,23 @@ impl ExternalSettings {
     }
 
     /// Load external configuration from file or URL
-    pub fn load_from_file_sync(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        // Load content from file or URL
-        let _content = load_content(path)?;
+    // pub fn load_from_file_sync(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    //     // Load content from file or URL
+    //     let _content = load_content(path)?;
 
-        Self::parse_content(&_content)
-    }
+    //     Self::parse_content(&_content)
+    // }
 
     /// Load external configuration from file or URL asynchronously
     pub async fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         // Load content from file or URL asynchronously
         let _content = load_content_async(path).await?;
 
-        Self::parse_content(&_content)
+        Self::parse_content(&_content).await
     }
 
     /// Parse the content and return an ExternalSettings object
-    fn parse_content(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    async fn parse_content(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
         // TODO: Implement template rendering here
         // In C++: if(render_template(config, *ext.tpl_args, base_content, global.templatePath) != 0)
         //           base_content = config;
@@ -79,7 +79,7 @@ impl ExternalSettings {
         // Try YAML format first
         if content.contains("custom:") {
             let mut yaml_settings: YamlExternalSettings = serde_yaml::from_str(content)?;
-            yaml_settings.process_imports()?;
+            yaml_settings.process_imports().await?;
             // Convert to ExternalSettings
             let config = Self::from(yaml_settings);
             return Ok(config);
@@ -87,7 +87,7 @@ impl ExternalSettings {
 
         if toml::from_str::<toml::Value>(content).is_ok() {
             let mut toml_settings: TomlExternalSettings = toml::from_str(content)?;
-            toml_settings.process_imports()?;
+            toml_settings.process_imports().await?;
             // Convert to ExternalSettings
             let config = Self::from(toml_settings);
             return Ok(config);
@@ -98,7 +98,7 @@ impl ExternalSettings {
         match ini_settings.load_from_ini(content) {
             Ok(_) => {
                 // Process any imports
-                ini_settings.process_imports()?;
+                ini_settings.process_imports().await?;
                 // Convert to ExternalSettings
                 let config = Self::from(ini_settings);
                 return Ok(config);

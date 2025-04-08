@@ -101,7 +101,7 @@ pub struct TomlExternalSettings {
 }
 
 impl TomlExternalSettings {
-    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let global = Settings::current();
         let proxy_config = parse_proxy(&global.proxy_config);
 
@@ -111,7 +111,8 @@ impl TomlExternalSettings {
             "rename_node",
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_rename = self
             .custom
             .rename_node
@@ -126,7 +127,8 @@ impl TomlExternalSettings {
             "emoji",
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_emojis = self
             .custom
             .emoji_settings
@@ -142,7 +144,8 @@ impl TomlExternalSettings {
             "rulesets",
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         if global.max_allowed_rulesets > 0
             && self.custom.custom_rulesets.len() > global.max_allowed_rulesets
         {
@@ -167,7 +170,8 @@ impl TomlExternalSettings {
             "custom_group",
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_custom_proxy_groups = self
             .custom
             .custom_proxy_groups

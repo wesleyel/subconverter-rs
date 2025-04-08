@@ -318,9 +318,9 @@ pub struct TomlSettings {
 }
 
 impl TomlSettings {
-    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let global = Settings::current();
-        let proxy_config = parse_proxy(&global.proxy_config);
+        let proxy_config = parse_proxy(&self.common.proxy_config);
 
         // Process rename nodes
         import_toml_items(
@@ -329,7 +329,8 @@ impl TomlSettings {
             "rename_node",
             &proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_rename = self
             .node_pref
             .rename_node
@@ -344,7 +345,8 @@ impl TomlSettings {
             "stream_rule",
             &proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_stream_rule = self
             .userinfo
             .stream_rule
@@ -359,7 +361,8 @@ impl TomlSettings {
             "time_rule",
             &proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_time_rule = self
             .userinfo
             .time_rule
@@ -374,7 +377,8 @@ impl TomlSettings {
             "emoji",
             &proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_emoji_rules = self.emojis.emoji.iter().map(|r| r.clone().into()).collect();
 
         // Process rulesets
@@ -384,7 +388,8 @@ impl TomlSettings {
             "rulesets",
             &proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
 
         // Check ruleset count limit
         if global.max_allowed_rulesets > 0 && self.rulesets.len() > global.max_allowed_rulesets {
@@ -404,7 +409,8 @@ impl TomlSettings {
             "custom_groups",
             &proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_proxy_group = self
             .custom_proxy_groups
             .iter()
@@ -418,7 +424,8 @@ impl TomlSettings {
             "tasks",
             &proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_tasks = self.tasks.iter().map(|r| r.clone().into()).collect();
 
         Ok(())

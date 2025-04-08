@@ -48,7 +48,6 @@
 //!
 //! See the examples directory for more detailed usage examples.
 
-pub mod app_state;
 pub mod builder;
 pub mod ciphers;
 pub mod configs;
@@ -62,7 +61,6 @@ pub mod regex_match_config;
 pub mod ruleset;
 pub mod subconverter_target;
 
-pub use app_state::AppState;
 pub use extra_settings::ExtraSettings;
 pub use proxy_group_config::{
     BalanceStrategy, ProxyGroupConfig, ProxyGroupConfigs, ProxyGroupType,

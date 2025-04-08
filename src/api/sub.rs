@@ -1,5 +1,5 @@
 use log::{debug, error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::constants::regex_black_list::REGEX_BLACK_LIST;
@@ -10,6 +10,9 @@ use crate::settings::external::ExternalSettings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
 use crate::utils::reg_valid;
 use crate::{RuleBases, Settings, TemplateArgs};
+
+#[cfg(target_arch = "wasm32")]
+use {js_sys::Promise, wasm_bindgen::prelude::*, wasm_bindgen_futures::future_to_promise};
 
 fn default_ver() -> u32 {
     3
@@ -112,7 +115,7 @@ pub fn parse_query_string(query: &str) -> HashMap<String, String> {
 }
 
 /// Struct to represent a subscription process response
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct SubResponse {
     pub content: String,
     pub content_type: String,
@@ -147,7 +150,7 @@ impl SubResponse {
 
 /// Handler for subscription conversion
 pub async fn sub_process(
-    req_url: String,
+    req_url: Option<String>,
     query: SubconverterQuery,
 ) -> Result<SubResponse, Box<dyn std::error::Error>> {
     debug!("Received subconverter request: {:?}", query);
@@ -155,7 +158,7 @@ pub async fn sub_process(
 
     // Check if we should reload the config
     if global.reload_conf_on_request && !global.api_mode && !global.generator_mode {
-        refresh_configuration();
+        refresh_configuration().await;
         global = Settings::current();
     }
 
@@ -253,14 +256,17 @@ pub async fn sub_process(
     // Create template args from request parameters and other settings
     let mut template_args = TemplateArgs::default();
     template_args.global_vars = global.template_vars.clone();
-    let uri = match url::Url::parse(&req_url) {
-        Ok(parsed_url) => parsed_url,
-        Err(e) => {
-            return Ok(SubResponse::error(format!("Invalid URL: {}", e), 400));
-        }
-    };
 
-    template_args.request_params = uri.query_pairs().into_owned().collect();
+    // Only process URL if provided
+    if let Some(url_str) = &req_url {
+        let uri = match url::Url::parse(url_str) {
+            Ok(parsed_url) => parsed_url,
+            Err(e) => {
+                return Ok(SubResponse::error(format!("Invalid URL: {}", e), 400));
+            }
+        };
+        template_args.request_params = uri.query_pairs().into_owned().collect();
+    }
 
     builder.append_proxy_type(query.append_type.unwrap_or(global.append_type));
 
@@ -310,22 +316,15 @@ pub async fn sub_process(
         None => global.default_ext_config.clone(),
     };
     if !ext_config.is_empty() {
-        let ext_config_clone = ext_config.to_string();
-        let handler = std::thread::spawn(move || {
-            match ExternalSettings::load_from_file_sync(&ext_config_clone) {
-                Ok(extconf) => Some(extconf),
-                Err(e) => {
-                    error!(
-                        "Failed to load external config from {}: {}",
-                        ext_config_clone, e
-                    );
-                    None
-                }
-            }
-        });
-        // Process external config if provided
-        match handler.join().unwrap_or(None) {
-            Some(extconf) => {
+        debug!("Loading external config from {}", ext_config);
+
+        // In WebAssembly environment, we can't use std::thread::spawn
+        // Instead, we use the async version directly
+        let extconf_result = ExternalSettings::load_from_file(&ext_config).await;
+
+        match extconf_result {
+            Ok(extconf) => {
+                debug!("Successfully loaded external config from {}", ext_config);
                 if !nodelist {
                     let mut rule_bases = RuleBases {
                         clash_rule_base: global.clash_base.clone(),
@@ -381,8 +380,8 @@ pub async fn sub_process(
                     builder.remove_emoji(extconf.remove_old_emoji.unwrap());
                 }
             }
-            None => {
-                error!("Failed to load external config from {}", ext_config);
+            Err(e) => {
+                error!("Failed to load external config from {}: {}", ext_config, e);
             }
         }
     }
@@ -481,13 +480,12 @@ pub async fn sub_process(
         }
     };
 
-    // Run subconverter
-    let subconverter_result = std::thread::spawn(move || subconverter(config));
+    // Run subconverter directly instead of spawning a thread
+    // This is necessary for WebAssembly compatibility
+    debug!("Running subconverter with config: {:?}", config);
+    let subconverter_result = subconverter(config).await;
 
-    match subconverter_result
-        .join()
-        .unwrap_or(Err(format!("Subconverter thread panicked")))
-    {
+    match subconverter_result {
         Ok(result) => {
             // Determine content type based on target
             let content_type = match target {
@@ -498,6 +496,7 @@ pub async fn sub_process(
                 _ => "text/plain",
             };
 
+            debug!("Subconverter completed successfully");
             Ok(SubResponse::ok(result.content, content_type.to_string())
                 .with_headers(result.headers))
         }
@@ -506,4 +505,39 @@ pub async fn sub_process(
             Ok(SubResponse::error(format!("Conversion error: {}", e), 500))
         }
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn sub_process_wasm(query_json: &str) -> Promise {
+    // Parse the query from JSON
+    let query = match serde_json::from_str::<SubconverterQuery>(query_json) {
+        Ok(q) => q,
+        Err(e) => {
+            return Promise::reject(&JsValue::from_str(&format!("Failed to parse query: {}", e)));
+        }
+    };
+
+    // Create a future for the async sub_process
+    let future = async move {
+        match sub_process(None, query).await {
+            Ok(response) => {
+                // Convert the SubResponse to JSON string
+                match serde_json::to_string(&response) {
+                    Ok(json) => Ok(JsValue::from_str(&json)),
+                    Err(e) => Err(JsValue::from_str(&format!(
+                        "Failed to serialize response: {}",
+                        e
+                    ))),
+                }
+            }
+            Err(e) => Err(JsValue::from_str(&format!(
+                "Subscription processing error: {}",
+                e
+            ))),
+        }
+    };
+
+    // Convert the future to a JavaScript Promise
+    future_to_promise(future)
 }

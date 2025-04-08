@@ -6,7 +6,6 @@ use env_logger::Env;
 use log::{error, info};
 use std::fs;
 
-use subconverter::models::AppState;
 use subconverter::settings::settings::settings_struct::init_settings;
 use subconverter::{api, web_handlers, Settings};
 
@@ -50,13 +49,9 @@ async fn main() -> std::io::Result<()> {
     }
 
     // Initialize settings with config file path if provided
-    init_settings(args.config.as_deref().unwrap_or("")).unwrap();
-
-    // Create app state with settings
-    let app_state = Arc::new(AppState::new());
-
-    // Load base configurations
-    app_state.load_base_configs();
+    init_settings(args.config.as_deref().unwrap_or(""))
+        .await
+        .unwrap();
 
     // Check if URL is provided for direct processing
     if let Some(url) = args.url {
@@ -70,12 +65,7 @@ async fn main() -> std::io::Result<()> {
         );
 
         // Create a test app with the same configuration as the web app
-        let app = test::init_service(
-            App::new()
-                .app_data(web::Data::new(Arc::clone(&app_state)))
-                .configure(web_handlers::config),
-        )
-        .await;
+        let app = test::init_service(App::new().configure(web_handlers::config)).await;
 
         // Create a test request with the correct URI
         let req = test::TestRequest::get().uri(&url).to_request();
@@ -134,8 +124,6 @@ async fn main() -> std::io::Result<()> {
         // Start web server
         HttpServer::new(move || {
             App::new()
-                // Add app state
-                .app_data(web::Data::new(Arc::clone(&app_state)))
                 // Register web handlers
                 .configure(web_handlers::config)
                 // For health check

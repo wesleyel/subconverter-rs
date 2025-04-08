@@ -12,6 +12,7 @@ pub mod http_std;
 pub mod http_wasm;
 pub mod ini_reader;
 pub mod matcher;
+pub mod memory_cache;
 pub mod network;
 pub mod node_manip;
 pub mod regexp;
@@ -23,8 +24,8 @@ pub mod url;
 pub mod useragent;
 
 // Re-export common utilities
-pub use file::{file_exists, file_get};
-pub use http::{get_sub_info_from_header, web_get};
+pub use file::{file_exists, file_get, file_get_async};
+pub use http::{get_sub_info_from_header, web_get, web_get_async};
 pub use ini_reader::IniReader;
 pub use network::{is_ipv4, is_ipv6, is_link};
 pub use node_manip::{append_type_to_remark, preprocess_nodes};
