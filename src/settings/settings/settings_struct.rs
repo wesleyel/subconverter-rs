@@ -15,6 +15,7 @@ use crate::models::RegexMatchConfig;
 use crate::models::RegexMatchConfigs;
 use crate::models::RulesetConfig;
 use crate::utils::file::copy_file;
+use crate::utils::file_exists;
 use crate::utils::file_get;
 use crate::utils::http::ProxyConfig;
 use crate::utils::web_get_async;
@@ -428,7 +429,7 @@ pub async fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Er
     let default_config_paths = vec!["pref.toml", "pref.yml", "pref.ini"];
     let default_example_paths = vec!["pref.example.toml", "pref.example.yml", "pref.example.ini"];
     for path in default_config_paths {
-        if Path::new(path).exists() {
+        if file_exists(&path) {
             info!("Loading settings from {}", path);
             match update_settings_from_file(path).await {
                 Ok(_) => return Ok(()),
@@ -440,7 +441,7 @@ pub async fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Er
         }
     }
     for path in default_example_paths {
-        if Path::new(path).exists() {
+        if file_exists(&path) {
             let new_path = path.replace(".example", "");
             info!(
                 "Loading settings from {}, and copy it to {}",

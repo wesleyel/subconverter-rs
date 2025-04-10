@@ -1,4 +1,4 @@
-use crate::utils::{file_get, file_get_async, http::ProxyConfig};
+use crate::utils::{file_exists, file_get, file_get_async, http::ProxyConfig};
 
 /// Import items from external files or URLs
 ///
@@ -37,7 +37,7 @@ pub async fn import_items(
             // Fetch from URL
             let (data, _) = crate::utils::http::web_get_async(&path, &proxy_config, None).await?;
             data
-        } else if std::path::Path::new(&path).exists() {
+        } else if file_exists(&path) {
             // Read from file
             if scope_limit {
                 file_get_async(&path, Some(base_path)).await?

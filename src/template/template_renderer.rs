@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 
-use crate::utils::file_get;
 use crate::utils::http::parse_proxy;
+use crate::utils::{file_exists, file_get};
 use crate::Settings;
 
 /// Template arguments container
@@ -144,8 +144,7 @@ pub fn render_template_file(
     include_scope: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let content;
-    let file_path = Path::new(path);
-    if file_path.is_file() {
+    if file_exists(&path) {
         content = file_get(
             path,
             if include_scope.is_empty() {

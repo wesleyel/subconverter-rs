@@ -10,8 +10,8 @@ use crate::models::ruleset::{
 use crate::models::RulesetConfig;
 use crate::utils::file::read_file_async;
 use crate::utils::http::{parse_proxy, web_get_async, ProxyConfig};
-use crate::utils::md5;
 use crate::utils::memory_cache;
+use crate::utils::{file_exists, md5};
 use crate::Settings;
 
 /// Fetch ruleset content from file or URL with async operations
@@ -34,7 +34,7 @@ pub async fn fetch_ruleset(
 
     // If it's a file on disk, read it directly using async file read
     if !url.starts_with("http://") && !url.starts_with("https://") {
-        if !Path::new(url).exists() {
+        if !file_exists(url) {
             return Err(format!("Rule file not found: {}", url));
         }
 

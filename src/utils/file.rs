@@ -35,7 +35,7 @@ pub async fn load_content_async(path: &str) -> Result<String, String> {
             Ok((data, _)) => Ok(data),
             Err(e) => Err(format!("Failed to fetch content: {}", e)),
         }
-    } else if Path::new(path).exists() {
+    } else if file_exists(&path) {
         // It's a file, read it asynchronously
         match read_file_async(path).await {
             Ok(data) => Ok(data),
