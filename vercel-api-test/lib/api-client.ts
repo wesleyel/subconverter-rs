@@ -52,9 +52,8 @@ export async function readFile(path: string): Promise<string | null> {
         }
         const data = await response.json();
 
-        // Convert base64 to text - assumes text files for now
-        // In a more complete implementation, you'd handle binary files differently
-        return atob(data.content);
+        // 直接返回文本内容，无需base64解码
+        return data.content;
     } catch (error) {
         console.error(`Error reading file ${path}:`, error);
         throw error;
@@ -66,15 +65,13 @@ export async function readFile(path: string): Promise<string | null> {
  */
 export async function writeFile(path: string, content: string): Promise<boolean> {
     try {
-        // Convert content to base64
-        const base64Content = btoa(content);
-
+        // 直接发送文本内容，无需base64编码
         const response = await fetch(`/api/admin/${path}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ content: base64Content }),
+            body: JSON.stringify({ content }),
         });
 
         if (!response.ok) {
@@ -185,20 +182,23 @@ export interface LoadDirectoryResult {
     loaded_files: Array<{
         path: string;
         size: number;
+        is_placeholder: boolean;
     }>;
 }
 
 /**
  * Load all files from a GitHub repository directory at once
+ * @param path The directory path to load
+ * @param shallow If true, only creates placeholders without downloading content
  */
-export async function loadGitHubDirectory(path: string): Promise<LoadDirectoryResult> {
+export async function loadGitHubDirectory(path: string, shallow: boolean = true): Promise<LoadDirectoryResult> {
     try {
         const response = await fetch('/api/admin/github-load', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ path }),
+            body: JSON.stringify({ path, shallow }),
         });
 
         if (!response.ok) {

@@ -29,6 +29,7 @@ export default async function handler(req: RequestLike) {
         // Parse the request body
         const body = await req.json();
         const path = body.path || '';
+        const shallow = body.shallow !== false; // Default to true if not explicitly set to false
 
         // Check for empty path
         if (!path && path !== '') {
@@ -43,7 +44,7 @@ export default async function handler(req: RequestLike) {
             );
         }
 
-        console.log(`Starting WASM initialization for GitHub directory load: ${path}`);
+        console.log(`Starting WASM initialization for GitHub directory load: ${path} (shallow: ${shallow})`);
 
         // Initialize the Wasm module
         const result = await initWasm();
@@ -66,7 +67,7 @@ export default async function handler(req: RequestLike) {
 
         try {
             const wasmInstance = result.module;
-            console.log(`WASM instance loaded successfully. Calling admin_load_github_directory with path: ${path}`);
+            console.log(`WASM instance loaded successfully. Calling admin_load_github_directory with path: ${path}, shallow: ${shallow}`);
 
             // Add this check to verify that the function exists
             if (typeof wasmInstance.admin_load_github_directory !== 'function') {
@@ -82,7 +83,7 @@ export default async function handler(req: RequestLike) {
                 );
             }
 
-            const loadResult = await wasmInstance.admin_load_github_directory(path);
+            const loadResult = await wasmInstance.admin_load_github_directory(path, shallow);
             console.log('GitHub directory load completed successfully');
 
             // Return the result

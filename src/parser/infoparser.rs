@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, UNIX_EPOCH};
 
 use crate::models::{Proxy, RegexMatchConfigs};
 use crate::utils::base64::url_safe_base64_decode;

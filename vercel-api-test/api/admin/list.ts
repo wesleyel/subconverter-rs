@@ -44,8 +44,13 @@ function convertDirectoryStructure(entries: any[]) {
     for (const entry of entries) {
         const isDir = entry.is_directory;
         const name = entry.name;
-        const path = entry.path;
+        let path = entry.path;
         const attributes = entry.attributes;
+
+        // Normalize paths for consistency in the tree structure
+        if (isDir && !path.endsWith('/')) {
+            path = `${path}/`;
+        }
 
         // Create node
         const node = {
@@ -59,23 +64,50 @@ function convertDirectoryStructure(entries: any[]) {
         // Add to map for lookup
         pathMap.set(path, node);
 
-        // If it's a root-level item, add to rootItems
-        if (!path.includes('/') || path.split('/').length === 1) {
+        // Root level items have no slashes or only one component
+        const pathParts = path.split('/').filter((p: string) => p !== '');
+        if (pathParts.length === 0 || (pathParts.length === 1 && !path.includes('/'))) {
             rootItems.push(node);
         }
     }
 
     // Second pass: build the tree structure
     for (const entry of entries) {
-        const path = entry.path;
+        let path = entry.path;
+        const isDir = entry.is_directory;
+
+        // Normalize paths for consistency in the tree structure
+        if (isDir && !path.endsWith('/')) {
+            path = `${path}/`;
+        }
 
         // Skip root items
-        if (!path.includes('/') || path.split('/').length === 1) {
+        const pathParts = path.split('/').filter((p: string) => p !== '');
+        if (pathParts.length === 0 || (pathParts.length === 1 && !path.includes('/'))) {
             continue;
         }
 
-        // Get parent path
-        const parentPath = path.substring(0, path.lastIndexOf('/'));
+        // Get parent path - handle trailing slashes correctly
+        let parentPath;
+        if (path.endsWith('/')) {
+            // For directory paths (with trailing slash), remove the last part
+            const pathWithoutTrailingSlash = path.slice(0, -1);
+            const lastSlashIndex = pathWithoutTrailingSlash.lastIndexOf('/');
+            if (lastSlashIndex === -1) {
+                parentPath = '';
+            } else {
+                parentPath = pathWithoutTrailingSlash.substring(0, lastSlashIndex + 1);
+            }
+        } else {
+            // For file paths, just get the directory part
+            const lastSlashIndex = path.lastIndexOf('/');
+            if (lastSlashIndex === -1) {
+                parentPath = '';
+            } else {
+                parentPath = path.substring(0, lastSlashIndex + 1);
+            }
+        }
+
         const parent = pathMap.get(parentPath);
 
         // If parent exists, add this as a child
@@ -84,8 +116,39 @@ function convertDirectoryStructure(entries: any[]) {
             if (node && !parent.children.some((child: any) => child.id === node.id)) {
                 parent.children.push(node);
             }
+        } else {
+            // If parent wasn't found in the map, it might be a root-level item
+            if (!rootItems.some((item: any) => item.id === path)) {
+                const node = pathMap.get(path);
+                if (node) {
+                    rootItems.push(node);
+                }
+            }
         }
     }
+
+    // Sort children alphabetically with folders first
+    const sortItems = (items: any[]) => {
+        if (!items) return;
+
+        items.sort((a, b) => {
+            // Folders come before files
+            if (a.type === 'folder' && b.type !== 'folder') return -1;
+            if (a.type !== 'folder' && b.type === 'folder') return 1;
+
+            // Alphabetical sort for the same type
+            return a.name.localeCompare(b.name);
+        });
+
+        // Sort children recursively
+        items.forEach(item => {
+            if (item.children) {
+                sortItems(item.children);
+            }
+        });
+    };
+
+    sortItems(rootItems);
 
     return rootItems;
 }

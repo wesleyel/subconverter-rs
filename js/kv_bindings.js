@@ -2,8 +2,9 @@
 // Ensure @vercel/kv is installed in your Vercel project dependencies (package.json)
 // Ensures fallback for local development when Vercel KV isn't available
 
+// Expose the localStorageMap for debugging
+export let localStorageMap = new Map(); // Local in-memory fallback
 let kv; // Lazy load KV
-let localStorageMap = new Map(); // Local in-memory fallback
 
 async function getKv() {
     if (!kv) {
@@ -213,4 +214,7 @@ export async function response_bytes(response /* Response object */) {
         console.error(`Error reading response body:`, error);
         throw error;
     }
-} 
+}
+
+// Make getKv function public for direct testing
+export { getKv }; 

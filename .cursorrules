@@ -1,5 +1,20 @@
 # Cursor Rules for subconverter-rs
 
+# Code Quality & Maintainability
+file_size_limits:
+  pattern: ".*(\\.(rs|js|ts|tsx))$"
+  replacement: "// Max file size: 
+  // - Rust: 1000 lines 
+  // - TS/JS: 500 lines
+  // Split files that exceed these limits into modules"
+  note: "Maintain manageable file sizes to improve readability and maintainability"
+
+function_size_limits:
+  pattern: "fn .*\\{[\\s\\S]{200,}\\}"
+  replacement: "// Functions should be under 50 lines
+  // Consider breaking large functions into smaller ones"
+  note: "Keep functions focused and concise for better maintainability"
+
 # C++ to Rust conversion patterns
 cpp_method_to_rust_trait:
   pattern: "tribool.*is_undef()"

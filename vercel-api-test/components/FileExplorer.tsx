@@ -10,7 +10,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { checkFileExists, deleteFile, writeFile, getFileAttributes, createDirectory, FileAttributes, DirectoryEntry } from '../lib/api-client';
+import { checkFileExists, deleteFile, writeFile, getFileAttributes, createDirectory, FileAttributes, DirectoryEntry, loadGitHubDirectory } from '../lib/api-client';
 
 // Types for our file tree
 interface TreeNode {
@@ -19,6 +19,7 @@ interface TreeNode {
     type: 'file' | 'folder';
     children?: TreeNode[];
     attributes?: FileAttributes;
+    isPlaceholder?: boolean;
 }
 
 interface FileExplorerProps {
@@ -289,23 +290,23 @@ export default function FileExplorer({ onFileSelect, rootPath = '' }: FileExplor
     };
 
     const handleViewAttributes = async () => {
-        if (!contextMenu) return;
-        const nodeId = contextMenu.nodeId;
-        setShowAttributes(nodeId);
-        handleCloseContextMenu();
+        if (contextMenu) {
+            const nodeId = contextMenu.nodeId;
+            setShowAttributes(nodeId === showAttributes ? null : nodeId);
+            handleCloseContextMenu();
 
-        // Load attributes if not already loaded
-        const node = findNodeById(treeData, nodeId);
-        if (node && !node.attributes) {
-            try {
-                const attributes = await getFileAttributes(nodeId);
-                if (attributes) {
-                    // Update node with attributes
-                    const updatedTree = updateNodeAttributes(treeData, nodeId, attributes);
-                    setTreeData(updatedTree);
+            // Fetch and update attributes when viewing
+            if (nodeId !== showAttributes) {
+                try {
+                    const attributes = await getFileAttributes(nodeId);
+                    if (attributes) {
+                        // Update node with attributes
+                        const updatedTree = updateNodeAttributes(treeData, nodeId, attributes);
+                        setTreeData(updatedTree);
+                    }
+                } catch (error) {
+                    console.error(`Failed to get attributes for ${nodeId}:`, error);
                 }
-            } catch (error) {
-                console.error(`Failed to get attributes for ${nodeId}:`, error);
             }
         }
     };
@@ -331,6 +332,94 @@ export default function FileExplorer({ onFileSelect, rootPath = '' }: FileExplor
         });
     };
 
+    // Add a function to load GitHub directory
+    const handleLoadGitHubDirectory = async () => {
+        if (contextMenu) {
+            const nodeId = contextMenu.nodeId;
+            const node = findNodeById(treeData, nodeId);
+
+            if (node && node.type === 'folder') {
+                try {
+                    const result = await loadGitHubDirectory(nodeId, true);
+                    console.log(`Loaded ${result.successful_files} files from GitHub`);
+
+                    // Refresh the directory to show new files
+                    const dirEntries = await fetch(`/api/admin/list?path=${encodeURIComponent(nodeId)}`);
+                    const directoryData = await dirEntries.json();
+
+                    // Update the tree with new directory contents
+                    if (directoryData.entries) {
+                        const updatedTree = updateDirectoryContents(treeData, nodeId, directoryData.entries);
+                        setTreeData(updatedTree);
+                    }
+
+                    // Mark placeholder files
+                    const updatedTreeWithPlaceholders = markPlaceholderFiles(
+                        treeData,
+                        result.loaded_files.filter(f => f.is_placeholder).map(f => f.path)
+                    );
+                    setTreeData(updatedTreeWithPlaceholders);
+                } catch (error) {
+                    console.error(`Failed to load GitHub directory ${nodeId}:`, error);
+                }
+            }
+        }
+        handleCloseContextMenu();
+    };
+
+    // Function to update directory contents
+    const updateDirectoryContents = (
+        nodes: TreeNode[],
+        directoryId: string,
+        newEntries: DirectoryEntry[]
+    ): TreeNode[] => {
+        return nodes.map(node => {
+            if (node.id === directoryId && node.type === 'folder') {
+                // Convert directory entries to tree nodes
+                const childNodes: TreeNode[] = newEntries.map(entry => ({
+                    id: entry.path,
+                    name: entry.name,
+                    type: entry.is_directory ? 'folder' : 'file',
+                    children: entry.is_directory ? [] : undefined,
+                    attributes: entry.attributes,
+                    isPlaceholder: false
+                }));
+
+                return {
+                    ...node,
+                    children: childNodes
+                };
+            } else if (node.children) {
+                return {
+                    ...node,
+                    children: updateDirectoryContents(node.children, directoryId, newEntries)
+                };
+            }
+            return node;
+        });
+    };
+
+    // Function to mark placeholder files in the tree
+    const markPlaceholderFiles = (
+        nodes: TreeNode[],
+        placeholderPaths: string[]
+    ): TreeNode[] => {
+        return nodes.map(node => {
+            if (placeholderPaths.includes(node.id)) {
+                return {
+                    ...node,
+                    isPlaceholder: true
+                };
+            } else if (node.children) {
+                return {
+                    ...node,
+                    children: markPlaceholderFiles(node.children, placeholderPaths)
+                };
+            }
+            return node;
+        });
+    };
+
     const renderTreeNodes = (nodes: TreeNode[], level = 0) => {
         return nodes.map((node) => {
             const isFolder = node.type === 'folder';
@@ -339,15 +428,19 @@ export default function FileExplorer({ onFileSelect, rootPath = '' }: FileExplor
             return (
                 <React.Fragment key={node.id}>
                     <ListItem
-                        button
+                        component="div"
                         onClick={() => handleNodeSelect(node.id)}
-                        selected={selectedNode === node.id}
-                        onContextMenu={(e) => handleContextMenu(e, node.id)}
                         sx={{
                             pl: level * 2 + 1,
                             py: 0.5,
                             borderLeft: showAttributes === node.id ? '2px solid #2196f3' : 'none',
+                            bgcolor: selectedNode === node.id ? 'action.selected' : 'transparent',
+                            '&:hover': {
+                                bgcolor: 'action.hover',
+                            },
+                            cursor: 'pointer',
                         }}
+                        onContextMenu={(e) => handleContextMenu(e, node.id)}
                     >
                         <ListItemIcon sx={{ minWidth: 36 }}>
                             {isFolder ? (
@@ -359,9 +452,29 @@ export default function FileExplorer({ onFileSelect, rootPath = '' }: FileExplor
                         </ListItemIcon>
                         <ListItemText
                             primary={
-                                <Tooltip title={node.id} placement="top">
-                                    <Typography variant="body2" noWrap>{node.name}</Typography>
-                                </Tooltip>
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Tooltip title={node.id} placement="top">
+                                        <Typography variant="body2" noWrap sx={{ mr: 1 }}>{node.name}</Typography>
+                                    </Tooltip>
+                                    {node.isPlaceholder && (
+                                        <Chip
+                                            label="Placeholder"
+                                            size="small"
+                                            color="warning"
+                                            variant="outlined"
+                                            sx={{ height: 20, fontSize: '0.6rem' }}
+                                        />
+                                    )}
+                                    {node.attributes?.is_directory && (
+                                        <Chip
+                                            label="Dir"
+                                            size="small"
+                                            color="primary"
+                                            variant="outlined"
+                                            sx={{ height: 20, fontSize: '0.6rem', ml: 0.5 }}
+                                        />
+                                    )}
+                                </Box>
                             }
                             secondary={
                                 node.attributes && !isFolder ?
@@ -507,6 +620,9 @@ export default function FileExplorer({ onFileSelect, rootPath = '' }: FileExplor
                 }
             >
                 <MenuItem onClick={handleViewAttributes}>View Attributes</MenuItem>
+                {contextMenu && findNodeById(treeData, contextMenu.nodeId)?.type === 'folder' && (
+                    <MenuItem onClick={handleLoadGitHubDirectory}>Load from GitHub</MenuItem>
+                )}
                 <MenuItem onClick={() => {
                     if (contextMenu) {
                         setSelectedNode(contextMenu.nodeId);

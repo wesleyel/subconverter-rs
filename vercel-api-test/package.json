@@ -18,7 +18,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "19.1.1",
     "@vercel/kv": "^3.0.0",
-    "@vercel/node": "^5.1.14 ",
+    "@vercel/node": "^5.1.14",
     "next-rspack": "^15.3.0",
     "typescript": "^5.8.3"
   },
@@ -31,6 +31,8 @@
     "@mui/material": "^7.0.2",
     "next": "^15.3.0",
     "react": "^19.1.0",
+    "react-arborist": "^3.4.3",
+    "react-complex-tree": "^2.6.0",
     "react-dom": "^19.1.0",
     "react-split": "^2.0.14",
     "subconverter": "link:../pkg"

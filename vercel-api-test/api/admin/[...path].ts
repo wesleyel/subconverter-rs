@@ -38,28 +38,6 @@ async function loadWasm() {
     return initPromise;
 }
 
-// Helper to decode Base64 string to Uint8Array
-function base64ToUint8Array(base64: string): Uint8Array {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-}
-
-// Helper to convert ArrayBuffer/Uint8Array to Base64
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-}
-
 export default async function handler(
     request: VercelRequest,
     response: VercelResponse,
@@ -103,17 +81,16 @@ export default async function handler(
                         attributes
                     });
                 } else {
-                    const base64Content = await wasmModule.admin_read_file(filePath);
-                    // Respond with the raw binary data, setting appropriate content type?
-                    // Or keep it base64 for simplicity? Let's return base64 for now.
-                    console.log(`Read file ${filePath}, got base64: ${base64Content.substring(0, 50)}...`);
-                    return response.status(200).json({ path: filePath, content: base64Content });
+                    const textContent = await wasmModule.admin_read_file(filePath);
+                    // 直接返回文本内容，不再使用base64
+                    console.log(`Read file ${filePath}, got text: ${textContent.substring(0, 50)}...`);
+                    return response.status(200).json({ path: filePath, content: textContent });
                 }
             }
 
             case 'POST': // Write file
             case 'PUT': { // Treat PUT same as POST for simplicity
-                const { content: base64Content, is_directory } = request.body;
+                const { content: textContent, is_directory } = request.body;
 
                 if (is_directory) {
                     // Creating a directory
@@ -124,14 +101,14 @@ export default async function handler(
                         path: filePath,
                         action: 'directory_created'
                     });
-                } else if (typeof base64Content !== 'string') {
+                } else if (typeof textContent !== 'string') {
                     return response.status(400).json({
-                        error: 'Request body must contain a base64 encoded \'content\' field'
+                        error: 'Request body must contain a \'content\' field as string'
                     });
                 } else {
-                    // Writing file content
-                    console.log(`Write file ${filePath}, content (base64): ${base64Content.substring(0, 50)}...`);
-                    await wasmModule.admin_write_file(filePath, base64Content);
+                    // 直接写入文本内容，不再使用base64
+                    console.log(`Write file ${filePath}, content: ${textContent.substring(0, 50)}...`);
+                    await wasmModule.admin_write_file(filePath, textContent);
                     return response.status(200).json({
                         success: true,
                         path: filePath,

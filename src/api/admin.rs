@@ -1,7 +1,12 @@
 use crate::utils::file_wasm;
-use crate::vfs::{vercel_kv_vfs::VercelKvVfs, VfsError, VirtualFileSystem};
-use base64;
-use log::{error, info};
+use crate::vfs::vercel_kv_helpers::get_directory_marker_key;
+use crate::vfs::vercel_kv_js_bindings::*;
+use crate::vfs::vercel_kv_vfs::VercelKvVfs;
+use crate::vfs::VfsError;
+use log::{debug, error, info};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use crate::vfs::vercel_kv_types::VirtualFileSystem;
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -23,25 +28,24 @@ pub async fn admin_read_file(path: String) -> Result<JsValue, JsValue> {
     let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
     match vfs.read_file(&path).await {
         Ok(content) => {
-            // Return content as Base64 encoded string for safe JS transfer
-            let base64_content = base64::encode(&content);
-            Ok(JsValue::from_str(&base64_content))
+            // 将字节转换为 UTF-8 字符串直接返回，不再使用 base64
+            match String::from_utf8(content) {
+                Ok(text_content) => Ok(JsValue::from_str(&text_content)),
+                Err(e) => Err(JsValue::from_str(&format!("UTF-8 conversion error: {}", e))),
+            }
         }
         Err(e) => Err(vfs_error_to_js(e)),
     }
 }
 
 #[wasm_bindgen]
-pub async fn admin_write_file(path: String, base64_content: String) -> Result<(), JsValue> {
+pub async fn admin_write_file(path: String, text_content: String) -> Result<(), JsValue> {
     console::log_1(&format!("admin_write_file called with path: {}", path).into());
     let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
-    match base64::decode(&base64_content) {
-        Ok(content) => vfs
-            .write_file(&path, content)
-            .await
-            .map_err(vfs_error_to_js),
-        Err(e) => Err(JsValue::from_str(&format!("Base64 decode error: {}", e))),
-    }
+    
+    // 直接将字符串转换为字节而不是解码 base64
+    let content = text_content.into_bytes();
+    vfs.write_file(&path, content).await.map_err(vfs_error_to_js)
 }
 
 #[wasm_bindgen]
@@ -126,20 +130,23 @@ pub async fn list_directory(path: String) -> Result<JsValue, JsValue> {
     }
 }
 
-/// Load all files from a GitHub repository directory at once
+/// Load all files from a GitHub repository directory at once.
+/// If shallow=true, only creates placeholder entries without downloading content.
 #[wasm_bindgen]
-pub async fn admin_load_github_directory(path: String) -> Result<JsValue, JsValue> {
-    info!("admin_load_github_directory called for path: {}", path);
+pub async fn admin_load_github_directory(path: String, shallow: bool) -> Result<JsValue, JsValue> {
+    info!("admin_load_github_directory called for path: {} (shallow: {})", path, shallow);
     let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
 
-    match vfs.load_github_directory(&path).await {
+    match vfs.load_github_directory(&path, shallow).await {
         Ok(result) => {
             // Convert the result to JavaScript
             match serde_wasm_bindgen::to_value(&result) {
                 Ok(js_result) => {
                     info!(
-                        "GitHub directory load complete: {} files loaded, {} failed",
-                        result.successful_files, result.failed_files
+                        "GitHub directory load complete: {} files loaded, {} failed, {} placeholders",
+                        result.successful_files, 
+                        result.failed_files,
+                        result.loaded_files.iter().filter(|f| f.is_placeholder).count()
                     );
                     Ok(js_result)
                 }
@@ -153,6 +160,148 @@ pub async fn admin_load_github_directory(path: String) -> Result<JsValue, JsValu
             error!("Error loading directory from GitHub: {}", e);
             Err(vfs_error_to_js(e))
         }
+    }
+}
+
+/// Debug function to provide detailed info about list_directory operation
+#[wasm_bindgen]
+pub async fn debug_list_directory(path: String, shallow: bool) -> Result<JsValue, JsValue> {
+    info!("debug_list_directory called for path: '{}' (shallow: {})", path, shallow);
+
+    let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
+    let result = vfs.list_directory(&path).await;
+
+    // Collect diagnostic information
+    let mut debug_info = HashMap::new();
+    debug_info.insert("path".to_string(), json!(path));
+
+    // Check if directory exists first
+    let exists = if path.is_empty() {
+        // Root directory always exists
+        true
+    } else {
+        vfs.exists(&path).await.unwrap_or(false)
+    };
+    debug_info.insert("directory_exists".to_string(), json!(exists));
+
+    // Get prefix for KV operations
+    let prefix = if path.ends_with('/') || path.is_empty() {
+        path.clone()
+    } else {
+        format!("{}/", path)
+    };
+    debug_info.insert("prefix_for_kv".to_string(), json!(prefix));
+
+    // Check if there's a directory marker
+    let marker_key = get_directory_marker_key(&path);
+    let has_marker = match kv_exists(&marker_key).await {
+        Ok(js_value) => js_value.as_bool().unwrap_or(false),
+        Err(_) => false,
+    };
+    debug_info.insert("has_directory_marker".to_string(), json!(has_marker));
+    debug_info.insert("marker_key".to_string(), json!(marker_key));
+
+    // Get raw KV keys for this prefix
+    let raw_keys = match kv_list(&prefix).await {
+        Ok(js_value) => {
+            let keys: Vec<String> =
+                serde_wasm_bindgen::from_value(js_value).unwrap_or_else(|_| Vec::new());
+
+            debug!(
+                "Raw KV list returned {} keys for prefix '{}'",
+                keys.len(),
+                prefix
+            );
+            keys
+        }
+        Err(e) => {
+            debug!("Error listing keys with prefix '{}': {:?}", prefix, e);
+            Vec::new()
+        }
+    };
+    debug_info.insert("raw_kv_keys".to_string(), json!(raw_keys));
+
+    // Process and categorize the keys
+    let mut content_keys = Vec::new();
+    let mut metadata_keys = Vec::new();
+    let mut directory_marker_keys = Vec::new();
+
+    for key in &raw_keys {
+        if key.ends_with(".content") {
+            content_keys.push(key.clone());
+        } else if key.ends_with(".metadata") {
+            metadata_keys.push(key.clone());
+        } else if key.ends_with("/.dir") {
+            directory_marker_keys.push(key.clone());
+        }
+    }
+
+    debug_info.insert("content_keys".to_string(), json!(content_keys));
+    debug_info.insert("metadata_keys".to_string(), json!(metadata_keys));
+    debug_info.insert(
+        "directory_marker_keys".to_string(),
+        json!(directory_marker_keys),
+    );
+
+    // Try the GitHub load
+    let github_result = vfs.load_github_directory(&path, shallow).await;
+    match &github_result {
+        Ok(load_result) => {
+            debug_info.insert("github_load_success".to_string(), json!(true));
+            debug_info.insert(
+                "github_loaded_files".to_string(),
+                json!(load_result
+                    .loaded_files
+                    .iter()
+                    .map(|f| f.path.clone())
+                    .collect::<Vec<String>>()),
+            );
+            debug_info.insert(
+                "github_placeholder_count".to_string(),
+                json!(load_result.loaded_files.iter().filter(|f| f.is_placeholder).count()),
+            );
+        }
+        Err(e) => {
+            debug_info.insert("github_load_success".to_string(), json!(false));
+            debug_info.insert("github_load_error".to_string(), json!(format!("{:?}", e)));
+        }
+    }
+
+    // Include the actual result
+    match result {
+        Ok(entries) => {
+            debug_info.insert("success".to_string(), json!(true));
+            debug_info.insert("entry_count".to_string(), json!(entries.len()));
+
+            // Include summarized entries
+            let entry_summaries: Vec<Value> = entries
+                .iter()
+                .map(|entry| {
+                    json!({
+                        "name": entry.name,
+                        "path": entry.path,
+                        "is_directory": entry.is_directory,
+                        "has_attributes": entry.attributes.is_some(),
+                        "size": entry.attributes.as_ref().map(|a| a.size).unwrap_or(0)
+                    })
+                })
+                .collect();
+
+            debug_info.insert("entries".to_string(), json!(entry_summaries));
+        }
+        Err(e) => {
+            debug_info.insert("success".to_string(), json!(false));
+            debug_info.insert("error".to_string(), json!(format!("{:?}", e)));
+        }
+    }
+
+    // Convert to JsValue and return
+    match serde_wasm_bindgen::to_value(&debug_info) {
+        Ok(js_value) => Ok(js_value),
+        Err(e) => Err(JsValue::from_str(&format!(
+            "Error serializing debug info: {}",
+            e
+        ))),
     }
 }
 

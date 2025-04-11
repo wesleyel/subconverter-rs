@@ -208,9 +208,7 @@ pub async fn file_get_async<P: AsRef<Path>>(
 /// # Returns
 /// * `Ok(FileAttributes)` - The file or directory attributes
 /// * `Err(io::Error)` - If the attributes can't be read
-pub async fn get_file_attributes(
-    path: &str,
-) -> io::Result<crate::vfs::vercel_kv_vfs::FileAttributes> {
+pub async fn get_file_attributes(path: &str) -> io::Result<crate::vfs::FileAttributes> {
     debug!("get_file_attributes called for path: {}", path);
     debug!("Attempting to get VFS instance...");
     let vfs = get_vfs().await?;

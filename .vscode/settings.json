@@ -1,4 +1,5 @@
 {
     "cmake.ignoreCMakeListsMissing": true,
     "cursor.general.disableHttp2": false,
+    "rust-analyzer.cargo.target": "wasm32-unknown-unknown",
 }
