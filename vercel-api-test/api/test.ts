@@ -9,7 +9,7 @@ async function loadWasm() {
         console.log("Loading WASM module via dynamic import...");
 
         // Import the npm package installed from ../pkg
-        const module = await import('subconverter');
+        const module = await import('subconverter-wasm');
         wasmModule = module;
 
         console.log("WASM module loaded, initializing...");

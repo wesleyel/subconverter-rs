@@ -44,9 +44,9 @@ importers:
       react-split:
         specifier: ^2.0.14
         version: 2.0.14(react@19.1.0)
-      subconverter:
-        specifier: link:../pkg
-        version: link:../pkg
+      subconverter-wasm:
+        specifier: ^0.1.0
+        version: 0.1.0
     devDependencies:
       '@types/node':
         specifier: ^22.14.0
@@ -1431,6 +1431,9 @@ packages:
   stylis@4.2.0:
     resolution: {integrity: sha512-Orov6g6BB1sDfYgzWfTHDOxamtX1bE/zo104Dh9e6fqJ3PooipYyfJ0pUmrZO2wAvO8YbEyeFrkV91XTsGMSrw==}
 
+  subconverter-wasm@0.1.0:
+    resolution: {integrity: sha512-axROgHJhrQcnijf9hOGphNOHjpu+WCpUwygC12bne+LLwBTZqo3fX3JOWinJq10+bb9nUpkkSLDpGiSEvJGStw==}
+
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
@@ -2797,6 +2800,10 @@ snapshots:
       react: 19.1.0
 
   stylis@4.2.0: {}
+
+  subconverter-wasm@0.1.0:
+    dependencies:
+      '@vercel/kv': 3.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
 

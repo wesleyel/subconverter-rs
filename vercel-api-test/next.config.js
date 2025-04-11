@@ -7,9 +7,9 @@ const __dirname = import.meta.dirname;
 const nextConfig = {
     reactStrictMode: true,
     // Allows importing wasm files from pkg directory
-    transpilePackages: ['subconverter'],
+    transpilePackages: ['subconverter-wasm'],
     // Output configuration for Vercel deployment
-    output: 'standalone',
+    // output: 'standalone',
     // Webpack config to support WASM
     webpack: (config, { isServer }) => {
         // Support for WebAssembly
@@ -25,7 +25,7 @@ const nextConfig = {
                 apply: (compiler) => {
                     compiler.hooks.afterEmit.tap('CopyWasmPlugin', (compilation) => {
                         // Source WASM file
-                        const sourcePath = path.resolve(__dirname, '../pkg/subconverter_bg.wasm');
+                        const sourcePath = path.resolve(__dirname, 'node_modules/subconverter-wasm/subconverter_bg.wasm');
 
                         // Multiple destination paths for different environments
                         const destinations = [

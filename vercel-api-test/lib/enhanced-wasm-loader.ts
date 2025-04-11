@@ -60,7 +60,7 @@ export async function initWasm(): Promise<WasmInitResult> {
         console.log('🔄 Trying to load WASM module...');
 
         // First try standard import
-        const wasmModule = await import('subconverter');
+        const wasmModule = await import('subconverter-wasm');
         await wasmModule;
 
         return {

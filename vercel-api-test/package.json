@@ -35,7 +35,7 @@
     "react-complex-tree": "^2.6.0",
     "react-dom": "^19.1.0",
     "react-split": "^2.0.14",
-    "subconverter": "link:../pkg"
+    "subconverter-wasm": "^0.1.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

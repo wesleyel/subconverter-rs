@@ -16,7 +16,7 @@ const possiblePaths = [
     // Absolute path based on current file
     path.resolve(process.cwd(), 'pkg', 'subconverter_bg.wasm'),
     // From node_modules
-    path.resolve(process.cwd(), 'node_modules', 'subconverter', 'subconverter_bg.wasm'),
+    path.resolve(process.cwd(), 'node_modules', 'subconverter-wasm', 'subconverter_bg.wasm'),
 ];
 
 /**
@@ -98,7 +98,7 @@ export async function initWasm() {
         // First try standard import
         let wasmModule;
         try {
-            wasmModule = await import('subconverter');
+            wasmModule = await import('subconverter-wasm');
             console.log('WASM module loaded successfully via import.');
         } catch (importError) {
             console.error('Error loading WASM via import:', importError);
@@ -107,7 +107,7 @@ export async function initWasm() {
             // Try more direct approach if normal import fails
             try {
                 // This is a fallback for environments where dynamic imports might not work as expected
-                wasmModule = require('subconverter');
+                wasmModule = require('subconverter-wasm');
                 console.log('WASM module loaded successfully via require.');
             } catch (requireError) {
                 console.error('Error loading WASM via require:', requireError);
