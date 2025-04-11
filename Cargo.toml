@@ -63,6 +63,7 @@ serde-wasm-bindgen = "0.6.5"
 wasm-bindgen-futures = "0.4"
 anyhow = "1.0.97"
 case_insensitive_string = "0.2.9"
+console_error_panic_hook = "0.1.7"
 
 # Re-add WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]

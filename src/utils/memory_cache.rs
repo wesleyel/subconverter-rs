@@ -1,3 +1,4 @@
+use crate::utils::system::safe_system_time;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -51,7 +52,7 @@ pub fn store(key: &str, content: &str) -> Result<(), String> {
         key.to_string(),
         CachedItem {
             content: content.to_string(),
-            timestamp: SystemTime::now(),
+            timestamp: safe_system_time(),
         },
     );
 
@@ -173,7 +174,7 @@ pub fn size() -> usize {
 /// * `max_age` - Maximum age in seconds
 pub fn clean_expired(max_age: u32) {
     if let Ok(mut cache) = MEMORY_CACHE.lock() {
-        let now = SystemTime::now();
+        let now = safe_system_time();
         let max_duration = Duration::from_secs(u64::from(max_age));
 
         // Use retain to keep only non-expired items

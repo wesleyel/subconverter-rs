@@ -1,14 +1,92 @@
 // Example: kv_bindings.js (or integrate into your Edge Function handler)
 // Ensure @vercel/kv is installed in your Vercel project dependencies (package.json)
+// Ensures fallback for local development when Vercel KV isn't available
 
 let kv; // Lazy load KV
+let localStorageMap = new Map(); // Local in-memory fallback
 
 async function getKv() {
     if (!kv) {
-        // Dynamic import for environments where top-level await might not be supported
-        // or to ensure it's only imported when needed.
-        const module = await import('@vercel/kv');
-        kv = module.kv;
+        try {
+            // Check if required environment variables are set
+            if (typeof process !== 'undefined' &&
+                process.env.KV_REST_API_URL &&
+                process.env.KV_REST_API_TOKEN) {
+                // Dynamic import for environments where top-level await might not be supported
+                const module = await import('@vercel/kv');
+                kv = module.kv;
+                console.log("Using Vercel KV for storage");
+            } else {
+                // Use local storage fallback
+                console.log("Vercel KV environment variables missing, using in-memory fallback");
+                // Create an in-memory implementation that mimics the Vercel KV API
+                kv = {
+                    // Get a value by key
+                    get: async (key) => {
+                        return localStorageMap.get(key) || null;
+                    },
+                    // Set a key-value pair
+                    set: async (key, value) => {
+                        localStorageMap.set(key, value);
+                        return "OK";
+                    },
+                    // Check if a key exists
+                    exists: async (key) => {
+                        return localStorageMap.has(key) ? 1 : 0;
+                    },
+                    // Scan keys with pattern matching
+                    scan: async (cursor, options = {}) => {
+                        const { match = "*", count = 10 } = options;
+
+                        // Convert glob pattern to regex
+                        const pattern = match.replace(/\*/g, ".*");
+                        const regex = new RegExp(`^${pattern}$`);
+
+                        // Get all keys that match the pattern
+                        const allKeys = [...localStorageMap.keys()];
+                        const matchingKeys = allKeys.filter(key => regex.test(key));
+
+                        // Implement cursor-based pagination
+                        const startIndex = parseInt(cursor) || 0;
+                        const endIndex = Math.min(startIndex + count, matchingKeys.length);
+                        const keys = matchingKeys.slice(startIndex, endIndex);
+
+                        // Return next cursor or '0' if we're done
+                        const nextCursor = endIndex < matchingKeys.length ? String(endIndex) : '0';
+
+                        return [nextCursor, keys];
+                    },
+                    // Delete a key
+                    del: async (key) => {
+                        return localStorageMap.delete(key) ? 1 : 0;
+                    }
+                };
+            }
+        } catch (error) {
+            console.warn("Error initializing Vercel KV, using in-memory fallback:", error);
+            // Create an in-memory implementation that mimics the Vercel KV API
+            kv = {
+                get: async (key) => localStorageMap.get(key) || null,
+                set: async (key, value) => {
+                    localStorageMap.set(key, value);
+                    return "OK";
+                },
+                exists: async (key) => localStorageMap.has(key) ? 1 : 0,
+                scan: async (cursor, options = {}) => {
+                    const { match = "*", count = 10 } = options;
+                    const pattern = match.replace(/\*/g, ".*");
+                    const regex = new RegExp(`^${pattern}$`);
+                    const allKeys = [...localStorageMap.keys()];
+                    const matchingKeys = allKeys.filter(key => regex.test(key));
+                    const startIndex = parseInt(cursor) || 0;
+                    const endIndex = Math.min(startIndex + count, matchingKeys.length);
+                    const keys = matchingKeys.slice(startIndex, endIndex);
+                    const nextCursor = endIndex < matchingKeys.length ? String(endIndex) : '0';
+                    return [nextCursor, keys];
+                },
+                del: async (key) => localStorageMap.delete(key) ? 1 : 0
+            };
+        }
     }
     return kv;
 }
@@ -23,30 +101,18 @@ async function getKv() {
 export async function kv_get(key) {
     try {
         const kvClient = await getKv();
-        // @vercel/kv might return null if not found
         const value = await kvClient.get(key);
-        // console.log(`kv_get ${key}:`, value);
-        // We need to return something serde_wasm_bindgen::from_value can handle.
-        // If value is raw bytes (e.g., stored via REST API as base64),
-        // you might need to decode it first and return a Uint8Array or similar.
-        // If @vercel/kv returns JS objects/arrays/buffers directly, this might just work.
-        // Returning null/undefined for not found.
 
-        // Check if the value looks like it could be binary data stored directly
-        // (e.g., ArrayBuffer or typed array if the SDK supports it)
         if (value instanceof ArrayBuffer) {
             return new Uint8Array(value);
         } else if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
-            // Handles TypedArrays like Uint8Array directly
             return value;
         }
 
-        // Return null/undefined for not found, or the value as is otherwise
-        // Let serde_wasm_bindgen handle the conversion for other types
         return value === null ? undefined : value;
     } catch (error) {
         console.error(`KV get error for ${key}:`, error);
-        throw error; // Propagate error to Rust
+        return undefined;
     }
 }
 
@@ -59,15 +125,9 @@ export async function kv_get(key) {
 export async function kv_set(key, value /* Uint8Array from Rust */) {
     try {
         const kvClient = await getKv();
-        // console.log(`kv_set ${key}:`, value);    
-        // Pass the Uint8Array directly. @vercel/kv might handle it
-        // If not, conversion to ArrayBuffer or Base64 might be needed:
-        // await kvClient.set(key, value.buffer); 
-        // await kvClient.set(key, Buffer.from(value).toString('base64'));
         await kvClient.set(key, value);
     } catch (error) {
         console.error(`KV set error for ${key}:`, error);
-        throw error;
     }
 }
 
@@ -75,22 +135,16 @@ export async function kv_exists(key) {
     try {
         const kvClient = await getKv();
         const exists = await kvClient.exists(key);
-        // console.log(`kv_exists ${key}:`, exists);
-        // kv.exists returns the number of keys found (0 or 1 for a single key)
         return exists > 0;
     } catch (error) {
         console.error(`KV exists error for ${key}:`, error);
-        throw error;
+        return false;
     }
 }
 
 export async function kv_list(prefix) {
     try {
         const kvClient = await getKv();
-        // console.log(`kv_list prefix: ${prefix}`);
-
-        // Vercel KV doesn't have a native list method with prefix filtering
-        // We need to use the scan method instead
         let cursor = 0;
         const keys = [];
         let scanResult;
@@ -99,7 +153,7 @@ export async function kv_list(prefix) {
             // Use SCAN with MATCH to find keys with the given prefix
             scanResult = await kvClient.scan(cursor, {
                 match: `${prefix}*`,
-                count: 100, // Limit number of keys per scan
+                count: 100 // Limit number of keys per scan
             });
 
             cursor = scanResult[0]; // Update cursor for next iteration
@@ -110,33 +164,26 @@ export async function kv_list(prefix) {
             }
         } while (cursor !== '0'); // Continue until cursor becomes '0'
 
-        // console.log(`kv_list found ${keys.length} keys with prefix ${prefix}`);
         return keys;
     } catch (error) {
         console.error(`KV list error for prefix ${prefix}:`, error);
-        throw error;
+        return [];
     }
 }
 
 export async function kv_del(key) {
     try {
         const kvClient = await getKv();
-        // console.log(`kv_del ${key}`);
         await kvClient.del(key);
     } catch (error) {
         console.error(`KV del error for ${key}:`, error);
-        throw error;
     }
 }
 
 // Use global fetch available in Edge runtime
 export async function fetch_url(url) {
     try {
-        // console.log(`fetch_url: ${url}`);
         const response = await fetch(url);
-        // We need to pass the Response object back to Rust
-        // wasm-bindgen can handle some JS objects, Response might work
-        // Returning the response object directly
         return response;
     } catch (error) {
         console.error(`Fetch error for ${url}:`, error);

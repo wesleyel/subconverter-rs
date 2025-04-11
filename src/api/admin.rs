@@ -125,3 +125,40 @@ pub async fn list_directory(path: String) -> Result<JsValue, JsValue> {
         }
     }
 }
+
+/// Load all files from a GitHub repository directory at once
+#[wasm_bindgen]
+pub async fn admin_load_github_directory(path: String) -> Result<JsValue, JsValue> {
+    info!("admin_load_github_directory called for path: {}", path);
+    let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
+
+    match vfs.load_github_directory(&path).await {
+        Ok(result) => {
+            // Convert the result to JavaScript
+            match serde_wasm_bindgen::to_value(&result) {
+                Ok(js_result) => {
+                    info!(
+                        "GitHub directory load complete: {} files loaded, {} failed",
+                        result.successful_files, result.failed_files
+                    );
+                    Ok(js_result)
+                }
+                Err(e) => Err(JsValue::from_str(&format!(
+                    "Error serializing load result: {}",
+                    e
+                ))),
+            }
+        }
+        Err(e) => {
+            error!("Error loading directory from GitHub: {}", e);
+            Err(vfs_error_to_js(e))
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn admin_debug_test_panic() -> Result<(), JsValue> {
+    log::warn!("admin_debug_test_panic called - triggering intentional panic");
+    // This function is only for debugging panic capture
+    panic!("This is an intentional test panic from admin_debug_test_panic()");
+}

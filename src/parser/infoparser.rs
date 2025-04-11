@@ -2,6 +2,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::models::{Proxy, RegexMatchConfigs};
 use crate::utils::base64::url_safe_base64_decode;
+use crate::utils::system::safe_system_time;
 use crate::utils::url::get_url_arg;
 use regex::Regex;
 
@@ -42,7 +43,7 @@ fn percent_to_double(percent: &str) -> f64 {
 
 /// Converts a date string to a timestamp
 pub fn date_string_to_timestamp(date: &str) -> u64 {
-    let now = SystemTime::now()
+    let now = safe_system_time()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_secs(0))
         .as_secs();

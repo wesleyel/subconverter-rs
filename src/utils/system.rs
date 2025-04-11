@@ -2,7 +2,10 @@
 
 use std::env;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+#[cfg(target_arch = "wasm32")]
+use js_sys::Date;
 
 #[cfg(target_os = "windows")]
 use winapi::shared::winerror::IS_ERROR;
@@ -14,6 +17,50 @@ use winapi::{
         winreg::{RegEnumValueW, RegOpenKeyExW, RegQueryInfoKeyW, HKEY_CURRENT_USER},
     },
 };
+
+/// Get the current system time safely, even in WebAssembly environments
+///
+/// This function handles the limitations of WebAssembly regarding system time access
+/// and provides a fallback mechanism to prevent panics.
+///
+/// # Returns
+///
+/// The current system time or a default time if it can't be determined
+pub fn safe_system_time() -> SystemTime {
+    #[cfg(target_arch = "wasm32")]
+    {
+        // In WebAssembly, use the JavaScript Date API
+        let now_ms = Date::now();
+        let seconds = (now_ms / 1000.0) as u64;
+        let nanos = ((now_ms % 1000.0) * 1_000_000.0) as u32;
+
+        // Create a SystemTime from the UNIX_EPOCH plus the calculated duration
+        UNIX_EPOCH
+            .checked_add(Duration::new(seconds, nanos))
+            .unwrap_or(UNIX_EPOCH) // Fallback to UNIX_EPOCH if addition overflows
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // In native environments, use the standard SystemTime::now()
+        SystemTime::now()
+    }
+}
+
+/// Get the current timestamp in seconds since UNIX epoch
+///
+/// This function safely gets the current time and converts it to seconds
+/// since the UNIX epoch, handling potential errors gracefully.
+///
+/// # Returns
+///
+/// The number of seconds since the UNIX epoch, or 0 if it can't be determined
+pub fn safe_unix_timestamp() -> u64 {
+    safe_system_time()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 /// Sleep for a specified number of milliseconds
 ///

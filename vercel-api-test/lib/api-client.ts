@@ -173,4 +173,42 @@ export async function createDirectory(path: string): Promise<boolean> {
         console.error(`Error creating directory ${path}:`, error);
         throw error;
     }
+}
+
+/**
+ * Result of loading a directory from GitHub
+ */
+export interface LoadDirectoryResult {
+    total_files: number;
+    successful_files: number;
+    failed_files: number;
+    loaded_files: Array<{
+        path: string;
+        size: number;
+    }>;
+}
+
+/**
+ * Load all files from a GitHub repository directory at once
+ */
+export async function loadGitHubDirectory(path: string): Promise<LoadDirectoryResult> {
+    try {
+        const response = await fetch('/api/admin/github-load', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to load GitHub directory: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        return result as LoadDirectoryResult;
+    } catch (error) {
+        console.error(`Error loading GitHub directory ${path}:`, error);
+        throw error;
+    }
 } 

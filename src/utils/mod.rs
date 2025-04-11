@@ -22,6 +22,8 @@ pub mod system;
 pub mod tribool;
 pub mod url;
 pub mod useragent;
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
 
 // Re-export common utilities
 pub use file::{file_exists, file_get_async};
@@ -40,3 +42,5 @@ pub use string::{
 pub use system::{get_env, get_system_proxy, sleep_ms};
 pub use url::{url_decode, url_encode};
 pub use useragent::{match_user_agent, ver_greater_equal};
+#[cfg(target_arch = "wasm32")]
+pub use wasm::{init_panic_hook, set_panic_hook};

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import withRspack from 'next-rspack';
 const __dirname = import.meta.dirname;
 
 /** @type {import('next').NextConfig} */
@@ -7,6 +8,8 @@ const nextConfig = {
     reactStrictMode: true,
     // Allows importing wasm files from pkg directory
     transpilePackages: ['subconverter'],
+    // Output configuration for Vercel deployment
+    output: 'standalone',
     // Webpack config to support WASM
     webpack: (config, { isServer }) => {
         // Support for WebAssembly
@@ -21,24 +24,34 @@ const nextConfig = {
             config.plugins.push({
                 apply: (compiler) => {
                     compiler.hooks.afterEmit.tap('CopyWasmPlugin', (compilation) => {
-
                         // Source WASM file
                         const sourcePath = path.resolve(__dirname, '../pkg/subconverter_bg.wasm');
-                        // Destination - where Next.js will look for it
-                        const destDir = path.resolve(__dirname, '.next/server');
-                        const destPath = path.resolve(destDir, 'subconverter_bg.wasm');
 
-                        // Create the directory if it doesn't exist
-                        if (!fs.existsSync(destDir)) {
-                            fs.mkdirSync(destDir, { recursive: true });
-                        }
+                        // Multiple destination paths for different environments
+                        const destinations = [
+                            // For development
+                            path.resolve(__dirname, '.next/server/subconverter_bg.wasm'),
+                            // For Vercel production (.output)
+                            path.resolve(__dirname, '.output/server/subconverter_bg.wasm'),
+                            // For Vercel serverless functions
+                            path.resolve(__dirname, '.vercel/output/functions/api/subconverter_bg.wasm')
+                        ];
 
-                        // Copy the file
-                        try {
-                            fs.copyFileSync(sourcePath, destPath);
-                            console.log(`✅ Copied WASM file from ${sourcePath} to ${destPath}`);
-                        } catch (err) {
-                            console.error(`❌ Error copying WASM file: ${err.message}`);
+                        // Copy to each destination
+                        for (const destPath of destinations) {
+                            const destDir = path.dirname(destPath);
+                            // Create the directory if it doesn't exist
+                            if (!fs.existsSync(destDir)) {
+                                fs.mkdirSync(destDir, { recursive: true });
+                            }
+
+                            // Copy the file
+                            try {
+                                fs.copyFileSync(sourcePath, destPath);
+                                console.log(`✅ Copied WASM file from ${sourcePath} to ${destPath}`);
+                            } catch (err) {
+                                console.error(`❌ Error copying WASM file to ${destPath}: ${err.message}`);
+                            }
                         }
                     });
                 }
@@ -60,4 +73,4 @@ const nextConfig = {
     },
 };
 
-export default nextConfig; 
+export default (nextConfig); 

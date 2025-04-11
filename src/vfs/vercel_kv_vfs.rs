@@ -1,4 +1,5 @@
 use super::VirtualFileSystem;
+use crate::utils::system::safe_system_time;
 use crate::vfs::VfsError;
 use js_sys::Uint8Array;
 use serde::{Deserialize, Serialize};
@@ -27,7 +28,7 @@ pub struct FileAttributes {
 
 impl Default for FileAttributes {
     fn default() -> Self {
-        let now = SystemTime::now()
+        let now = safe_system_time()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
@@ -279,11 +280,11 @@ impl VirtualFileSystem for VercelKvVfs {
         // Create file attributes for this new file
         let attributes = FileAttributes {
             size: content.len(),
-            created_at: SystemTime::now()
+            created_at: safe_system_time()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
-            modified_at: SystemTime::now()
+            modified_at: safe_system_time()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
@@ -400,11 +401,11 @@ impl VirtualFileSystem for VercelKvVfs {
         // Create file attributes
         let attributes = FileAttributes {
             size: content.len(),
-            created_at: SystemTime::now()
+            created_at: safe_system_time()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
-            modified_at: SystemTime::now()
+            modified_at: safe_system_time()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
@@ -894,6 +895,303 @@ impl VirtualFileSystem for VercelKvVfs {
 
         Ok(())
     }
+
+    /// This function fetches all files from a specific directory in the GitHub repository
+    /// and stores them in the VFS (both memory cache and Vercel KV).
+    ///
+    /// # Arguments
+    ///
+    /// * `directory_path` - The path to the directory to load files from (empty string for root)
+    ///
+    /// # Returns
+    ///
+    /// A Result containing information about the loaded files or an error
+    async fn load_github_directory(
+        &self,
+        directory_path: &str,
+    ) -> Result<LoadDirectoryResult, VfsError> {
+        log::info!(
+            "Starting load_github_directory with path: {}",
+            directory_path
+        );
+
+        // Add an env var check to allow triggering a test panic
+        if std::option_env!("RUST_TEST_PANIC").is_some() {
+            log::warn!("Triggering intentional panic for stack trace testing");
+            panic!("This is an intentional test panic to verify stack trace capture");
+        }
+
+        let normalized_path = normalize_path(directory_path);
+        log::debug!("Normalized path: {}", normalized_path);
+
+        let dir_path = if normalized_path.is_empty() || normalized_path.ends_with('/') {
+            normalized_path
+        } else {
+            format!("{}/", normalized_path)
+        };
+
+        log::info!("Loading all files from GitHub directory: {}", dir_path);
+
+        // Use GitHub API to fetch tree information for this directory
+        let api_url = format!(
+            "https://api.github.com/repos/{}/{}/git/trees/{}?recursive=1",
+            self.github_config.owner, self.github_config.repo, self.github_config.branch
+        );
+
+        log::debug!("Fetching GitHub directory tree from: {}", api_url);
+
+        let fetch_response = match fetch_url(&api_url).await {
+            Ok(response) => {
+                log::debug!("Successfully fetched GitHub API response");
+                response
+            }
+            Err(e) => {
+                log::error!("Error fetching GitHub API: {:?}", e);
+                return Err(js_error_to_vfs(e, "Fetch GitHub API failed"));
+            }
+        };
+
+        let status_js = match response_status(&fetch_response).await {
+            Ok(status) => {
+                log::debug!("Successfully got response status");
+                status
+            }
+            Err(e) => {
+                log::error!("Error getting response status: {:?}", e);
+                return Err(js_error_to_vfs(e, "Get GitHub API status failed"));
+            }
+        };
+
+        let status = match status_js.as_f64().map(|f| f as u16) {
+            Some(s) => {
+                log::debug!("Response status code: {}", s);
+                s
+            }
+            None => {
+                log::error!("Status is not a number: {:?}", status_js);
+                return Err(js_error_to_vfs(
+                    status_js,
+                    "GitHub API status was not a number",
+                ));
+            }
+        };
+
+        if !(200..300).contains(&status) {
+            log::warn!("GitHub API call failed: Status {}", status);
+            return Err(VfsError::NetworkError(format!(
+                "GitHub API call failed with status: {}",
+                status
+            )));
+        }
+
+        // Parse the response to get file information
+        let response_bytes = match response_bytes(&fetch_response).await {
+            Ok(bytes) => {
+                log::debug!(
+                    "Successfully got response bytes, length: {}",
+                    bytes.length()
+                );
+                bytes
+            }
+            Err(e) => {
+                log::error!("Error getting response bytes: {:?}", e);
+                return Err(js_error_to_vfs(e, "Get GitHub API response bytes failed"));
+            }
+        };
+
+        let response_text = match String::from_utf8(response_bytes.to_vec()) {
+            Ok(text) => {
+                log::debug!(
+                    "Successfully converted bytes to text, length: {}",
+                    text.len()
+                );
+                if text.len() < 1000 {
+                    log::debug!("Response text: {}", text);
+                } else {
+                    log::debug!("Response text too long to log in full");
+                }
+                text
+            }
+            Err(e) => {
+                log::error!("Error converting bytes to text: {:?}", e);
+                return Err(VfsError::Other(format!(
+                    "Failed to parse GitHub API response: {}",
+                    e
+                )));
+            }
+        };
+
+        let tree_response: GitHubTreeResponse =
+            match serde_json::from_str::<GitHubTreeResponse>(&response_text) {
+                Ok(tree) => {
+                    log::debug!(
+                        "Successfully parsed GitHub tree JSON with {} items",
+                        tree.tree.len()
+                    );
+                    tree
+                }
+                Err(e) => {
+                    log::error!("Error parsing GitHub tree JSON: {:?}", e);
+                    return Err(VfsError::Other(format!(
+                        "Failed to parse GitHub tree JSON: {}",
+                        e
+                    )));
+                }
+            };
+
+        // Check if the tree was truncated (too large)
+        if tree_response.truncated {
+            log::warn!("GitHub tree response was truncated. Some files might be missing.");
+        }
+
+        let root_path_prefix = if self.github_config.root_path.is_empty() {
+            "".to_string()
+        } else {
+            format!("{}/", self.github_config.root_path.trim_matches('/'))
+        };
+        log::debug!("Root path prefix: '{}'", root_path_prefix);
+
+        // Track directories to create
+        let mut directories = std::collections::HashSet::new();
+
+        // Filter files to only include those in the requested directory
+        let mut files_to_load = Vec::new();
+
+        for item in tree_response.tree {
+            // Skip if not a blob (file)
+            if item.type_field != "blob" {
+                continue;
+            }
+
+            // Account for root_path from config
+            let relative_path = if item.path.starts_with(&root_path_prefix) {
+                item.path[root_path_prefix.len()..].to_string()
+            } else {
+                // Skip if not under the configured root path
+                continue;
+            };
+
+            // Skip if not under the requested directory
+            if !relative_path.starts_with(&dir_path) && !dir_path.is_empty() {
+                continue;
+            }
+
+            log::debug!("Adding file to load queue: {}", relative_path);
+
+            // Add file to loading list
+            files_to_load.push(relative_path.clone());
+
+            // Track all parent directories for this file
+            let mut current_dir = get_parent_directory(&relative_path);
+            while !current_dir.is_empty() {
+                directories.insert(current_dir.clone());
+                current_dir = get_parent_directory(&current_dir);
+            }
+        }
+
+        log::info!(
+            "Found {} files to load and {} directories to create",
+            files_to_load.len(),
+            directories.len()
+        );
+
+        // First create all necessary directories
+        for dir in &directories {
+            log::debug!("Creating directory: {}", dir);
+            if let Err(e) = self.create_directory(dir).await {
+                log::warn!("Failed to create directory {}: {:?}", dir, e);
+                // Continue anyway
+            }
+        }
+
+        // In WebAssembly, we can't use tokio::spawn for threading
+        // so we'll load the files sequentially
+        let mut successes = 0;
+        let mut failures = 0;
+        let mut loaded_files = Vec::new();
+
+        log::info!("Starting to load {} files", files_to_load.len());
+
+        for (index, file_path) in files_to_load.iter().enumerate() {
+            log::debug!(
+                "Loading file {}/{}: {}",
+                index + 1,
+                files_to_load.len(),
+                file_path
+            );
+
+            match self.read_file(file_path).await {
+                Ok(content) => {
+                    log::debug!(
+                        "Successfully loaded file: {} ({} bytes)",
+                        file_path,
+                        content.len()
+                    );
+                    successes += 1;
+                    loaded_files.push(LoadedFile {
+                        path: file_path.to_string(),
+                        size: content.len(),
+                    });
+                }
+                Err(e) => {
+                    log::warn!("Failed to load file {}: {:?}", file_path, e);
+                    failures += 1;
+                }
+            }
+        }
+
+        log::info!(
+            "Directory load complete. Loaded {} files ({} bytes), {} failures.",
+            successes,
+            loaded_files.iter().map(|f| f.size).sum::<usize>(),
+            failures
+        );
+
+        Ok(LoadDirectoryResult {
+            total_files: successes + failures,
+            successful_files: successes,
+            failed_files: failures,
+            loaded_files,
+        })
+    }
+}
+
+/// Represents a file that was loaded from GitHub
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LoadedFile {
+    /// Path to the file that was loaded
+    pub path: String,
+    /// Size of the file in bytes
+    pub size: usize,
+}
+
+/// Result of loading a directory from GitHub
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LoadDirectoryResult {
+    /// Total number of files attempted to load
+    pub total_files: usize,
+    /// Number of files successfully loaded
+    pub successful_files: usize,
+    /// Number of files that failed to load
+    pub failed_files: usize,
+    /// Information about each successfully loaded file
+    pub loaded_files: Vec<LoadedFile>,
+}
+
+/// GitHub API tree response structure
+#[derive(Debug, Deserialize)]
+struct GitHubTreeResponse {
+    tree: Vec<GitHubTreeItem>,
+    truncated: bool,
+}
+
+/// GitHub API tree item structure
+#[derive(Debug, Deserialize)]
+struct GitHubTreeItem {
+    path: String,
+    #[serde(rename = "type")]
+    type_field: String,
+    size: Option<usize>,
 }
 
 // Helper to guess file type from path (extension)

@@ -37,6 +37,9 @@ pub async fn initialize_settings_from_content(
 pub fn init_wasm_logging(level: Option<String>) -> Result<(), JsValue> {
     use log::Level;
 
+    // Set up the panic hook for better stack traces
+    crate::utils::set_panic_hook();
+
     let log_level = match level.as_deref() {
         Some("error") => Level::Error,
         Some("warn") => Level::Warn,
@@ -49,6 +52,9 @@ pub fn init_wasm_logging(level: Option<String>) -> Result<(), JsValue> {
     console_log::init_with_level(log_level)
         .map_err(|e| JsValue::from_str(&format!("Failed to initialize logger: {}", e)))?;
 
-    log::info!("WASM logging initialized at level: {}", log_level);
+    log::info!(
+        "WASM logging initialized at level: {} with stack trace support",
+        log_level
+    );
     Ok(())
 }

@@ -59,4 +59,10 @@ pub trait VirtualFileSystem {
 
     /// Create a directory (and any necessary parent directories)
     fn create_directory(&self, path: &str) -> impl Future<Output = Result<(), VfsError>>;
+
+    /// Load all files from a GitHub repository directory at once
+    fn load_github_directory(
+        &self,
+        directory_path: &str,
+    ) -> impl Future<Output = Result<LoadDirectoryResult, VfsError>>;
 }
