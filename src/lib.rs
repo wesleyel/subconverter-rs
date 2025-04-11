@@ -8,6 +8,7 @@ pub mod rulesets;
 pub mod settings;
 pub mod template;
 pub mod utils;
+pub mod vfs;
 #[cfg(feature = "web-api")]
 pub mod web_handlers;
 
