@@ -1,0 +1,172 @@
+name: Build and Publish subconverter-wasm
+
+on:
+  workflow_dispatch:  # 允许手动触发
+  release:
+    types: [created]  # 当创建新的release时触发
+  push:
+    branches: [main, master]
+    paths:
+      - 'wasm/**'     # 当wasm目录有变更时触发
+      - '.github/workflows/publish-wasm.yml'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      
+      - name: Build WASM package
+        run: wasm-pack build --target web --out-dir pkg
+      
+      - name: Create package.json for npm
+        run: |
+          cd pkg
+          
+          # 从当前package.json获取版本，如果存在
+          VERSION=$(node -p "try { require('./package.json').version } catch { '0.1.0' }")
+          
+          # 如果是通过push触发，增加预发布版本号
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # 生成基于时间戳和提交哈希的预发布版本
+            TIMESTAMP=$(date +%Y%m%d%H%M%S)
+            COMMIT_HASH=$(git rev-parse --short HEAD)
+            VERSION="${VERSION}-pre.${TIMESTAMP}.${COMMIT_HASH}"
+          fi
+          
+          # 创建或更新package.json
+          cat > package.json << EOF
+          {
+            "name": "subconverter-wasm",
+            "version": "${VERSION}",
+            "description": "WebAssembly package for subconverter-rs",
+            "main": "subconverter.js",
+            "module": "subconverter.js",
+            "types": "subconverter.d.ts",
+            "files": [
+              "subconverter_bg.wasm",
+              "subconverter.js",
+              "subconverter.d.ts",
+              "subconverter_bg.js"
+            ],
+            "sideEffects": [
+              "./subconverter.js",
+              "./subconverter_bg.js"
+            ],
+            "keywords": [
+              "wasm",
+              "webassembly",
+              "subconverter",
+              "proxy"
+            ],
+            "author": "laizn",
+            "license": "MIT",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/laizn/subconverter-rs"
+            },
+            "homepage": "https://github.com/laizn/subconverter-rs#readme",
+            "publishConfig": {
+              "access": "public"
+            }
+          }
+          EOF
+      
+      - name: Create README.md for npm package
+        run: |
+          cd pkg
+          
+          cat > README.md << EOF
+          # subconverter-wasm
+
+          WebAssembly build of [subconverter-rs](https://github.com/laizn/subconverter-rs) for web browsers and Node.js.
+
+          ## Installation
+
+          ```bash
+          npm install subconverter-wasm
+          # or
+          yarn add subconverter-wasm
+          # or
+          pnpm add subconverter-wasm
+          ```
+
+          ## Usage
+
+          ```js
+          import { convert_subscription } from 'subconverter-wasm';
+
+          // 异步调用转换函数
+          async function convertMySubscription() {
+            const result = await convert_subscription('https://example.com/sub', 'clash');
+            console.log(result);
+          }
+          ```
+
+          ## API Reference
+
+          - \`convert_subscription(url: string, target: string): Promise<string>\`: 转换订阅链接到目标格式
+          - \`admin_file_exists(path: string): Promise<boolean>\`: 检查文件是否存在
+          - \`admin_read_file(path: string): Promise<string>\`: 读取文件内容
+          - \`admin_write_file(path: string, content: string): Promise<boolean>\`: 写入文件
+          - \`list_directory(path: string): Promise<DirectoryEntry[]>\`: 列出目录内容
+
+          ## Notes
+
+          此版本号: \`${VERSION}\`，构建于 $(date)
+          EOF
+      
+      - name: Publish to npm
+        if: success()
+        run: |
+          cd pkg
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          
+          # 如果是Release触发，则发布正式版本
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            npm publish
+          else
+            # 从push触发的是预发布版本，使用beta标签
+            npm publish --tag beta
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "✅ subconverter-wasm has been successfully published to npm!"
+          
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION=$(node -p "require('./pkg/package.json').version")
+            echo "Published version: ${VERSION}"
+          else
+            VERSION=$(node -p "require('./pkg/package.json').version")
+            echo "Published beta version: ${VERSION}"
+          fi 

@@ -1,0 +1,103 @@
+name: Update Vercel Project
+
+on:
+  workflow_run:
+    workflows: ["Build and Publish subconverter-wasm"]
+    types:
+      - completed
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  update-vercel:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: '8'
+      
+      - name: Get latest WASM package version
+        id: get-version
+        run: |
+          # 获取最新的beta版本
+          BETA_VERSION=$(npm view subconverter-wasm dist-tags.beta)
+          # 获取最新的稳定版本
+          STABLE_VERSION=$(npm view subconverter-wasm dist-tags.latest)
+          
+          echo "BETA_VERSION=${BETA_VERSION}" >> $GITHUB_ENV
+          echo "STABLE_VERSION=${STABLE_VERSION}" >> $GITHUB_ENV
+          
+          # 默认使用稳定版本，除非只有beta版本可用
+          if [ -z "$STABLE_VERSION" ]; then
+            echo "WASM_VERSION=${BETA_VERSION}" >> $GITHUB_ENV
+          else
+            echo "WASM_VERSION=${STABLE_VERSION}" >> $GITHUB_ENV
+          fi
+      
+      - name: Update Vercel project
+        run: |
+          cd vercel
+          
+          # 更新package.json中的依赖版本
+          if [ -n "$WASM_VERSION" ]; then
+            echo "Updating to WASM version: $WASM_VERSION"
+            
+            # 使用临时文件保存修改后的package.json
+            npm pkg set dependencies.\"subconverter-wasm\"="^$WASM_VERSION"
+            
+            echo "Updated package.json"
+            cat package.json | grep subconverter-wasm
+          else
+            echo "No version information found for subconverter-wasm"
+          fi
+      
+      - name: Install dependencies
+        run: |
+          cd vercel
+          pnpm install
+      
+      - name: Copy WASM file to public directory
+        run: |
+          cd vercel
+          
+          # 确保目录存在
+          mkdir -p public/wasm
+          
+          # 从node_modules复制WASM文件
+          if [ -f "node_modules/subconverter-wasm/subconverter_bg.wasm" ]; then
+            cp node_modules/subconverter-wasm/subconverter_bg.wasm public/wasm/
+            echo "✅ Copied WASM file to public/wasm/"
+            ls -la public/wasm/
+          else
+            echo "❌ WASM file not found in node_modules"
+            find node_modules/subconverter-wasm -type f | sort
+          fi
+      
+      - name: Create PR with updates
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update subconverter-wasm to ${{ env.WASM_VERSION }}"
+          title: "Update subconverter-wasm to ${{ env.WASM_VERSION }}"
+          body: |
+            This PR updates the subconverter-wasm package to version ${{ env.WASM_VERSION }}.
+            
+            Changes include:
+            - Updated package.json dependency
+            - Updated WASM file in public/wasm directory
+            
+            This PR was created automatically by the update-vercel workflow.
+          branch: update-wasm-${{ env.WASM_VERSION }}
+          base: main
+          delete-branch: true 
