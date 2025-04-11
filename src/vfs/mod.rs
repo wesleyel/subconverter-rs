@@ -1,4 +1,5 @@
 pub mod vercel_kv_vfs;
+pub use vercel_kv_vfs::*;
 
 use std::future::Future;
 
@@ -21,6 +22,12 @@ pub enum VfsError {
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
 
+    #[error("Is a directory: {0}")]
+    IsDirectory(String),
+
+    #[error("Is not a directory: {0}")]
+    NotDirectory(String),
+
     #[error("Other error: {0}")]
     Other(String),
 }
@@ -35,5 +42,21 @@ pub trait VirtualFileSystem {
     ) -> impl Future<Output = Result<(), VfsError>>;
     fn exists(&self, path: &str) -> impl Future<Output = Result<bool, VfsError>>;
     fn delete_file(&self, path: &str) -> impl Future<Output = Result<(), VfsError>>;
-    // ... other methods like list_dir, etc. (add later if needed)
+
+    // New methods for directory operations and file attributes
+
+    /// List the contents of a directory
+    fn list_directory(
+        &self,
+        path: &str,
+    ) -> impl Future<Output = Result<Vec<DirectoryEntry>, VfsError>>;
+
+    /// Read the attributes of a file or directory
+    fn read_file_attributes(
+        &self,
+        path: &str,
+    ) -> impl Future<Output = Result<FileAttributes, VfsError>>;
+
+    /// Create a directory (and any necessary parent directories)
+    fn create_directory(&self, path: &str) -> impl Future<Output = Result<(), VfsError>>;
 }

@@ -84,6 +84,40 @@ export async function kv_exists(key) {
     }
 }
 
+export async function kv_list(prefix) {
+    try {
+        const kvClient = await getKv();
+        // console.log(`kv_list prefix: ${prefix}`);
+
+        // Vercel KV doesn't have a native list method with prefix filtering
+        // We need to use the scan method instead
+        let cursor = 0;
+        const keys = [];
+        let scanResult;
+
+        do {
+            // Use SCAN with MATCH to find keys with the given prefix
+            scanResult = await kvClient.scan(cursor, {
+                match: `${prefix}*`,
+                count: 100, // Limit number of keys per scan
+            });
+
+            cursor = scanResult[0]; // Update cursor for next iteration
+            const resultKeys = scanResult[1]; // Array of keys from this scan
+
+            if (resultKeys && resultKeys.length > 0) {
+                keys.push(...resultKeys);
+            }
+        } while (cursor !== '0'); // Continue until cursor becomes '0'
+
+        // console.log(`kv_list found ${keys.length} keys with prefix ${prefix}`);
+        return keys;
+    } catch (error) {
+        console.error(`KV list error for prefix ${prefix}:`, error);
+        throw error;
+    }
+}
+
 export async function kv_del(key) {
     try {
         const kvClient = await getKv();

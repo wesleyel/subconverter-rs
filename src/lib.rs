@@ -8,6 +8,7 @@ pub mod rulesets;
 pub mod settings;
 pub mod template;
 pub mod utils;
+#[cfg(target_arch = "wasm32")]
 pub mod vfs;
 #[cfg(feature = "web-api")]
 pub mod web_handlers;

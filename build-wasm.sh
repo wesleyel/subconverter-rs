@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -ex
 
 # Check if wasm-pack is installed
 if ! command -v wasm-pack &> /dev/null; then
@@ -9,7 +9,16 @@ fi
 
 # Build the wasm package in development mode with full debug information
 echo "Building wasm package in development mode..."
-wasm-pack build --dev --target web
-
+wasm-pack build --dev --target nodejs
 echo "WASM build complete! Output is in the 'pkg' directory."
 echo "Use this build for debugging. For production, run with --release." 
+
+echo "Adding snippets to package.json..."
+jq '.files += ["snippets/**/*.js"]' pkg/package.json | jq '.dependencies = {"@vercel/kv": "^3.0.0"}' > tmp.json && mv tmp.json pkg/package.json
+cd pkg
+pnpm install
+cd ..
+
+cd vercel-api-test
+pnpm install
+cd ..

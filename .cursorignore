@@ -2,3 +2,4 @@
 subconverter/base
 base
 base/**
+node_modules

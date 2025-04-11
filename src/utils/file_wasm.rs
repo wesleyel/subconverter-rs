@@ -12,7 +12,8 @@ use crate::vfs::VirtualFileSystem;
 // Let's use a Mutex around an Option<VercelKvVfs> and initialize on first use.
 static VFS: Lazy<Mutex<Option<VercelKvVfs>>> = Lazy::new(|| Mutex::new(None));
 
-async fn get_vfs() -> Result<VercelKvVfs, io::Error> {
+/// Get the VFS instance, initializing it if needed
+pub async fn get_vfs() -> Result<VercelKvVfs, io::Error> {
     let mut vfs_guard = VFS.lock().await;
     if vfs_guard.is_none() {
         info!("Initializing VercelKvVfs..."); // Keep info level for init
@@ -39,6 +40,8 @@ fn map_vfs_error(e: VfsError) -> io::Error {
         VfsError::StorageError(msg) => io::Error::new(io::ErrorKind::Other, msg),
         VfsError::NetworkError(err) => io::Error::new(io::ErrorKind::Other, err),
         VfsError::IoError(err) => err, // Pass through existing IO errors
+        VfsError::IsDirectory(path) => io::Error::new(io::ErrorKind::IsADirectory, path),
+        VfsError::NotDirectory(path) => io::Error::new(io::ErrorKind::NotADirectory, path),
         VfsError::Other(msg) => io::Error::new(io::ErrorKind::Other, msg),
     }
 }
@@ -195,4 +198,59 @@ pub async fn file_get_async<P: AsRef<Path>>(
     );
     // Delegate to the updated file_get
     file_get(path_ref, base_path).await
+}
+
+/// Get file attributes (async)
+///
+/// # Arguments
+/// * `path` - Path to the file or directory
+///
+/// # Returns
+/// * `Ok(FileAttributes)` - The file or directory attributes
+/// * `Err(io::Error)` - If the attributes can't be read
+pub async fn get_file_attributes(
+    path: &str,
+) -> io::Result<crate::vfs::vercel_kv_vfs::FileAttributes> {
+    debug!("get_file_attributes called for path: {}", path);
+    debug!("Attempting to get VFS instance...");
+    let vfs = get_vfs().await?;
+    debug!("Got VFS instance. Calling read_file_attributes...");
+    match vfs.read_file_attributes(path).await {
+        Ok(attributes) => {
+            debug!(
+                "Successfully got attributes for path: {}, size: {}",
+                path, attributes.size
+            );
+            Ok(attributes)
+        }
+        Err(e) => {
+            warn!("VFS read_file_attributes failed for {}: {:?}", path, e);
+            Err(map_vfs_error(e))
+        }
+    }
+}
+
+/// Create a directory (async)
+///
+/// # Arguments
+/// * `path` - Path to the directory to create
+///
+/// # Returns
+/// * `Ok(())` - If the directory was created successfully
+/// * `Err(io::Error)` - If the directory can't be created
+pub async fn create_directory(path: &str) -> io::Result<()> {
+    debug!("create_directory called for path: {}", path);
+    debug!("Attempting to get VFS instance...");
+    let vfs = get_vfs().await?;
+    debug!("Got VFS instance. Calling create_directory...");
+    match vfs.create_directory(path).await {
+        Ok(_) => {
+            debug!("Successfully created directory: {}", path);
+            Ok(())
+        }
+        Err(e) => {
+            warn!("VFS create_directory failed for {}: {:?}", path, e);
+            Err(map_vfs_error(e))
+        }
+    }
 }
