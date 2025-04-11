@@ -1,6 +1,3 @@
-use std::io;
-use std::path::Path;
-
 use crate::settings::Settings;
 use crate::utils::http::{parse_proxy, web_get_async};
 
@@ -35,7 +32,7 @@ pub async fn load_content_async(path: &str) -> Result<String, String> {
             Ok((data, _)) => Ok(data),
             Err(e) => Err(format!("Failed to fetch content: {}", e)),
         }
-    } else if file_exists(&path) {
+    } else if file_exists(path).await {
         // It's a file, read it asynchronously
         match read_file_async(path).await {
             Ok(data) => Ok(data),

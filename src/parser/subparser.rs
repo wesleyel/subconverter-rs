@@ -6,7 +6,7 @@ use crate::utils::http::get_sub_info_from_header;
 use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
-use crate::utils::{file_exists, file_get, web_get_async};
+use crate::utils::{file_exists, file_get_async, web_get_async};
 
 /// Equivalent to ConfType enum in C++
 #[derive(Debug, PartialEq, Eq)]
@@ -47,7 +47,6 @@ pub async fn add_nodes(
     let authorized = parse_settings.authorized;
 
     // Variables to store data during processing
-    let mut link_type = ConfType::Unknown;
     let mut nodes: Vec<Proxy> = Vec::new();
     let mut node = Proxy::default();
     let mut custom_group = String::new();
@@ -79,17 +78,20 @@ pub async fn add_nodes(
     }
 
     // Determine link type
-    if link.starts_with("https://t.me/socks") || link.starts_with("tg://socks") {
-        link_type = ConfType::SOCKS;
+    let link_type = if link.starts_with("https://t.me/socks") || link.starts_with("tg://socks") {
+        ConfType::SOCKS
     } else if link.starts_with("https://t.me/http") || link.starts_with("tg://http") {
-        link_type = ConfType::HTTP;
+        ConfType::HTTP
     } else if is_link(&link) || link.starts_with("surge:///install-config") {
-        link_type = ConfType::SUB;
+        ConfType::SUB
     } else if link.starts_with("Netch://") {
-        link_type = ConfType::Netch;
-    } else if file_exists(&link) {
-        link_type = ConfType::Local;
-    }
+        ConfType::Netch
+    } else if file_exists(&link).await {
+        ConfType::Local
+    } else {
+        // Default to Unknown for direct proxy links or invalid links
+        ConfType::Unknown
+    };
 
     match link_type {
         ConfType::SUB => {
@@ -165,7 +167,7 @@ pub async fn add_nodes(
             }
 
             // Read and parse local file
-            let result = explode_conf(&link, &mut nodes);
+            let result = explode_conf(&link, &mut nodes).await;
             if result > 0 {
                 // The rest is similar to SUB case
                 // Get subscription info
@@ -240,9 +242,9 @@ fn get_url_arg(url: &str, arg_name: &str) -> Option<String> {
 
 /// Parses a configuration file into a vector of Proxy objects
 /// Returns the number of proxies parsed
-fn explode_conf(path: &str, nodes: &mut Vec<Proxy>) -> i32 {
+async fn explode_conf(path: &str, nodes: &mut Vec<Proxy>) -> i32 {
     // TODO: 安全问题，但是旧版subconverter也有……
-    match file_get(path, None) {
+    match file_get_async(path, None).await {
         Ok(content) => explode_conf_content(&content, nodes),
         Err(_) => 0,
     }

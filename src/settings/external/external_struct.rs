@@ -1,6 +1,5 @@
 use serde_yaml;
 use std::collections::HashMap;
-use std::path::Path;
 use toml;
 
 use crate::models::{ProxyGroupConfig, RegexMatchConfig, RulesetConfig};

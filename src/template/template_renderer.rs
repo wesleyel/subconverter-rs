@@ -1,14 +1,9 @@
+use crate::utils::{file_exists, file_get_async};
+use crate::Settings;
 use log::error;
 use minijinja::{escape_formatter, Environment, Error as JinjaError, ErrorKind, Value};
-use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Mutex;
-
-use crate::utils::http::parse_proxy;
-use crate::utils::{file_exists, file_get};
-use crate::Settings;
 
 /// Template arguments container
 #[derive(Debug, Clone, Default, Serialize)]
@@ -76,7 +71,7 @@ pub fn render_template(
     env.add_function("endsWith", fn_ends_with);
     env.add_function("bool", fn_to_bool);
     env.add_function("string", fn_to_string);
-    env.add_function("fetch", fn_web_get);
+    // env.add_function("fetch", fn_web_get);
 
     // Build context object
     let mut global_vars = HashMap::new();
@@ -138,21 +133,22 @@ pub fn render_template(
 /// # Returns
 /// * `Ok(String)` - The rendered template
 /// * `Err(String)` - Error message if rendering fails
-pub fn render_template_file(
+pub async fn render_template_file(
     path: &str,
     args: &TemplateArgs,
     include_scope: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let content;
-    if file_exists(&path) {
-        content = file_get(
+    if file_exists(path).await {
+        content = file_get_async(
             path,
             if include_scope.is_empty() {
                 None
             } else {
                 Some(include_scope)
             },
-        )?;
+        )
+        .await?;
     } else {
         return Err(format!("Template file not found: {}", path).into());
     }
@@ -259,22 +255,4 @@ fn fn_to_bool(s: Value) -> Result<bool, JinjaError> {
 
 fn fn_to_string(n: Value) -> Result<String, JinjaError> {
     Ok(n.to_string())
-}
-
-fn fn_web_get(url: Value) -> Result<String, JinjaError> {
-    let url_str = url.to_string();
-    if url_str.is_empty() {
-        return Ok(String::new());
-    }
-
-    let settings = Settings::current();
-    let proxy = parse_proxy(&settings.proxy_config);
-
-    match crate::utils::web_get(&url_str, &proxy, None) {
-        Ok((content, _)) => Ok(content),
-        Err(e) => Err(JinjaError::new(
-            ErrorKind::InvalidOperation,
-            format!("Failed to fetch URL: {}", e),
-        )),
-    }
 }

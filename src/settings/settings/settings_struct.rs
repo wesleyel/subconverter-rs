@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::RwLock;
@@ -16,7 +15,7 @@ use crate::models::RegexMatchConfigs;
 use crate::models::RulesetConfig;
 use crate::utils::file::copy_file;
 use crate::utils::file_exists;
-use crate::utils::file_get;
+use crate::utils::file_get_async;
 use crate::utils::http::ProxyConfig;
 use crate::utils::web_get_async;
 
@@ -372,7 +371,7 @@ impl Settings {
             let (data, _) = web_get_async(path, &ProxyConfig::default(), None).await?;
             _content = data;
         } else {
-            _content = file_get(path, None)?;
+            _content = file_get_async(path, None).await?;
         }
         let mut settings = Settings::load_from_content(&_content, path).await?;
         settings.pref_path = path.to_owned();
@@ -429,7 +428,7 @@ pub async fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Er
     let default_config_paths = vec!["pref.toml", "pref.yml", "pref.ini"];
     let default_example_paths = vec!["pref.example.toml", "pref.example.yml", "pref.example.ini"];
     for path in default_config_paths {
-        if file_exists(&path) {
+        if file_exists(&path).await {
             info!("Loading settings from {}", path);
             match update_settings_from_file(path).await {
                 Ok(_) => return Ok(()),
@@ -441,14 +440,14 @@ pub async fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Er
         }
     }
     for path in default_example_paths {
-        if file_exists(&path) {
+        if file_exists(&path).await {
             let new_path = path.replace(".example", "");
             info!(
                 "Loading settings from {}, and copy it to {}",
                 path, &new_path
             );
             // copy
-            copy_file(&path, &new_path)?;
+            copy_file(&path, &new_path).await?;
 
             update_settings_from_file(&new_path).await?;
             return Ok(());

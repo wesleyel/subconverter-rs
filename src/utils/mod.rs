@@ -24,8 +24,8 @@ pub mod url;
 pub mod useragent;
 
 // Re-export common utilities
-pub use file::{file_exists, file_get, file_get_async};
-pub use http::{get_sub_info_from_header, web_get, web_get_async};
+pub use file::{file_exists, file_get_async};
+pub use http::{get_sub_info_from_header, web_get_async};
 pub use ini_reader::IniReader;
 pub use network::{is_ipv4, is_ipv6, is_link};
 pub use node_manip::{append_type_to_remark, preprocess_nodes};

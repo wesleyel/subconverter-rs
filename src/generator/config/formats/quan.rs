@@ -26,7 +26,7 @@ use log::error;
 ///
 /// # Returns
 /// * Quantumult configuration as a string
-pub fn proxy_to_quan(
+pub async fn proxy_to_quan(
     nodes: &mut Vec<Proxy>,
     base_conf: &str,
     ruleset_content_array: &mut Vec<RulesetContent>,
@@ -52,7 +52,8 @@ pub fn proxy_to_quan(
         ruleset_content_array,
         extra_proxy_group,
         ext,
-    );
+    )
+    .await;
 
     // Return result based on mode (nodelist or full config)
     if ext.nodelist {
@@ -82,7 +83,7 @@ pub fn proxy_to_quan(
 /// * `ruleset_content_array` - Array of ruleset contents to apply
 /// * `extra_proxy_group` - Extra proxy group configurations
 /// * `ext` - Extra settings for conversion
-fn proxy_to_quan_internal(
+async fn proxy_to_quan_internal(
     nodes: &mut Vec<Proxy>,
     ini: &mut IniReader,
     ruleset_content_array: &mut Vec<RulesetContent>,
@@ -452,6 +453,7 @@ fn proxy_to_quan_internal(
             -2,
             ext.overwrite_original_rules,
             "",
-        );
+        )
+        .await;
     }
 }

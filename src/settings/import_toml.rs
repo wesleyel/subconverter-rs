@@ -1,4 +1,4 @@
-use crate::utils::{file_exists, file_get, http::ProxyConfig};
+use crate::utils::{file_exists, file_get_async, http::ProxyConfig};
 
 use super::toml_deserializer::ImportableInToml;
 
@@ -25,27 +25,27 @@ pub async fn import_toml_items<T: ImportableInToml>(
         let path = item.get_import_path().unwrap();
         log::info!("Trying to import items from {}", path);
 
-        let content = if path.starts_with("http://") || path.starts_with("https://") {
+        let _content = if path.starts_with("http://") || path.starts_with("https://") {
             // Fetch from URL
             let (data, _) = crate::utils::http::web_get_async(&path, &proxy_config, None).await?;
             data
-        } else if file_exists(&path) {
+        } else if file_exists(&path).await {
             // Read from file
             if scope_limit {
-                file_get(&path, Some(base_path))?
+                file_get_async(&path, Some(base_path)).await?
             } else {
-                file_get(&path, None)?
+                file_get_async(&path, None).await?
             }
         } else {
             log::error!("File not found or not a valid URL: {}", path);
             return Err(format!("File not found or not a valid URL: {}", path).into());
         };
 
-        if content.is_empty() {
+        if _content.is_empty() {
             return Err("Empty content from import source".into());
         }
 
-        let toml_root_node = toml::from_str::<toml::Value>(&content)?;
+        let toml_root_node = toml::from_str::<toml::Value>(&_content)?;
         if let Some(sub_nodes) = toml_root_node.get(import_key) {
             if let Some(array) = sub_nodes.as_array() {
                 for sub_node in array {

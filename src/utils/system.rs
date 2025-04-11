@@ -49,7 +49,7 @@ pub fn get_system_proxy() -> String {
         // Return empty string to indicate no proxy
         return String::new();
     }
-    
+
     #[cfg(not(target_arch = "wasm32"))]
     #[cfg(target_os = "windows")]
     {
@@ -181,6 +181,7 @@ pub fn get_system_proxy() -> String {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[cfg(not(target_os = "windows"))]
     {
         let proxy_env = [

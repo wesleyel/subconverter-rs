@@ -337,7 +337,9 @@ pub async fn sub_process(
                         sssub_rule_base: global.ssub_base.clone(),
                         singbox_rule_base: global.singbox_base.clone(),
                     };
-                    rule_bases.check_external_bases(&extconf, &global.base_path);
+                    rule_bases
+                        .check_external_bases(&extconf, &global.base_path)
+                        .await;
                     builder.rule_bases(rule_bases);
 
                     if let Some(tpl_args) = extconf.tpl_args {

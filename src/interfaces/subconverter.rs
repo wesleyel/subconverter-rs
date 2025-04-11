@@ -785,7 +785,8 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
                 &config.proxy_groups,
                 *ver,
                 &mut config.extra.clone(),
-            );
+            )
+            .await;
 
             // Add managed configuration header if needed
             if !config.managed_config_prefix.is_empty() && config.extra.enable_rule_generator {
@@ -825,7 +826,8 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
                 &config.proxy_groups,
                 -3, // Special version for Surfboard
                 &mut config.extra.clone(),
-            );
+            )
+            .await;
 
             // Add managed configuration header if needed
             if !config.managed_config_prefix.is_empty() && config.extra.enable_rule_generator {
@@ -863,7 +865,7 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
                 &mut ruleset_content,
                 &config.proxy_groups,
                 &mut config.extra.clone(),
-            )
+            ).await
         }
         SubconverterTarget::SSSub => {
             info!("Generate target: SS Subscription");
@@ -910,6 +912,7 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
+            .await
         }
         SubconverterTarget::QuantumultX => {
             info!("Generate target: Quantumult X");
@@ -924,6 +927,7 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
+            .await
         }
         SubconverterTarget::Loon => {
             info!("Generate target: Loon");
@@ -938,6 +942,7 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
                 &config.proxy_groups,
                 &mut config.extra.clone(),
             )
+            .await
         }
         SubconverterTarget::SSD => {
             info!("Generate target: SSD");
@@ -1210,7 +1215,7 @@ impl RuleBases {
     ///
     /// This method checks if paths from external configuration are valid
     /// (either links or existing files) and updates the corresponding rule bases.
-    pub fn check_external_bases(
+    pub async fn check_external_bases(
         &mut self,
         ext_conf: &crate::settings::external::ExternalSettings,
         base_path: &str,
@@ -1219,53 +1224,62 @@ impl RuleBases {
             &ext_conf.clash_rule_base,
             &mut self.clash_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.surge_rule_base,
             &mut self.surge_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.surfboard_rule_base,
             &mut self.surfboard_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.mellow_rule_base,
             &mut self.mellow_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.quan_rule_base,
             &mut self.quan_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.quanx_rule_base,
             &mut self.quanx_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.loon_rule_base,
             &mut self.loon_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.sssub_rule_base,
             &mut self.sssub_rule_base,
             base_path,
-        );
+        )
+        .await;
         Self::check_external_base(
             &ext_conf.singbox_rule_base,
             &mut self.singbox_rule_base,
             base_path,
-        );
+        )
+        .await;
     }
 
     /// Check if a path is a link or exists in the base path and update the destination if valid
-    fn check_external_base(path: &str, dest: &mut String, base_path: &str) -> bool {
+    async fn check_external_base(path: &str, dest: &mut String, base_path: &str) -> bool {
         if crate::utils::is_link(path)
-            || (crate::utils::starts_with(path, base_path) && crate::utils::file_exists(path))
+            || (crate::utils::starts_with(path, base_path) && crate::utils::file_exists(path).await)
         {
             *dest = path.to_string();
             true

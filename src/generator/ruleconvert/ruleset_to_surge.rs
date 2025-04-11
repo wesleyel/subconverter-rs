@@ -117,7 +117,7 @@ lazy_static! {
 /// # Returns
 ///
 /// Status code indicating success or failure
-pub fn ruleset_to_surge(
+pub async fn ruleset_to_surge(
     base_rule: &mut IniReader,
     ruleset_content_array: &[RulesetContent],
     surge_ver: i32,
@@ -197,7 +197,7 @@ pub fn ruleset_to_surge(
                 continue;
             }
 
-            if file_exists(rule_path) {
+            if file_exists(rule_path).await {
                 if surge_ver > 2 && !remote_path_prefix.is_empty() {
                     let mut str_line = format!(
                         "RULE-SET,{}/getruleset?type=1&url={},{}",

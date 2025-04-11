@@ -5,7 +5,6 @@ use serde::{
     Deserialize,
 };
 
-
 use super::settings::yaml_settings::TemplateSettings;
 
 /// Stream rule configuration
@@ -244,7 +243,7 @@ where
             }
             Ok(template_settings)
         }
-    };
+    }
 
     deserializer.deserialize_any(TemplateSettingsVisitor)
 }

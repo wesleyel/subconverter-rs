@@ -1,4 +1,5 @@
-use crate::parser::parse_settings::CaseInsensitiveString;
+
+use case_insensitive_string::CaseInsensitiveString;
 use std::collections::HashMap;
 
 // Import platform-specific implementations

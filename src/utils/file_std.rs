@@ -23,8 +23,8 @@ pub async fn read_file_async(path: &str) -> Result<String, io::Error> {
 }
 
 /// Check if a file exists
-pub fn file_exists(path: &str) -> bool {
-    Path::new(path).exists()
+pub async fn file_exists(path: &str) -> bool {
+    tokio::fs::metadata(path).await.is_ok()
 }
 
 /// Read the contents of a file as a string
@@ -59,7 +59,7 @@ pub fn file_get<P: AsRef<Path>>(path: P, base_path: Option<&str>) -> io::Result<
 }
 
 /// Copy a file from source to destination
-pub fn copy_file(src: &str, dst: &str) -> io::Result<()> {
+pub async fn copy_file(src: &str, dst: &str) -> io::Result<()> {
     // Check if source exists
     if !Path::new(src).exists() {
         return Err(io::Error::new(

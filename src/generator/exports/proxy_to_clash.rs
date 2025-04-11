@@ -4,7 +4,6 @@ use crate::generator::ruleconvert::ruleset_to_clash_str;
 use crate::generator::yaml::clash::clash_output::ClashProxyOutput;
 use crate::generator::yaml::proxy_group_output::convert_proxy_groups;
 use crate::models::{ExtraSettings, Proxy, ProxyGroupConfigs, ProxyType, RulesetContent};
-use crate::utils::tribool::*;
 use log::error;
 use serde_yaml::{self, Mapping, Sequence, Value as YamlValue};
 use std::collections::{HashMap, HashSet};

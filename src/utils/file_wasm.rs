@@ -3,7 +3,9 @@ use log::{debug, error, info, warn}; // Import log macros
 use once_cell::sync::Lazy;
 use std::io;
 use std::path::Path;
-tokio::sync::Mutex; // Use Mutex if VFS needs mutable access, or if init is async
+use tokio::sync::Mutex; // Use Mutex if VFS needs mutable access, or if init is async
+                        // Import the trait
+use crate::vfs::VirtualFileSystem;
 
 // Global VFS instance - initialized lazily and asynchronously
 // We need an async initialization pattern, Lazy cannot directly await.
@@ -14,12 +16,10 @@ async fn get_vfs() -> Result<VercelKvVfs, io::Error> {
     let mut vfs_guard = VFS.lock().await;
     if vfs_guard.is_none() {
         info!("Initializing VercelKvVfs..."); // Keep info level for init
-        let vfs = VercelKvVfs::new()
-            .await
-            .map_err(|e| {
-                error!("VFS initialization failed: {}", e);
-                io::Error::new(io::ErrorKind::Other, format!("VFS init failed: {}", e))
-            })?;
+        let vfs = VercelKvVfs::new().map_err(|e| {
+            error!("VFS initialization failed: {}", e);
+            io::Error::new(io::ErrorKind::Other, format!("VFS init failed: {}", e))
+        })?;
         *vfs_guard = Some(vfs);
         info!("VercelKvVfs initialized successfully."); // Keep info level
     }
@@ -52,7 +52,11 @@ pub async fn read_file(path: &str) -> Result<String, io::Error> {
     let bytes_result = vfs.read_file(path).await;
     match bytes_result {
         Ok(bytes) => {
-            debug!("Successfully read {} bytes from VFS for path: {}", bytes.len(), path);
+            debug!(
+                "Successfully read {} bytes from VFS for path: {}",
+                bytes.len(),
+                path
+            );
             debug!("Converting bytes to UTF-8 string...");
             String::from_utf8(bytes).map_err(|e| {
                 error!("Failed to convert bytes to UTF-8 for {}: {}", path, e);
@@ -76,7 +80,10 @@ pub async fn read_file(path: &str) -> Result<String, io::Error> {
 /// * `Ok(String)` - The file contents
 /// * `Err(io::Error)` - If the file can't be read
 pub async fn read_file_async(path: &str) -> Result<String, io::Error> {
-    debug!("read_file_async called for path: {}, delegating to read_file", path);
+    debug!(
+        "read_file_async called for path: {}, delegating to read_file",
+        path
+    );
     read_file(path).await // Just delegate
 }
 
@@ -140,7 +147,11 @@ pub async fn copy_file(src: &str, dst: &str) -> io::Result<()> {
     let content_result = vfs.read_file(src).await;
     let content = match content_result {
         Ok(content) => {
-            debug!("Successfully read {} bytes from source: {}", content.len(), src);
+            debug!(
+                "Successfully read {} bytes from source: {}",
+                content.len(),
+                src
+            );
             content
         }
         Err(e) => {
@@ -178,7 +189,10 @@ pub async fn file_get_async<P: AsRef<Path>>(
     base_path: Option<&str>,
 ) -> io::Result<String> {
     let path_ref = path.as_ref();
-    debug!("file_get_async called for path: {:?}, delegating to file_get", path_ref);
+    debug!(
+        "file_get_async called for path: {:?}, delegating to file_get",
+        path_ref
+    );
     // Delegate to the updated file_get
     file_get(path_ref, base_path).await
 }

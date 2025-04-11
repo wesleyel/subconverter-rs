@@ -1,5 +1,5 @@
-use crate::parser::parse_settings::CaseInsensitiveString;
 use crate::utils::system::get_system_proxy;
+use case_insensitive_string::CaseInsensitiveString;
 use std::collections::HashMap;
 use std::time::Duration;
 

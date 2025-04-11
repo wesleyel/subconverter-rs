@@ -1,11 +1,11 @@
-use crate::parser::parse_settings::CaseInsensitiveString;
 use crate::utils::system::get_system_proxy;
+use case_insensitive_string::CaseInsensitiveString;
 use std::collections::HashMap;
 
-use js_sys::{Array, Object, Promise, Reflect};
+use js_sys::{Array, Object};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Headers, Request, RequestInit, RequestMode, Response};
+use web_sys::{Request, RequestInit, RequestMode, Response};
 
 #[derive(Debug, Clone)]
 pub struct ProxyConfig {
@@ -45,14 +45,15 @@ pub fn parse_proxy(proxy_str: &str) -> ProxyConfig {
 /// * `Err(String)` - Error message if the request failed
 pub async fn web_get_async(
     url: &str,
-    proxy_config: &ProxyConfig,
+    _proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
 ) -> Result<(String, HashMap<String, String>), String> {
     // In WASM environment, we use the fetch API
     // Note: Proxy configuration is not supported in WASM environment
+    #[allow(unused_mut)]
     let mut opts = RequestInit::new();
     opts.set_method("GET");
-    opts.mode(RequestMode::Cors);
+    opts.set_mode(RequestMode::Cors);
 
     // Create request object
     let request = match Request::new_with_str_and_init(url, &opts) {
@@ -136,9 +137,9 @@ pub async fn web_get_async(
 ///
 /// This function is provided for compatibility with the existing codebase.
 pub fn web_get(
-    url: &str,
-    proxy_config: &ProxyConfig,
-    headers: Option<&HashMap<CaseInsensitiveString, String>>,
+    _url: &str,
+    _proxy_config: &ProxyConfig,
+    _headers: Option<&HashMap<CaseInsensitiveString, String>>,
 ) -> Result<(String, HashMap<String, String>), String> {
     // In WASM environment, we can't block and wait for async operations
     // Users should use web_get_async directly

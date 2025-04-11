@@ -68,7 +68,7 @@ fn generate_peer(node: &Proxy, client_id_as_reserved: bool) -> String {
 ///
 /// # Returns
 /// * Converted configuration as a string
-pub fn proxy_to_surge(
+pub async fn proxy_to_surge(
     nodes: &mut Vec<Proxy>,
     base_conf: &str,
     ruleset_content_array: &mut Vec<RulesetContent>,
@@ -669,7 +669,8 @@ pub fn proxy_to_surge(
             surge_ver,
             ext.overwrite_original_rules,
             &ext.managed_config_prefix,
-        );
+        )
+        .await;
     }
 
     ini.to_string()
