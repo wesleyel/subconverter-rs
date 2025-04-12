@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { NextConfig } from "next";
 import type { Compiler } from 'webpack';
+import withRspack from 'next-rspack';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,4 +140,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withRspack(nextConfig);
