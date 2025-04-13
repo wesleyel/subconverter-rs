@@ -1,4 +1,4 @@
-name: Update Vercel Project
+name: Update Vercel and Netlify Projects
 
 on:
   workflow_run:
@@ -13,10 +13,8 @@ on:
         type: string
 
 jobs:
-  update-vercel:
+  update-dependencies:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,121 +23,141 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
       
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v3
         with:
-          version: '8'
+          version: 8
+          run_install: false
       
-      - name: Get latest WASM package version
-        id: get-version
+      - name: Get latest version
+        id: version
         run: |
-          # 如果手动触发并指定了版本，则使用该版本
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.version }}" ]]; then
-            SPECIFIED_VERSION="${{ github.event.inputs.version }}"
-            echo "Using specified version: $SPECIFIED_VERSION"
-            echo "WASM_VERSION=${SPECIFIED_VERSION}" >> $GITHUB_ENV
-            exit 0
-          fi
-          
-          # 获取最新的beta版本
-          BETA_VERSION=$(npm view subconverter-wasm dist-tags.beta 2>/dev/null || echo "")
-          echo "Latest beta version: ${BETA_VERSION:-none}"
-          
-          # 获取最新的稳定版本
-          STABLE_VERSION=$(npm view subconverter-wasm dist-tags.latest 2>/dev/null || echo "")
-          echo "Latest stable version: ${STABLE_VERSION:-none}"
-          
-          # 优先使用稳定版本，除非只有beta版本可用
-          if [ -n "$STABLE_VERSION" ]; then
-            echo "Using latest stable version: $STABLE_VERSION"
-            echo "WASM_VERSION=${STABLE_VERSION}" >> $GITHUB_ENV
-          elif [ -n "$BETA_VERSION" ]; then
-            echo "No stable version found, using latest beta: $BETA_VERSION"
-            echo "WASM_VERSION=${BETA_VERSION}" >> $GITHUB_ENV
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            # 使用指定的版本
+            WASM_VERSION="${{ github.event.inputs.version }}"
+            echo "Using specified version: $WASM_VERSION"
           else
-            echo "No versions found for subconverter-wasm package"
-            exit 1
+            # 获取最新的稳定版本或beta版本
+            STABLE_VERSION=$(npm view subconverter-wasm version 2>/dev/null || echo "none")
+            BETA_VERSION=$(npm view subconverter-wasm dist-tags.beta 2>/dev/null || echo "none")
+            
+            if [[ "$STABLE_VERSION" != "none" ]]; then
+              WASM_VERSION="$STABLE_VERSION"
+              echo "Using latest stable version: $WASM_VERSION"
+            elif [[ "$BETA_VERSION" != "none" ]]; then
+              WASM_VERSION="$BETA_VERSION"
+              echo "Using latest beta version: $WASM_VERSION (stable not available)"
+            else
+              echo "Error: Could not find any published versions"
+              exit 1
+            fi
           fi
+          
+          echo "WASM_VERSION=${WASM_VERSION}" >> $GITHUB_ENV
+          echo "wasm_version=${WASM_VERSION}" >> $GITHUB_OUTPUT
       
-      - name: Update Vercel project
+      - name: Check current version in package.json
+        id: check_version
         run: |
           cd vercel
+          CURRENT_VERSION=$(node -p "try { require('./package.json').dependencies['subconverter-wasm'] } catch(e) { '' }")
           
-          # 检查当前package.json中的依赖版本
-          CURRENT_VERSION=$(node -p "try { require('./package.json').dependencies?.['subconverter-wasm'] || 'not found' } catch { 'not found' }")
-          echo "Current dependency version: $CURRENT_VERSION"
+          if [[ "$CURRENT_VERSION" == "^${{ env.WASM_VERSION }}" ]]; then
+            echo "Current version is already up to date: $CURRENT_VERSION, no update needed."
+            echo "SKIP_UPDATE=true" >> $GITHUB_ENV
+          else
+            echo "Current version: ${CURRENT_VERSION:-none}, will update to ^${{ env.WASM_VERSION }}"
+            echo "SKIP_UPDATE=false" >> $GITHUB_ENV
+          fi
+      
+      - name: Update package.json
+        if: env.SKIP_UPDATE != 'true'
+        run: |
+          cd vercel
+          # 使用jq更新package.json
+          sudo apt-get update && sudo apt-get install -y jq
           
-          # 更新package.json中的依赖版本
-          if [ -n "$WASM_VERSION" ]; then
-            echo "Updating to WASM version: $WASM_VERSION"
-            
-            # 检查是否需要更新（避免相同版本重复PR）
-            if [[ "$CURRENT_VERSION" == "^$WASM_VERSION" ]]; then
-              echo "Already using version $WASM_VERSION, no update needed"
-              echo "SKIP_UPDATE=true" >> $GITHUB_ENV
-              exit 0
-            fi
-            
-            # 使用npm命令更新package.json
-            npm pkg set dependencies.\"subconverter-wasm\"="^$WASM_VERSION"
-            
+          jq --arg version "^${{ env.WASM_VERSION }}" '.dependencies["subconverter-wasm"] = $version' package.json > package.json.new
+          
+          if [ -s package.json.new ]; then
+            mv package.json.new package.json
             echo "Updated package.json:"
             cat package.json | grep subconverter-wasm
-            
-            # 添加环境变量用于分支名
-            CLEAN_VERSION="${WASM_VERSION//[^a-zA-Z0-9.]/-}"
-            echo "BRANCH_VERSION=${CLEAN_VERSION}" >> $GITHUB_ENV
           else
-            echo "No version information found for subconverter-wasm"
+            echo "Error: Failed to update package.json"
             exit 1
           fi
       
-      - name: Install dependencies
-        if: ${{ !env.SKIP_UPDATE }}
+      # 安装依赖并拷贝WASM文件
+      - name: Install dependencies and copy WASM
+        if: env.SKIP_UPDATE != 'true'
         run: |
           cd vercel
           pnpm install
+          
+          mkdir -p public
+          cp -f node_modules/subconverter-wasm/subconverter_bg.wasm public/
+          echo "Copied WASM file to public directory"
       
-      - name: Copy WASM file to public directory
-        if: ${{ !env.SKIP_UPDATE }}
+      # 为Netlify设置相同的依赖
+      - name: Setup Netlify dependencies
+        if: env.SKIP_UPDATE != 'true'
         run: |
-          cd vercel
-          
-          # 确保目录存在
-          mkdir -p public/wasm
-          
-          # 从node_modules复制WASM文件
-          if [ -f "node_modules/subconverter-wasm/subconverter_bg.wasm" ]; then
-            cp node_modules/subconverter-wasm/subconverter_bg.wasm public/wasm/
-            echo "✅ Copied WASM file to public/wasm/"
-            ls -la public/wasm/
+          # 确保Netlify目录存在
+          if [ -d "netlify" ]; then
+            cd netlify
             
-            # 获取文件大小
-            WASM_SIZE=$(du -h public/wasm/subconverter_bg.wasm | cut -f1)
-            echo "WASM file size: $WASM_SIZE"
+            # 使用jq更新package.json
+            sudo apt-get update && sudo apt-get install -y jq
+            
+            jq --arg version "^${{ env.WASM_VERSION }}" '.dependencies["subconverter-wasm"] = $version' package.json > package.json.new
+            
+            if [ -s package.json.new ]; then
+              mv package.json.new package.json
+              echo "Updated Netlify package.json:"
+              cat package.json | grep subconverter-wasm
+              
+              # 安装依赖
+              pnpm install
+              
+              # 复制WASM文件到Netlify的public目录
+              mkdir -p public
+              cp -f node_modules/subconverter-wasm/subconverter_bg.wasm public/
+              echo "Copied WASM file to Netlify public directory"
+            else
+              echo "Error: Failed to update Netlify package.json"
+              exit 1
+            fi
           else
-            echo "❌ WASM file not found in node_modules"
-            find node_modules/subconverter-wasm -type f | sort
-            exit 1
+            echo "Netlify directory not found, skipping Netlify setup"
           fi
       
-      - name: Create PR with updates
-        if: ${{ !env.SKIP_UPDATE }}
-        uses: peter-evans/create-pull-request@v6
+      # 创建PR更新依赖
+      - name: Create Pull Request
+        if: env.SKIP_UPDATE != 'true'
+        uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update subconverter-wasm to ${{ env.WASM_VERSION }}"
-          title: "Update subconverter-wasm to ${{ env.WASM_VERSION }}"
+          commit-message: "chore: Update subconverter-wasm to version ${{ env.WASM_VERSION }}"
+          title: "Update subconverter-wasm to version ${{ env.WASM_VERSION }}"
           body: |
-            This PR updates the subconverter-wasm package to version ${{ env.WASM_VERSION }}.
+            This PR updates subconverter-wasm dependency to version ${{ env.WASM_VERSION }}.
             
-            Changes include:
-            - Updated package.json dependency from `${{ steps.get-version.outputs.current_version || 'none' }}` to `^${{ env.WASM_VERSION }}`
-            - Updated WASM file in public/wasm directory
+            - Updated package.json in Vercel project
+            - Copied WASM file to public directory
+            - Updated Netlify dependencies (if applicable)
             
-            This PR was created automatically by the update-vercel workflow.
-          branch: update-wasm-${{ env.BRANCH_VERSION || env.WASM_VERSION }}
+            This update was automatically generated by the GitHub Actions workflow.
+          branch: update-wasm-${{ env.WASM_VERSION }}
+          delete-branch: true
           base: main
-          delete-branch: true 
+          path: .
+      
+      - name: Notify on Success
+        run: |
+          if [[ "${{ env.SKIP_UPDATE }}" == "true" ]]; then
+            echo "✅ No update needed, current version is already up to date."
+          else
+            echo "✅ Created PR to update subconverter-wasm to version ${{ env.WASM_VERSION }}."
+          fi 
