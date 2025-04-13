@@ -4,7 +4,6 @@ use crate::vfs::vercel_kv_js_bindings::*;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
 use crate::vfs::VfsError;
-use crate::vfs::VirtualFileSystem;
 use serde_wasm_bindgen;
 use std::time::UNIX_EPOCH;
 use wasm_bindgen_futures;

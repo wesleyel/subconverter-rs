@@ -10,9 +10,8 @@ use crate::vfs::VirtualFileSystem;
 use js_sys::Uint8Array;
 use log::debug;
 use serde_wasm_bindgen;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::time::UNIX_EPOCH;
-use wasm_bindgen_futures;
 
 impl VercelKvVfs {
     /// Read file attributes

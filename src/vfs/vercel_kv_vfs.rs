@@ -1,5 +1,4 @@
 use super::VirtualFileSystem;
-use crate::vfs::vercel_kv_directory::*;
 use crate::vfs::vercel_kv_github::GitHubConfig;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::VfsError;

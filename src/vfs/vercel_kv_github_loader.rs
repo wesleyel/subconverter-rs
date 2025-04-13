@@ -6,11 +6,8 @@ use crate::vfs::vercel_kv_types::*;
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
 use crate::vfs::VfsError;
 use js_sys::Uint8Array;
-use log::debug;
 use serde_wasm_bindgen;
-use std::collections::{HashMap, HashSet};
 use std::time::UNIX_EPOCH;
-use wasm_bindgen_futures;
 
 impl VercelKvVfs {
     /// Load all files from a GitHub repository directory

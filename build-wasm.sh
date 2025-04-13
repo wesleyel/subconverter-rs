@@ -57,11 +57,25 @@ fi
 
 # If we're in release mode and no version is provided, generate a pre-release version
 if [ "$RELEASE_MODE" = true ] && [ -z "$VERSION" ]; then
-  # Generate a pre-release version based on current version + date + short git hash
+  # Extract the base version without any pre-release tags (e.g., 0.1.0 from 0.1.0-pre.xxx)
+  BASE_VERSION=$(echo "$CURRENT_VERSION" | sed 's/\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/')
+  
+  # Generate a pre-release version based on base version + date + short git hash
   GIT_HASH=$(git rev-parse --short HEAD)
   DATE_PART=$(date '+%Y%m%d')
-  VERSION="${CURRENT_VERSION}-pre.${DATE_PART}.${GIT_HASH}"
+  VERSION="${BASE_VERSION}-pre.${DATE_PART}.${GIT_HASH}"
   echo "Auto-generated pre-release version: $VERSION"
+fi
+
+# Set default values for publish flags in release mode
+if [ "$RELEASE_MODE" = true ]; then
+  # Only set to true if they weren't explicitly set by command line arguments
+  if [[ "$@" != *"--publish-npm"* ]]; then
+    PUBLISH_NPM=true
+  fi
+  if [[ "$@" != *"--publish-crates"* ]]; then
+    PUBLISH_CRATES=true
+  fi
 fi
 
 # Build the wasm package
@@ -84,13 +98,14 @@ fi
 
 # Update package.json in pkg
 echo "Updating package.json..."
-VERSION_FROM_CARGO=$(grep -m 1 "version" Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+# Use VERSION if set, otherwise use the version from Cargo.toml
+PKG_VERSION=${VERSION:-$CURRENT_VERSION}
 jq '.files += ["snippets/"]' pkg/package.json | \
   jq '.dependencies = {"@vercel/kv": "^3.0.0"}' | \
   jq '.name = "subconverter-wasm"' | \
   jq '.dependencies["@vercel/kv"] = "^3.0.0"' | \
   jq '.dependencies["@netlify/blobs"] = "^8.1.2"' | \
-  jq ".version = \"$VERSION_FROM_CARGO\"" > tmp.json && mv tmp.json pkg/package.json
+  jq ".version = \"$PKG_VERSION\"" > tmp.json && mv tmp.json pkg/package.json
 
 # Install dependencies in pkg
 cd pkg
@@ -100,12 +115,21 @@ cd ..
 # Publish to crates.io if requested
 if [ "$RELEASE_MODE" = true ] && [ "$PUBLISH_CRATES" = true ]; then
   echo "Publishing to crates.io..."
-  cargo publish --allow-dirty
+  cargo publish --allow-dirty --registry crates-io
 fi
 
 # Publish to npm if requested
 if [ "$RELEASE_MODE" = true ] && [ "$PUBLISH_NPM" = true ]; then
   echo "Publishing to npm..."
+  
+  # Update version in www/package.json if it exists
+  if [ -d "www" ] && [ -f "www/package.json" ]; then
+    echo "Updating version in www/package.json to $PKG_VERSION..."
+    cd www
+    jq ".dependencies[\"subconverter-wasm\"] = \"$PKG_VERSION\"" package.json > tmp.json && mv tmp.json package.json
+    cd ..
+  fi
+  
   cd pkg
   npm publish --access public
   cd ..

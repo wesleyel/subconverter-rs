@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadWasmSingleton } from '@/lib/wasm';
 
+// Define correct types for route parameters according to Next.js 15
+type RouteParams = any;
+
 // Handle file operations via admin API
 export async function GET(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: RouteParams
 ) {
     let wasmModule;
     try {
@@ -73,7 +76,7 @@ export async function GET(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: RouteParams
 ) {
     let wasmModule;
     try {
@@ -140,14 +143,14 @@ export async function POST(
 // Handle PUT requests the same as POST for consistency
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: RouteParams
 ) {
     return POST(request, { params });
 }
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { path: string[] } }
+    { params }: RouteParams
 ) {
     let wasmModule;
     try {

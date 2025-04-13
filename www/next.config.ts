@@ -28,7 +28,7 @@ const nextConfig: NextConfig = {
 
   // Using serverExternalPackages to tell Next.js to resolve the WASM module at runtime
   // This ensures proper WASM loading in server environments like Netlify
-  serverExternalPackages: ['subconverter-wasm'],
+  serverExternalPackages: ['subconverter-wasm', '../pkg'],
 
   // Webpack config to support WASM
   webpack: (config, { isServer, dev }) => {

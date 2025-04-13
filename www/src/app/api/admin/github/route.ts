@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadWasmSingleton } from '@/lib/wasm';
 
+// Add a type definition for the WASM module
+interface AdminWasmModule {
+    admin_load_github_directory: (path: string, shallow: boolean) => Promise<any>;
+    admin_load_github_directory_flat?: (path: string, shallow: boolean) => Promise<any>;
+    // Add other methods as needed
+}
+
 /**
  * Handle GitHub content loading requests
  */
 export async function POST(request: NextRequest) {
-    let wasmModule;
+    let wasmModule: AdminWasmModule;
     try {
-        wasmModule = await loadWasmSingleton('Admin');
+        wasmModule = await loadWasmSingleton('Admin') as AdminWasmModule;
     } catch (error) {
         console.error("Failed to load WASM module:", error);
         return NextResponse.json(
@@ -35,9 +42,7 @@ export async function POST(request: NextRequest) {
         if (recursive) {
             result = await wasmModule.admin_load_github_directory(path, !!shallow);
         } else if ('admin_load_github_directory_flat' in wasmModule) {
-            // Use type assertion to address TypeScript type error
-            const flatLoadFn = (wasmModule as any).admin_load_github_directory_flat;
-            result = await flatLoadFn(path, !!shallow);
+            result = await wasmModule.admin_load_github_directory_flat!(path, !!shallow);
         } else {
             // Fallback if flat function is not available
             console.log('admin_load_github_directory_flat not available, using recursive mode');
@@ -64,9 +69,9 @@ export async function POST(request: NextRequest) {
  * Support GET for convenience, using query parameters
  */
 export async function GET(request: NextRequest) {
-    let wasmModule;
+    let wasmModule: AdminWasmModule;
     try {
-        wasmModule = await loadWasmSingleton('Admin-GitHubAPI');
+        wasmModule = await loadWasmSingleton('Admin-GitHubAPI') as AdminWasmModule;
     } catch (error) {
         console.error("Failed to load WASM module:", error);
         return NextResponse.json(
@@ -95,9 +100,7 @@ export async function GET(request: NextRequest) {
         if (recursive) {
             result = await wasmModule.admin_load_github_directory(path, shallow);
         } else if ('admin_load_github_directory_flat' in wasmModule) {
-            // Use type assertion to address TypeScript type error
-            const flatLoadFn = (wasmModule as any).admin_load_github_directory_flat;
-            result = await flatLoadFn(path, shallow);
+            result = await wasmModule.admin_load_github_directory_flat!(path, shallow);
         } else {
             // Fallback if flat function is not available
             console.log('admin_load_github_directory_flat not available, using recursive mode');
