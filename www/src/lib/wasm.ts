@@ -8,7 +8,7 @@ import type { DirectoryEntry, FileAttributes } from 'subconverter-wasm';
 export type { DirectoryEntry, FileAttributes };
 
 // BigInt.prototype.toJSON = function () {
-BigInt.prototype.toJSON = function () {
+(BigInt.prototype as any).toJSON = function () {
     return { $bigint: this.toString() };
 };
 
