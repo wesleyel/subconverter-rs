@@ -15,10 +15,6 @@ vendored-openssl = ["openssl/vendored"]
 web-api = ["actix-web"]
 
 
-[[example]]
-name = "subconverter-example1"
-path = "examples/subconverter/main.rs"
-
 [[bin]]
 name = "subconverter"
 required-features = ["web-api"]
