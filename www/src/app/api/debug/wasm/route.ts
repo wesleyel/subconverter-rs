@@ -32,11 +32,11 @@ export async function GET(_request: NextRequest) {
                 try {
                     let result;
                     if (funcName === 'admin_file_exists') {
-                        result = await (wasmModule as any)[funcName]('README.md');
+                        result = await (wasmModule as any)[funcName]('pref.example.ini');
                     } else if (funcName === 'list_directory') {
                         result = await (wasmModule as any)[funcName]('/');
                     } else if (funcName === 'admin_read_file') {
-                        result = (await (wasmModule as any)[funcName]('README.md')).substring(0, 100) + '...';
+                        result = (await (wasmModule as any)[funcName]('pref.example.ini')).substring(0, 100) + '...';
                     }
 
                     functionResults[funcName] = {
