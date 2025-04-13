@@ -16,8 +16,7 @@ echo "Use this build for debugging. For production, run with --release."
 echo "Adding snippets to package.json..."
 jq '.files += ["snippets/"]' pkg/package.json | \
 jq '.dependencies = {"@vercel/kv": "^3.0.0"}' | \
-jq '.name = "subconverter-wasm"' | \
-jq '.type = "module"' > tmp.json && mv tmp.json pkg/package.json
+jq '.name = "subconverter-wasm"' > tmp.json && mv tmp.json pkg/package.json
 cd pkg
 pnpm install
 cd ..

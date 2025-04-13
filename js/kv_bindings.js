@@ -3,7 +3,7 @@
 // Ensures fallback for local development when neither Vercel KV nor Netlify Blobs are available
 
 // Expose the localStorageMap for debugging
-export let localStorageMap = new Map(); // Local in-memory fallback
+let localStorageMap = new Map(); // Local in-memory fallback
 let kv; // Lazy load KV
 
 async function getKv() {
@@ -14,14 +14,14 @@ async function getKv() {
                 process.env.KV_REST_API_URL &&
                 process.env.KV_REST_API_TOKEN) {
                 // Dynamic import for environments where top-level await might not be supported
-                const module = await import('@vercel/kv');
-                kv = module.kv;
+                const vercelKv = require('@vercel/kv');
+                kv = vercelKv.kv;
                 console.log("Using Vercel KV for storage");
             }
             // Check for Netlify Blobs environment
             else if (typeof process !== 'undefined' && process.env.NETLIFY === 'true') {
                 try {
-                    const { getStore } = await import('@netlify/blobs');
+                    const { getStore } = require('@netlify/blobs');
                     const store = getStore('subconverter-data');
 
                     // Create adapter to match Vercel KV interface
@@ -198,7 +198,7 @@ async function getKv() {
 // Both Vercel KV and Netlify Blobs may store raw bytes differently
 // For Vercel KV, it stores raw bytes as base64 strings when using the REST API directly
 // For Netlify Blobs, we request arrayBuffer type and convert to Uint8Array
-export async function kv_get(key) {
+async function kv_get(key) {
     try {
         const kvClient = await getKv();
         const value = await kvClient.get(key);
@@ -218,7 +218,7 @@ export async function kv_get(key) {
 
 // Both Vercel KV and Netlify Blobs can handle binary data
 // We'll trust the adapter to handle Uint8Array values appropriately
-export async function kv_set(key, value /* Uint8Array from Rust */) {
+async function kv_set(key, value /* Uint8Array from Rust */) {
     try {
         const kvClient = await getKv();
         await kvClient.set(key, value);
@@ -227,7 +227,7 @@ export async function kv_set(key, value /* Uint8Array from Rust */) {
     }
 }
 
-export async function kv_exists(key) {
+async function kv_exists(key) {
     try {
         const kvClient = await getKv();
         const exists = await kvClient.exists(key);
@@ -238,7 +238,7 @@ export async function kv_exists(key) {
     }
 }
 
-export async function kv_list(prefix) {
+async function kv_list(prefix) {
     try {
         const kvClient = await getKv();
         let cursor = 0;
@@ -267,7 +267,7 @@ export async function kv_list(prefix) {
     }
 }
 
-export async function kv_del(key) {
+async function kv_del(key) {
     try {
         const kvClient = await getKv();
         await kvClient.del(key);
@@ -277,7 +277,7 @@ export async function kv_del(key) {
 }
 
 // Use global fetch available in Edge runtime
-export async function fetch_url(url) {
+async function fetch_url(url) {
     try {
         const response = await fetch(url);
         return response;
@@ -288,7 +288,7 @@ export async function fetch_url(url) {
 }
 
 // Helper to get status from Response
-export async function response_status(response /* Response object */) {
+async function response_status(response /* Response object */) {
     // Add type check for robustness
     if (!(response instanceof Response)) {
         throw new Error("Input is not a Response object");
@@ -297,7 +297,7 @@ export async function response_status(response /* Response object */) {
 }
 
 // Helper to get body as bytes (Uint8Array) from Response
-export async function response_bytes(response /* Response object */) {
+async function response_bytes(response /* Response object */) {
     // Add type check for robustness
     if (!(response instanceof Response)) {
         throw new Error("Input is not a Response object");
@@ -311,9 +311,21 @@ export async function response_bytes(response /* Response object */) {
     }
 }
 
-export function dummy() {
+function dummy() {
     return "dummy";
 }
 
-// Make getKv function public for direct testing
-export { getKv }; 
+// Export all functions using CommonJS syntax
+module.exports = {
+    localStorageMap,
+    getKv,
+    kv_get,
+    kv_set,
+    kv_exists,
+    kv_list,
+    kv_del,
+    fetch_url,
+    response_status,
+    response_bytes,
+    dummy
+}; 
