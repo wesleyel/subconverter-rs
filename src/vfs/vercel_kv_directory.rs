@@ -203,15 +203,12 @@ impl VercelKvVfs {
                                         && direct_subdirs.insert(dir_name.to_string())
                                     {
                                         // Add as directory entry
-                                        let dir_path = format!(
-                                            "{}{}/",
-                                            if path.ends_with('/') {
-                                                &path
-                                            } else {
-                                                &format!("{}/", path)
-                                            },
-                                            dir_name
-                                        );
+                                        let dir_path_prefix = if path.ends_with('/') {
+                                            path.to_string()
+                                        } else {
+                                            format!("{}/", path)
+                                        };
+                                        let dir_path = format!("{}{}/", dir_path_prefix, dir_name);
 
                                         log_debug!(
                                             "Adding direct subdirectory from GitHub: '{}'",
@@ -223,27 +220,46 @@ impl VercelKvVfs {
                                             is_directory: true,
                                             attributes: Some(FileAttributes {
                                                 is_directory: true,
+                                                source_type: "cloud".to_string(),
                                                 ..Default::default()
                                             }),
                                         });
                                     }
                                 } else {
                                     // This is a direct file child
-                                    if let Ok(attrs) = self.read_file_attributes(file_path).await {
-                                        entries.push(DirectoryEntry {
-                                            name: get_filename(file_path),
-                                            path: file_path.clone(),
-                                            is_directory: false,
-                                            attributes: Some(attrs),
-                                        });
+                                    // Use the file size directly from the GitHub API result
+                                    let attrs = if let Ok(attrs) =
+                                        self.read_file_attributes(file_path).await
+                                    {
+                                        attrs
                                     } else {
-                                        entries.push(DirectoryEntry {
-                                            name: get_filename(file_path),
-                                            path: file_path.clone(),
+                                        // Create attributes with the size from GitHub API
+                                        FileAttributes {
+                                            size: file.size,
+                                            file_type: guess_file_type(file_path),
                                             is_directory: false,
-                                            attributes: None,
-                                        });
-                                    }
+                                            source_type: if file.is_placeholder {
+                                                "placeholder".to_string()
+                                            } else {
+                                                "cloud".to_string()
+                                            },
+                                            created_at: safe_system_time()
+                                                .duration_since(UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_secs(),
+                                            modified_at: safe_system_time()
+                                                .duration_since(UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_secs(),
+                                        }
+                                    };
+
+                                    entries.push(DirectoryEntry {
+                                        name: get_filename(file_path),
+                                        path: file_path.clone(),
+                                        is_directory: false,
+                                        attributes: Some(attrs),
+                                    });
                                 }
                             }
 
@@ -355,6 +371,7 @@ impl VercelKvVfs {
         let dir_marker_key = get_directory_marker_key(&dir_path);
         let dir_attributes = FileAttributes {
             is_directory: true,
+            source_type: "user".to_string(),
             ..Default::default()
         };
 

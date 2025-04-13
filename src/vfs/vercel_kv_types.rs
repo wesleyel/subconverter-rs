@@ -1,13 +1,12 @@
 use crate::utils::system::safe_system_time;
 use crate::vfs::VfsError;
 use serde::{Deserialize, Serialize};
-use std::future::Future;
 use std::time::UNIX_EPOCH;
 use wasm_bindgen::prelude::*;
 
 // File metadata structure
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[wasm_bindgen(getter_with_clone)]
+#[wasm_bindgen(getter_with_clone, inspectable)]
 pub struct FileAttributes {
     /// Size of the file in bytes
     pub size: usize,
@@ -27,7 +26,7 @@ pub struct FileAttributes {
     pub source_type: String,
 }
 
-#[wasm_bindgen(getter_with_clone, inspectable)]
+#[wasm_bindgen]
 impl FileAttributes {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
@@ -76,10 +75,11 @@ pub struct DirectoryEntry {
     /// Is this entry a directory
     pub is_directory: bool,
     /// File attributes
+    #[wasm_bindgen(getter_with_clone)]
     pub attributes: Option<FileAttributes>,
 }
 
-#[wasm_bindgen(getter_with_clone)]
+#[wasm_bindgen]
 impl DirectoryEntry {
     #[wasm_bindgen(constructor)]
     pub fn new(
@@ -132,25 +132,39 @@ pub const FILE_STATUS_SUFFIX: &str = ".status";
 
 // VFS trait definition
 pub trait VirtualFileSystem {
-    async fn read_file(&self, path: &str) -> Result<Vec<u8>, VfsError>;
-    async fn write_file(&self, path: &str, content: Vec<u8>) -> Result<(), VfsError>;
-    async fn exists(&self, path: &str) -> Result<bool, VfsError>;
-    async fn delete_file(&self, path: &str) -> Result<(), VfsError>;
-    async fn read_file_attributes(&self, path: &str) -> Result<FileAttributes, VfsError>;
-    async fn list_directory(&self, path: &str) -> Result<Vec<DirectoryEntry>, VfsError>;
-    async fn create_directory(&self, path: &str) -> Result<(), VfsError>;
+    fn read_file(&self, path: &str)
+        -> impl std::future::Future<Output = Result<Vec<u8>, VfsError>>;
+    fn write_file(
+        &self,
+        path: &str,
+        content: Vec<u8>,
+    ) -> impl std::future::Future<Output = Result<(), VfsError>>;
+    fn exists(&self, path: &str) -> impl std::future::Future<Output = Result<bool, VfsError>>;
+    fn delete_file(&self, path: &str) -> impl std::future::Future<Output = Result<(), VfsError>>;
+    fn read_file_attributes(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<FileAttributes, VfsError>>;
+    fn list_directory(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<DirectoryEntry>, VfsError>>;
+    fn create_directory(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<(), VfsError>>;
 
     /// Load files from a GitHub repository directory (recursive)
-    async fn load_github_directory(
+    fn load_github_directory(
         &self,
         directory_path: &str,
         shallow: bool,
-    ) -> Result<LoadDirectoryResult, VfsError>;
+    ) -> impl std::future::Future<Output = Result<LoadDirectoryResult, VfsError>>;
 
     /// Load only direct children of a GitHub repository directory (non-recursive)
-    async fn load_github_directory_flat(
+    fn load_github_directory_flat(
         &self,
         directory_path: &str,
         shallow: bool,
-    ) -> Result<LoadDirectoryResult, VfsError>;
+    ) -> impl std::future::Future<Output = Result<LoadDirectoryResult, VfsError>>;
 }

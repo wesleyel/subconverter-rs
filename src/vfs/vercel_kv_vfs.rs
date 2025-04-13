@@ -1,8 +1,6 @@
 use super::VirtualFileSystem;
 use crate::vfs::vercel_kv_directory::*;
 use crate::vfs::vercel_kv_github::GitHubConfig;
-use crate::vfs::vercel_kv_github_loader::*;
-use crate::vfs::vercel_kv_operations::*;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::VfsError;
 use std::collections::HashMap;
@@ -45,49 +43,69 @@ impl VercelKvVfs {
 }
 
 impl VirtualFileSystem for VercelKvVfs {
-    async fn read_file(&self, path: &str) -> Result<Vec<u8>, VfsError> {
-        self.read_file_impl(path).await
+    fn read_file(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, VfsError>> {
+        async move { self.read_file_impl(path).await }
     }
 
-    async fn write_file(&self, path: &str, content: Vec<u8>) -> Result<(), VfsError> {
-        self.write_file_impl(path, content).await
+    fn write_file(
+        &self,
+        path: &str,
+        content: Vec<u8>,
+    ) -> impl std::future::Future<Output = Result<(), VfsError>> {
+        async move { self.write_file_impl(path, content).await }
     }
 
-    async fn exists(&self, path: &str) -> Result<bool, VfsError> {
-        self.exists_impl(path).await
+    fn exists(&self, path: &str) -> impl std::future::Future<Output = Result<bool, VfsError>> {
+        async move { self.exists_impl(path).await }
     }
 
-    async fn delete_file(&self, path: &str) -> Result<(), VfsError> {
-        self.delete_file_impl(path).await
+    fn delete_file(&self, path: &str) -> impl std::future::Future<Output = Result<(), VfsError>> {
+        async move { self.delete_file_impl(path).await }
     }
 
-    async fn read_file_attributes(&self, path: &str) -> Result<FileAttributes, VfsError> {
-        self.read_file_attributes_impl(path).await
+    fn read_file_attributes(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<FileAttributes, VfsError>> {
+        async move { self.read_file_attributes_impl(path).await }
     }
 
-    async fn list_directory(&self, path: &str) -> Result<Vec<DirectoryEntry>, VfsError> {
-        self.list_directory_impl(path).await
+    fn list_directory(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<DirectoryEntry>, VfsError>> {
+        async move { self.list_directory_impl(path).await }
     }
 
-    async fn create_directory(&self, path: &str) -> Result<(), VfsError> {
-        self.create_directory_impl(path).await
+    fn create_directory(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<(), VfsError>> {
+        async move { self.create_directory_impl(path).await }
     }
 
-    async fn load_github_directory(
+    fn load_github_directory(
         &self,
         directory_path: &str,
         shallow: bool,
-    ) -> Result<LoadDirectoryResult, VfsError> {
-        self.load_github_directory_impl(directory_path, shallow, true)
-            .await
+    ) -> impl std::future::Future<Output = Result<LoadDirectoryResult, VfsError>> {
+        async move {
+            self.load_github_directory_impl(directory_path, shallow, true)
+                .await
+        }
     }
 
-    async fn load_github_directory_flat(
+    fn load_github_directory_flat(
         &self,
         directory_path: &str,
         shallow: bool,
-    ) -> Result<LoadDirectoryResult, VfsError> {
-        self.load_github_directory_impl(directory_path, shallow, false)
-            .await
+    ) -> impl std::future::Future<Output = Result<LoadDirectoryResult, VfsError>> {
+        async move {
+            self.load_github_directory_impl(directory_path, shallow, false)
+                .await
+        }
     }
 }

@@ -19,8 +19,6 @@ pub use vercel_kv_vfs::VercelKvVfs;
 // Re-export the helper macro
 pub use vercel_kv_types::*;
 
-use std::future::Future;
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]

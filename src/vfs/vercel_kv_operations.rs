@@ -1,15 +1,11 @@
 use crate::utils::system::safe_system_time;
-use crate::vfs::vercel_kv_github::{GitHubConfig, GitHubTreeResponse};
 use crate::vfs::vercel_kv_helpers::*;
 use crate::vfs::vercel_kv_js_bindings::*;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
 use crate::vfs::VfsError;
 use crate::vfs::VirtualFileSystem;
-use js_sys::Uint8Array;
-use log::debug;
 use serde_wasm_bindgen;
-use std::collections::{HashMap, HashSet};
 use std::time::UNIX_EPOCH;
 use wasm_bindgen_futures;
 
@@ -150,6 +146,7 @@ impl VercelKvVfs {
                 .as_secs(),
             file_type: guess_file_type(&normalized_path),
             is_directory: false,
+            source_type: "cloud".to_string(),
         };
 
         // Store file and its metadata
@@ -209,6 +206,7 @@ impl VercelKvVfs {
                     let dir_marker_key = get_directory_marker_key(&current_path);
                     let dir_attributes = FileAttributes {
                         is_directory: true,
+                        source_type: "user".to_string(),
                         ..Default::default()
                     };
                     let dir_metadata_json = serde_json::to_vec(&dir_attributes).unwrap_or_default();
@@ -276,6 +274,7 @@ impl VercelKvVfs {
                 .as_secs(),
             file_type: guess_file_type(&normalized_path),
             is_directory: false,
+            source_type: "user".to_string(),
         };
 
         // Update metadata cache
@@ -310,6 +309,7 @@ impl VercelKvVfs {
                             let dir_marker_key = get_directory_marker_key(&current_path);
                             let dir_attributes = FileAttributes {
                                 is_directory: true,
+                                source_type: "user".to_string(),
                                 ..Default::default()
                             };
                             let dir_metadata_json =

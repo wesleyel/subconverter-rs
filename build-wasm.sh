@@ -88,6 +88,8 @@ VERSION_FROM_CARGO=$(grep -m 1 "version" Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
 jq '.files += ["snippets/"]' pkg/package.json | \
   jq '.dependencies = {"@vercel/kv": "^3.0.0"}' | \
   jq '.name = "subconverter-wasm"' | \
+  jq '.dependencies["@vercel/kv"] = "^3.0.0"' | \
+  jq '.dependencies["@netlify/blobs"] = "^8.1.2"' | \
   jq ".version = \"$VERSION_FROM_CARGO\"" > tmp.json && mv tmp.json pkg/package.json
 
 # Install dependencies in pkg
