@@ -4,13 +4,18 @@
 import * as subconverterWasm from 'subconverter-wasm';
 import type { DirectoryEntry, FileAttributes } from 'subconverter-wasm';
 
-type SubconverterWasm = typeof subconverterWasm;
 // Export the types for use elsewhere
-export type { SubconverterWasm, DirectoryEntry, FileAttributes };
+export type { DirectoryEntry, FileAttributes };
 
 // Debug flag from environment
 const isDebug = process.env.WASM_DEBUG === 'true';
 const deployEnv = process.env.DEPLOY_ENV || 'unknown';
+
+type SubconverterWasm = typeof subconverterWasm;
+
+// WASM module singleton to avoid re-initialization
+let wasmModule: SubconverterWasm | null = null;
+let initPromise: Promise<SubconverterWasm> | null = null;
 
 /**
  * Determines if we're in a specific deployment environment
@@ -97,6 +102,29 @@ export async function initWasm(): Promise<typeof subconverterWasm> {
         console.error('❌ Unhandled error in initWasm:', error);
         throw error;
     }
+}
+
+/**
+ * Shared singleton loader for the WASM module
+ * This ensures the module is only loaded once across all API endpoints
+ * @param context Optional context string for logging
+ */
+export async function loadWasmSingleton(context: string = 'API'): Promise<SubconverterWasm> {
+    if (!initPromise) {
+        console.log(`[${context}] Initializing WASM module singleton...`);
+        initPromise = initWasm()
+            .then((module) => {
+                wasmModule = module;
+                console.log(`[${context}] WASM singleton initialized successfully`);
+                return module;
+            })
+            .catch((err) => {
+                console.error(`[${context}] Failed to load or initialize WASM:`, err);
+                initPromise = null; // Reset promise on failure
+                throw err;
+            });
+    }
+    return initPromise;
 }
 
 // Initialize the module

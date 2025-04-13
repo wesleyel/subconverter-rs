@@ -57,18 +57,16 @@ reqwest = { version = "0.12.12", features = [
 ], default-features = false }
 thiserror = "2.0.12"
 serde_bytes = "0.11.17"
-wasm-bindgen = "0.2"
-js-sys = "0.3"
-serde-wasm-bindgen = "0.6.5"
-wasm-bindgen-futures = "0.4"
 anyhow = "1.0.97"
 case_insensitive_string = "0.2.9"
-console_error_panic_hook = "0.1.7"
 
 # Re-add WASM-specific dependencies
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-tokio = { version = "1.43.0", features = ["rt", "sync", "io-util"] }
+console_error_panic_hook = "0.1.7"
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+serde-wasm-bindgen = "0.6.5"
+tokio = { version = "1.43.0", features = ["rt", "sync", "io-util"] }
 js-sys = "0.3"
 web-sys = { version = "0.3", features = [
     "Headers",
@@ -80,7 +78,6 @@ web-sys = { version = "0.3", features = [
     "console",
     "Storage",
 ] }
-wasm-bindgen-futures = "0.4"
 console_log = "1.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

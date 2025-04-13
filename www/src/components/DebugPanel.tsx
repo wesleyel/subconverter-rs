@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 interface ApiEndpoint {
     name: string;
@@ -20,7 +21,7 @@ export default function DebugPanel() {
     const [endpoints] = useState<ApiEndpoint[]>([
         {
             name: "Convert Subscription",
-            path: "/api/subconverter",
+            path: "/api/sub",
             method: "GET",
             description: "Convert a subscription to a different format",
             params: [
@@ -33,14 +34,14 @@ export default function DebugPanel() {
                 {
                     name: "target",
                     type: "string",
-                    required: false,
+                    required: true,
                     description: "Target format (clash, surge, etc.)"
                 }
             ]
         },
         {
             name: "WASM Status",
-            path: "/api/debug/wasm",
+            path: "/api/test/wasm",
             method: "GET",
             description: "Check WASM module initialization and status"
         },
@@ -60,7 +61,7 @@ export default function DebugPanel() {
         },
         {
             name: "File Operations",
-            path: "/api/admin/file",
+            path: "/api/admin/[path]",
             method: "GET/POST/DELETE",
             description: "Read, write, or delete files",
             params: [
@@ -75,6 +76,40 @@ export default function DebugPanel() {
                     type: "string",
                     required: false,
                     description: "Content to write (POST only)"
+                }
+            ]
+        },
+        {
+            name: "Load from GitHub",
+            path: "/api/admin/github",
+            method: "GET/POST",
+            description: "Load files from GitHub repository",
+            params: [
+                {
+                    name: "path",
+                    type: "string",
+                    required: true,
+                    description: "Repository path to load"
+                },
+                {
+                    name: "shallow",
+                    type: "boolean",
+                    required: false,
+                    description: "Only load file metadata (default: true)"
+                }
+            ]
+        },
+        {
+            name: "Admin Debug",
+            path: "/api/admin/debug",
+            method: "GET",
+            description: "Debug operations and testing",
+            params: [
+                {
+                    name: "op",
+                    type: "string",
+                    required: false,
+                    description: "Operation: 'panic' or 'init-kv'"
                 }
             ]
         }
@@ -107,7 +142,23 @@ export default function DebugPanel() {
 
             {isOpen && (
                 <div className="p-4 overflow-auto max-h-[60vh]">
-                    <h3 className="text-lg font-bold mb-4">API Endpoints</h3>
+                    <div className="flex flex-col space-y-2 mb-4">
+                        <h3 className="text-lg font-bold">Admin Tools</h3>
+                        <Link
+                            href="/admin"
+                            className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-center"
+                        >
+                            File Browser & Editor
+                        </Link>
+                        <Link
+                            href="/config"
+                            className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-center"
+                        >
+                            Config Editor
+                        </Link>
+                    </div>
+
+                    <h3 className="text-lg font-bold mt-4 mb-4">API Endpoints</h3>
 
                     <div className="space-y-4">
                         {endpoints.map((endpoint, index) => (
@@ -135,7 +186,13 @@ export default function DebugPanel() {
                                 )}
 
                                 <button
-                                    onClick={() => window.open(`${window.location.origin}${endpoint.path}`, "_blank")}
+                                    onClick={() => {
+                                        // For file operations, we need a sample path
+                                        const url = endpoint.path === '/api/admin/[path]'
+                                            ? '/api/admin/README.md'
+                                            : `${window.location.origin}${endpoint.path}`;
+                                        window.open(url, "_blank");
+                                    }}
                                     className="mt-2 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded"
                                 >
                                     Test Endpoint

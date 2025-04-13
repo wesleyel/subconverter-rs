@@ -150,6 +150,39 @@ pub async fn admin_load_github_directory(path: String, shallow: bool) -> Result<
     }
 }
 
+/// Load only direct children of a GitHub repository directory (non-recursive).
+/// If shallow=true, only creates placeholder entries without downloading content.
+#[wasm_bindgen]
+pub async fn admin_load_github_directory_flat(path: String, shallow: bool) -> Result<JsValue, JsValue> {
+    info!("admin_load_github_directory_flat called for path: {} (shallow: {})", path, shallow);
+    let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
+
+    match vfs.load_github_directory_impl(&path, shallow, false).await {
+        Ok(result) => {
+            // Convert the result to JavaScript
+            match serde_wasm_bindgen::to_value(&result) {
+                Ok(js_result) => {
+                    info!(
+                        "GitHub directory flat load complete: {} files loaded, {} failed, {} placeholders",
+                        result.successful_files, 
+                        result.failed_files,
+                        result.loaded_files.iter().filter(|f| f.is_placeholder).count()
+                    );
+                    Ok(js_result)
+                }
+                Err(e) => Err(JsValue::from_str(&format!(
+                    "Error serializing load result: {}",
+                    e
+                ))),
+            }
+        }
+        Err(e) => {
+            error!("Error loading directory from GitHub: {}", e);
+            Err(vfs_error_to_js(e))
+        }
+    }
+}
+
 /// Debug function to provide detailed info about list_directory operation
 #[wasm_bindgen]
 pub async fn debug_list_directory(path: String, shallow: bool) -> Result<JsValue, JsValue> {

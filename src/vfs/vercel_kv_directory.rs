@@ -162,7 +162,7 @@ impl VercelKvVfs {
                 if keys.is_empty() {
                     log_debug!("No keys found for prefix '{}', checking GitHub...", prefix);
                     // Try to load from GitHub if no keys are found
-                    match self.load_github_directory(&path, true).await {
+                    match self.load_github_directory_impl(&path, true, false).await {
                         Ok(load_result) => {
                             log_debug!(
                                 "GitHub load for '{}' returned {} entries",
@@ -173,33 +173,53 @@ impl VercelKvVfs {
                             // Convert LoadDirectoryResult to Vec<DirectoryEntry>
                             let mut entries = Vec::new();
 
-                            // Create a set to track unique directory paths
-                            let mut added_directories = std::collections::HashSet::new();
+                            // Create a set to track unique directory names at this level
+                            let mut direct_subdirs = std::collections::HashSet::new();
 
-                            // First process regular files
                             for file in &load_result.loaded_files {
-                                if file.is_directory {
-                                    continue; // Skip directories, handle them in the next loop
-                                }
-
                                 let file_path = &file.path;
 
-                                // Add parent directories as directory entries
-                                let mut current_dir = get_parent_directory(file_path);
-                                while !current_dir.is_empty()
-                                    && current_dir != path
-                                    && added_directories.insert(current_dir.clone())
-                                {
-                                    // Get the directory name
-                                    let name = get_filename(&current_dir.trim_end_matches('/'));
-                                    if !name.is_empty() {
+                                // Skip if this isn't a direct child of the requested directory
+                                let rel_path = if file_path.starts_with(&path) {
+                                    // Remove the directory prefix to get the relative path
+                                    let prefix_len = if path.ends_with('/') {
+                                        path.len()
+                                    } else {
+                                        path.len() + 1
+                                    };
+                                    if file_path.len() <= prefix_len {
+                                        continue; // Skip entries that are the directory itself
+                                    }
+                                    &file_path[prefix_len..]
+                                } else {
+                                    continue; // Skip entries that don't belong to this directory
+                                };
+
+                                // Check if this is a direct child or a deeper descendant
+                                if let Some(slash_pos) = rel_path.find('/') {
+                                    // This is a deeper path - extract the first directory name
+                                    let dir_name = &rel_path[0..slash_pos];
+                                    if !dir_name.is_empty()
+                                        && direct_subdirs.insert(dir_name.to_string())
+                                    {
+                                        // Add as directory entry
+                                        let dir_path = format!(
+                                            "{}{}/",
+                                            if path.ends_with('/') {
+                                                &path
+                                            } else {
+                                                &format!("{}/", path)
+                                            },
+                                            dir_name
+                                        );
+
                                         log_debug!(
-                                            "Adding directory entry from GitHub: '{}'",
-                                            name
+                                            "Adding direct subdirectory from GitHub: '{}'",
+                                            dir_name
                                         );
                                         entries.push(DirectoryEntry {
-                                            name,
-                                            path: current_dir.clone(),
+                                            name: dir_name.to_string(),
+                                            path: dir_path,
                                             is_directory: true,
                                             attributes: Some(FileAttributes {
                                                 is_directory: true,
@@ -207,51 +227,21 @@ impl VercelKvVfs {
                                             }),
                                         });
                                     }
-                                    current_dir = get_parent_directory(&current_dir);
-                                }
-
-                                // Get file attributes if possible
-                                if let Ok(attrs) = self.read_file_attributes(file_path).await {
-                                    entries.push(DirectoryEntry {
-                                        name: get_filename(file_path),
-                                        path: file_path.clone(),
-                                        is_directory: false,
-                                        attributes: Some(attrs),
-                                    });
                                 } else {
-                                    entries.push(DirectoryEntry {
-                                        name: get_filename(file_path),
-                                        path: file_path.clone(),
-                                        is_directory: false,
-                                        attributes: None,
-                                    });
-                                }
-                            }
-
-                            // Now add directories from loaded files
-                            for file in &load_result.loaded_files {
-                                if file.is_directory {
-                                    let dir_path = &file.path;
-                                    if dir_path == &path
-                                        || !added_directories.insert(dir_path.clone())
-                                    {
-                                        continue; // Skip current directory or already added directories
-                                    }
-
-                                    let name = get_filename(&dir_path.trim_end_matches('/'));
-                                    if !name.is_empty() {
-                                        log_debug!(
-                                            "Adding directory from GitHub loaded files: '{}'",
-                                            name
-                                        );
+                                    // This is a direct file child
+                                    if let Ok(attrs) = self.read_file_attributes(file_path).await {
                                         entries.push(DirectoryEntry {
-                                            name,
-                                            path: dir_path.clone(),
-                                            is_directory: true,
-                                            attributes: Some(FileAttributes {
-                                                is_directory: true,
-                                                ..Default::default()
-                                            }),
+                                            name: get_filename(file_path),
+                                            path: file_path.clone(),
+                                            is_directory: false,
+                                            attributes: Some(attrs),
+                                        });
+                                    } else {
+                                        entries.push(DirectoryEntry {
+                                            name: get_filename(file_path),
+                                            path: file_path.clone(),
+                                            is_directory: false,
+                                            attributes: None,
                                         });
                                     }
                                 }

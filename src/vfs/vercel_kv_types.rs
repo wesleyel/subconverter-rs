@@ -6,8 +6,8 @@ use std::time::UNIX_EPOCH;
 use wasm_bindgen::prelude::*;
 
 // File metadata structure
-#[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[wasm_bindgen(getter_with_clone)]
 pub struct FileAttributes {
     /// Size of the file in bytes
     pub size: usize,
@@ -16,10 +16,35 @@ pub struct FileAttributes {
     /// Last modified timestamp (seconds since UNIX epoch)
     pub modified_at: u64,
     /// File type (mime type or extension)
-    #[wasm_bindgen(getter_with_clone)]
     pub file_type: String,
     /// Is this a directory marker
     pub is_directory: bool,
+    /// Source type of the file: user-modified, cloud-synced, or placeholder
+    /// - "user" = modified by user and saved locally
+    /// - "cloud" = pulled from cloud (GitHub) but not modified
+    /// - "placeholder" = not loaded yet, but known to exist in cloud
+    /// - "" = unknown or default
+    pub source_type: String,
+}
+
+#[wasm_bindgen(getter_with_clone, inspectable)]
+impl FileAttributes {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        let now = safe_system_time()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        Self {
+            size: 0,
+            created_at: now,
+            modified_at: now,
+            file_type: "text/plain".to_string(),
+            is_directory: false,
+            source_type: "".to_string(),
+        }
+    }
 }
 
 impl Default for FileAttributes {
@@ -35,26 +60,41 @@ impl Default for FileAttributes {
             modified_at: now,
             file_type: "text/plain".to_string(),
             is_directory: false,
+            source_type: "".to_string(),
         }
     }
 }
 
 // Directory entry for listing
-#[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[wasm_bindgen(getter_with_clone, inspectable)]
 pub struct DirectoryEntry {
     /// Name of the file or directory (not the full path)
-    #[wasm_bindgen(getter_with_clone)]
     pub name: String,
     /// Full path to the file or directory
-    #[wasm_bindgen(getter_with_clone)]
     pub path: String,
     /// Is this entry a directory
-    #[wasm_bindgen(getter_with_clone)]
     pub is_directory: bool,
     /// File attributes
-    #[wasm_bindgen(getter_with_clone)]
     pub attributes: Option<FileAttributes>,
+}
+
+#[wasm_bindgen(getter_with_clone)]
+impl DirectoryEntry {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        name: String,
+        path: String,
+        is_directory: bool,
+        attributes: Option<FileAttributes>,
+    ) -> Self {
+        Self {
+            name,
+            path,
+            is_directory,
+            attributes,
+        }
+    }
 }
 
 /// Represents a file that was loaded from GitHub
@@ -92,36 +132,25 @@ pub const FILE_STATUS_SUFFIX: &str = ".status";
 
 // VFS trait definition
 pub trait VirtualFileSystem {
-    fn read_file(&self, path: &str) -> impl Future<Output = Result<Vec<u8>, VfsError>>;
-    fn write_file(
-        &self,
-        path: &str,
-        content: Vec<u8>,
-    ) -> impl Future<Output = Result<(), VfsError>>;
-    fn exists(&self, path: &str) -> impl Future<Output = Result<bool, VfsError>>;
-    fn delete_file(&self, path: &str) -> impl Future<Output = Result<(), VfsError>>;
+    async fn read_file(&self, path: &str) -> Result<Vec<u8>, VfsError>;
+    async fn write_file(&self, path: &str, content: Vec<u8>) -> Result<(), VfsError>;
+    async fn exists(&self, path: &str) -> Result<bool, VfsError>;
+    async fn delete_file(&self, path: &str) -> Result<(), VfsError>;
+    async fn read_file_attributes(&self, path: &str) -> Result<FileAttributes, VfsError>;
+    async fn list_directory(&self, path: &str) -> Result<Vec<DirectoryEntry>, VfsError>;
+    async fn create_directory(&self, path: &str) -> Result<(), VfsError>;
 
-    // Directory operations and file attributes
-
-    /// List the contents of a directory
-    fn list_directory(
-        &self,
-        path: &str,
-    ) -> impl Future<Output = Result<Vec<DirectoryEntry>, VfsError>>;
-
-    /// Read the attributes of a file or directory
-    fn read_file_attributes(
-        &self,
-        path: &str,
-    ) -> impl Future<Output = Result<FileAttributes, VfsError>>;
-
-    /// Create a directory (and any necessary parent directories)
-    fn create_directory(&self, path: &str) -> impl Future<Output = Result<(), VfsError>>;
-
-    /// Load all files from a GitHub repository directory at once
-    fn load_github_directory(
+    /// Load files from a GitHub repository directory (recursive)
+    async fn load_github_directory(
         &self,
         directory_path: &str,
         shallow: bool,
-    ) -> impl Future<Output = Result<LoadDirectoryResult, VfsError>>;
+    ) -> Result<LoadDirectoryResult, VfsError>;
+
+    /// Load only direct children of a GitHub repository directory (non-recursive)
+    async fn load_github_directory_flat(
+        &self,
+        directory_path: &str,
+        shallow: bool,
+    ) -> Result<LoadDirectoryResult, VfsError>;
 }

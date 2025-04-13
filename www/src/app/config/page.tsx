@@ -185,7 +185,58 @@ export default function ConfigEditor() {
 
                         {activeTab === "advanced" && (
                             <div className="space-y-4">
-                                <p>Advanced configuration settings go here.</p>
+                                <p className="mb-4">Advanced configuration settings:</p>
+
+                                <div className="space-y-4 mb-6">
+                                    <div>
+                                        <label htmlFor="updateInterval" className="block text-sm font-medium mb-1">
+                                            Update Interval (seconds)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            id="updateInterval"
+                                            placeholder="86400"
+                                            className="w-full p-2 border border-gray-300 rounded bg-white/10"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="strictMode" className="block text-sm font-medium mb-1">
+                                            Strict Mode
+                                        </label>
+                                        <select
+                                            id="strictMode"
+                                            className="w-full p-2 border border-gray-300 rounded bg-white/10"
+                                        >
+                                            <option value="false">Disabled</option>
+                                            <option value="true">Enabled</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="border-t border-gray-700 pt-4">
+                                    <h3 className="text-md font-medium mb-2">Admin Tools</h3>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <Link
+                                            href="/admin"
+                                            className="flex items-center bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                            </svg>
+                                            File Browser & Editor
+                                        </Link>
+                                        <button
+                                            className="flex items-center bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
+                                            onClick={() => window.open('/api/test/wasm', '_blank')}
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
+                                            Test WASM Status
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

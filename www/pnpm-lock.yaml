@@ -36,8 +36,8 @@ importers:
         specifier: ^19.1.0
         version: 19.1.0(react@19.1.0)
       subconverter-wasm:
-        specifier: 0.1.0-pre.20250413.c0fdcea
-        version: 0.1.0-pre.20250413.c0fdcea
+        specifier: link:../pkg
+        version: link:../pkg
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.3.1
@@ -1867,9 +1867,6 @@ packages:
         optional: true
       babel-plugin-macros:
         optional: true
-
-  subconverter-wasm@0.1.0-pre.20250413.c0fdcea:
-    resolution: {integrity: sha512-BAk0/CD2W6A+Vo5Y1D8Uvryr5gboISWAtr40hUK3w3tUWC+fiAv0snSw1fPXJXivkKShqmzO+sP23ePkU0/E/g==}
 
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
@@ -4011,10 +4008,6 @@ snapshots:
     dependencies:
       client-only: 0.0.1
       react: 19.1.0
-
-  subconverter-wasm@0.1.0-pre.20250413.c0fdcea:
-    dependencies:
-      '@vercel/kv': 3.0.0
 
   supports-color@7.2.0:
     dependencies:

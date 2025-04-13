@@ -18,11 +18,13 @@ impl VercelKvVfs {
         &self,
         directory_path: &str,
         shallow: bool,
+        recursive: bool,
     ) -> Result<LoadDirectoryResult, VfsError> {
         log::info!(
-            "Starting load_github_directory with path: {} (shallow: {})",
+            "Starting load_github_directory with path: {} (shallow: {}, recursive: {})",
             directory_path,
-            shallow
+            shallow,
+            recursive
         );
 
         // Add an env var check to allow triggering a test panic
@@ -43,9 +45,14 @@ impl VercelKvVfs {
         log::info!("Loading all files from GitHub directory: {}", dir_path);
 
         // Use GitHub API to fetch tree information for this directory
+        // When recursive=0, API returns only direct children of the tree
+        // When recursive=1, API returns all descendants recursively
         let api_url = format!(
-            "https://api.github.com/repos/{}/{}/git/trees/{}?recursive=1",
-            self.github_config.owner, self.github_config.repo, self.github_config.branch
+            "https://api.github.com/repos/{}/{}/git/trees/{}?recursive={}",
+            self.github_config.owner,
+            self.github_config.repo,
+            self.github_config.branch,
+            if recursive { "1" } else { "0" }
         );
 
         log::debug!("Fetching GitHub directory tree from: {}", api_url);
@@ -245,6 +252,7 @@ impl VercelKvVfs {
                         .duration_since(UNIX_EPOCH)
                         .unwrap_or_default()
                         .as_secs(),
+                    source_type: "cloud".to_string(),
                     ..Default::default()
                 };
 
@@ -300,6 +308,7 @@ impl VercelKvVfs {
                         .as_secs(),
                     file_type: guess_file_type(&normalized_path),
                     is_directory: false,
+                    source_type: "placeholder".to_string(),
                 };
 
                 // Store file metadata

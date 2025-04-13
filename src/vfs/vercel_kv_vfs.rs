@@ -78,7 +78,16 @@ impl VirtualFileSystem for VercelKvVfs {
         directory_path: &str,
         shallow: bool,
     ) -> Result<LoadDirectoryResult, VfsError> {
-        self.load_github_directory_impl(directory_path, shallow)
+        self.load_github_directory_impl(directory_path, shallow, true)
+            .await
+    }
+
+    async fn load_github_directory_flat(
+        &self,
+        directory_path: &str,
+        shallow: bool,
+    ) -> Result<LoadDirectoryResult, VfsError> {
+        self.load_github_directory_impl(directory_path, shallow, false)
             .await
     }
 }
