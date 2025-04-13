@@ -25,7 +25,7 @@ macro_rules! log_debug {
 /// A normalized path string without leading slashes
 pub fn normalize_path(path: &str) -> String {
     let normalized = path.trim_start_matches('/').to_string();
-    log_debug!("Normalized path: '{}' → '{}'", path, normalized);
+    // log_debug!("Normalized path: '{}' → '{}'", path, normalized);
     normalized
 }
 
@@ -196,6 +196,6 @@ pub fn guess_file_type(path: &str) -> String {
         None => "application/octet-stream".to_string(),
     };
 
-    log_debug!("Guessed file type for '{}': '{}'", path, file_type);
+    // log_debug!("Guessed file type for '{}': '{}'", path, file_type);
     file_type
 }

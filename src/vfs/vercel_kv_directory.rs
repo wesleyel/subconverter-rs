@@ -187,9 +187,6 @@ impl VercelKvVfs {
                                 load_result.loaded_files.len()
                             );
 
-                            // Convert LoadDirectoryResult to Vec<DirectoryEntry>
-                            let mut entries = Vec::new();
-
                             // Create a set to track unique directory names at this level
                             let mut direct_subdirs = std::collections::HashSet::new();
 
@@ -231,7 +228,7 @@ impl VercelKvVfs {
                                             "Adding direct subdirectory from GitHub: '{}'",
                                             dir_name
                                         );
-                                        entries.push(DirectoryEntry {
+                                        files.push(DirectoryEntry {
                                             name: dir_name.to_string(),
                                             path: dir_path,
                                             is_directory: true,
@@ -239,17 +236,17 @@ impl VercelKvVfs {
                                         });
                                     }
                                 } else {
-                                    // This is a direct file child
-                                    log_debug!(
-                                        "GitHub file: '{}' from rel_path '{}'",
-                                        rel_path,
-                                        rel_path
-                                    );
-
                                     // Check if we already have this file in our files list
                                     let file_exists = files
                                         .iter()
-                                        .any(|entry| !entry.is_directory && entry.name == rel_path);
+                                        .any(|entry| !entry.is_directory && entry.path == rel_path);
+                                    // This is a direct file child
+                                    log_debug!(
+                                        "GitHub file: '{}' from rel_path '{}', file_exists: '{}'",
+                                        rel_path,
+                                        rel_path,
+                                        file_exists
+                                    );
 
                                     if !file_exists {
                                         // Use the file size directly from the GitHub API result
@@ -281,7 +278,7 @@ impl VercelKvVfs {
                             }
 
                             // Return the converted entries
-                            return Ok(entries);
+                            return Ok(files);
                         }
                         Err(e) => {
                             log_debug!("GitHub load for '{}' failed: {:?}", path, e);
@@ -488,6 +485,7 @@ impl VercelKvVfs {
                                         "Adding direct subdirectory from GitHub: '{}'",
                                         dir_name
                                     );
+
                                     files.push(DirectoryEntry {
                                         name: dir_name.to_string(),
                                         path: dir_path,
@@ -517,6 +515,8 @@ impl VercelKvVfs {
                                         "cloud"
                                     },
                                 );
+
+                                log_debug!("Adding file from GitHub: '{}'", file_path);
 
                                 files.push(DirectoryEntry {
                                     name: get_filename(file_path),
