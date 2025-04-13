@@ -1,12 +1,10 @@
 use crate::utils::system::safe_system_time;
-use crate::vfs::vercel_kv_github::{GitHubConfig, GitHubTreeResponse};
+use crate::vfs::vercel_kv_github::GitHubTreeResponse;
 use crate::vfs::vercel_kv_helpers::*;
 use crate::vfs::vercel_kv_js_bindings::*;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
 use crate::vfs::VfsError;
-use js_sys::Uint8Array;
-use serde_wasm_bindgen;
 use std::time::UNIX_EPOCH;
 
 impl VercelKvVfs {
@@ -254,7 +252,7 @@ impl VercelKvVfs {
                 };
 
                 // Update metadata cache
-                self.metadata_cache
+                self.metadata_cache()
                     .write()
                     .await
                     .insert(dir_path.clone(), dir_attributes);
@@ -338,7 +336,7 @@ impl VercelKvVfs {
                     failures += 1;
                 } else {
                     // Update metadata cache
-                    self.metadata_cache
+                    self.metadata_cache()
                         .write()
                         .await
                         .insert(normalized_path.clone(), attributes);
@@ -407,5 +405,131 @@ impl VercelKvVfs {
             failed_files: failures,
             loaded_files,
         })
+    }
+
+    /// Load information about a specific file from GitHub without downloading content
+    pub(crate) async fn load_github_file_info_impl(
+        &self,
+        file_path: &str,
+    ) -> Result<LoadedFile, VfsError> {
+        log::debug!("Loading GitHub file info for: {}", file_path);
+
+        let normalized_path = normalize_path(file_path);
+
+        // Normalize the path for GitHub API
+        let api_path = if normalized_path.starts_with('/') {
+            normalized_path[1..].to_string()
+        } else {
+            normalized_path.clone()
+        };
+
+        // Account for root_path from config
+        let api_path_with_root = if self.github_config.root_path.is_empty() {
+            api_path
+        } else {
+            let root_path = self.github_config.root_path.trim_matches('/');
+            format!("{}/{}", root_path, api_path)
+        };
+
+        // Create GitHub API URL to get file info
+        // Use the trees API to get file size without downloading the content
+        let url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1",
+            owner = self.github_config.owner,
+            repo = self.github_config.repo,
+            branch = self.github_config.branch
+        );
+
+        log::debug!("Fetching GitHub tree from: {}", url);
+
+        // Call GitHub API
+        let fetch_response = match fetch_url(&url).await {
+            Ok(response) => response,
+            Err(e) => return Err(js_error_to_vfs(e, "Fetch GitHub API failed")),
+        };
+
+        let status_js = match response_status(&fetch_response).await {
+            Ok(status) => status,
+            Err(e) => return Err(js_error_to_vfs(e, "Get GitHub API status failed")),
+        };
+
+        let status = match status_js.as_f64().map(|f| f as u16) {
+            Some(s) => s,
+            None => {
+                return Err(js_error_to_vfs(
+                    status_js,
+                    "GitHub API status was not a number",
+                ))
+            }
+        };
+
+        if !(200..300).contains(&status) {
+            return Err(VfsError::NetworkError(format!(
+                "GitHub API call failed with status: {}",
+                status
+            )));
+        }
+
+        // Parse the response to get file information
+        let response_bytes = match response_bytes(&fetch_response).await {
+            Ok(bytes) => bytes,
+            Err(e) => return Err(js_error_to_vfs(e, "Get GitHub API response bytes failed")),
+        };
+
+        let response_text = match String::from_utf8(response_bytes.to_vec()) {
+            Ok(text) => text,
+            Err(e) => {
+                return Err(VfsError::Other(format!(
+                    "Failed to parse GitHub API response: {}",
+                    e
+                )))
+            }
+        };
+
+        // Parse the tree response
+        let tree_response: GitHubTreeResponse =
+            match serde_json::from_str::<GitHubTreeResponse>(&response_text) {
+                Ok(tree) => tree,
+                Err(e) => {
+                    return Err(VfsError::Other(format!(
+                        "Failed to parse GitHub tree JSON: {}",
+                        e
+                    )))
+                }
+            };
+
+        // Find the file in the tree
+        for item in &tree_response.tree {
+            // Skip directories
+            if item.type_field != "blob" {
+                continue;
+            }
+
+            // Check if this is the file we're looking for
+            if item.path == api_path_with_root {
+                // Found the file, get its size
+                let size = item.size.unwrap_or(0);
+
+                log::debug!(
+                    "Found file in GitHub tree: {} with size {}",
+                    item.path,
+                    size
+                );
+
+                return Ok(LoadedFile {
+                    path: normalized_path,
+                    size,
+                    is_placeholder: false,
+                    is_directory: false,
+                });
+            }
+        }
+
+        // File not found in the tree
+        log::debug!("File not found in GitHub tree: {}", api_path_with_root);
+        Err(VfsError::NotFound(format!(
+            "File not found in GitHub repo: {}",
+            file_path
+        )))
     }
 }

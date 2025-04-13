@@ -7,6 +7,11 @@ import type { DirectoryEntry, FileAttributes } from 'subconverter-wasm';
 // Export the types for use elsewhere
 export type { DirectoryEntry, FileAttributes };
 
+// BigInt.prototype.toJSON = function () {
+BigInt.prototype.toJSON = function () {
+    return { $bigint: this.toString() };
+};
+
 // Debug flag from environment
 const isDebug = process.env.WASM_DEBUG === 'true';
 const deployEnv = process.env.DEPLOY_ENV || 'unknown';
@@ -81,7 +86,7 @@ export async function initWasm(): Promise<typeof subconverterWasm> {
 
         if (typeof subconverterWasm.init_wasm_logging === 'function') {
             console.log('Initializing WASM logging...');
-            subconverterWasm.init_wasm_logging('info');
+            subconverterWasm.init_wasm_logging('debug');
         }
 
         if (typeof subconverterWasm.admin_init_kv_bindings_js === 'function') {
@@ -131,11 +136,6 @@ export async function loadWasmSingleton(context: string = 'API'): Promise<Subcon
 if (typeof subconverterWasm.init_panic_hook === 'function') {
     subconverterWasm.init_panic_hook();
     console.log('Initialized subconverter-wasm panic hook');
-}
-
-if (typeof subconverterWasm.init_wasm_logging === 'function') {
-    subconverterWasm.init_wasm_logging('info');
-    console.log('Initialized subconverter-wasm logging');
 }
 
 if (typeof subconverterWasm.admin_init_kv_bindings_js === 'function') {

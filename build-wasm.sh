@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Start stopwatch
+BUILD_START_TIME=$SECONDS
+
 # Check if wasm-pack is installed
 if ! command -v wasm-pack &> /dev/null; then
     echo "wasm-pack not found. Installing..."
@@ -109,7 +112,7 @@ jq '.files += ["snippets/"]' pkg/package.json | \
 
 # Install dependencies in pkg
 cd pkg
-pnpm install
+yarn install
 cd ..
 
 # Publish to crates.io if requested
@@ -139,17 +142,19 @@ fi
 if [ "$RELEASE_MODE" = false ]; then
   echo "Setting up development environment..."
   
-  # Check if www directory exists and use pnpm link
+  # Check if www directory exists and use yarn link
   if [ -d "www" ]; then
-    echo "Linking to www project using pnpm..."
-    # Use pnpm to create a link from www to the local pkg directory
-    cd www
-    # Remove any existing package if present
-    rm -rf node_modules/subconverter-wasm 2>/dev/null || true
-    # Link to the local pkg directory
-    pnpm link ../pkg
+    echo "Linking to www project using yarn..."
+    # First register the package in pkg directory
+    cd pkg
+    yarn link
     cd ..
-    echo "Successfully linked pkg to www using pnpm"
+    
+    # Then link to the registered package in www
+    cd www
+    yarn link "subconverter-wasm"
+    cd ..
+    echo "Successfully linked pkg to www using yarn"
   else
     echo "Warning: www directory not found, skipping link to www project"
   fi
@@ -159,8 +164,13 @@ fi
 if [ -d "vercel-api-test" ]; then
   echo "Installing dependencies in vercel-api-test..."
   cd vercel-api-test
-  pnpm install
+  yarn install
   cd ..
 fi
 
 echo "Build script completed successfully!"
+
+# Calculate and print build time
+BUILD_END_TIME=$SECONDS
+BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
+echo "Total build time: $((BUILD_DURATION / 60)) minutes and $((BUILD_DURATION % 60)) seconds"

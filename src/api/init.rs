@@ -36,7 +36,6 @@ pub async fn initialize_settings_from_content(
 #[wasm_bindgen]
 pub fn init_wasm_logging(level: Option<String>) -> Result<(), JsValue> {
     use log::Level;
-    use log::LevelFilter;
     use std::sync::atomic::{AtomicBool, Ordering};
 
     // Static flag to track if logger has been initialized
@@ -47,7 +46,7 @@ pub fn init_wasm_logging(level: Option<String>) -> Result<(), JsValue> {
 
     // Check if logger is already initialized
     if LOGGER_INITIALIZED.load(Ordering::SeqCst) {
-        log::debug!("Logger already initialized, skipping initialization");
+        log::info!("Logger already initialized, skipping initialization");
         return Ok(());
     }
 

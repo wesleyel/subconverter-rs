@@ -1,6 +1,6 @@
 [build]
 base = "www"
-command = "pnpm build"
+command = "yarn build"
 publish = ".next"
 
 [[plugins]]

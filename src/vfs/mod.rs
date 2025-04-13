@@ -2,6 +2,7 @@
 pub mod vercel_kv_github;
 pub mod vercel_kv_helpers;
 pub mod vercel_kv_js_bindings;
+pub mod vercel_kv_store;
 pub mod vercel_kv_types;
 
 // VFS operations modules
@@ -13,6 +14,10 @@ pub mod vercel_kv_operations;
 pub mod vercel_kv_vfs;
 
 // Re-export core types and the main VFS implementation
+pub use vercel_kv_store::{
+    create_directory_attributes, create_file_attributes, get_real_path_from_key, is_internal_key,
+    VercelKvStore,
+};
 pub use vercel_kv_types::{DirectoryEntry, FileAttributes, LoadDirectoryResult, LoadedFile};
 pub use vercel_kv_vfs::VercelKvVfs;
 

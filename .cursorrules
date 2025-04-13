@@ -92,8 +92,8 @@ module_organization:
 js_ts_project_setup:
   pattern: "(package\\.json|next\\.config\\.js|webpack\\.config\\.js)"
   replacement: |
-    // Use pnpm for package management
-    // - Add "packageManager": "pnpm@8.x" to package.json
+    // Use yarn for package management
+    // - Add "packageManager": "yarn@4.x" to package.json
     // - Create .npmrc with "engine-strict=true"
     // - Use rspack instead of webpack where possible
     
@@ -111,7 +111,7 @@ js_ts_project_setup:
       entry: './src/index.ts',
       // Other rspack configuration
     };
-  note: "All JS/TS subprojects should use pnpm as package manager and rspack for bundling"
+  note: "All JS/TS subprojects should use yarn as package manager and rspack for bundling"
 
 build_script_pattern:
   pattern: "\"scripts\": \\{([^}]*)\\}"

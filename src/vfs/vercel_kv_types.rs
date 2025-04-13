@@ -124,11 +124,11 @@ pub struct LoadDirectoryResult {
 }
 
 // Constants
-pub const FILE_CONTENT_SUFFIX: &str = ".content";
-pub const FILE_METADATA_SUFFIX: &str = ".metadata";
-pub const DIRECTORY_MARKER_SUFFIX: &str = "/.dir";
+pub const FILE_CONTENT_SUFFIX: &str = "@@content";
+pub const FILE_METADATA_SUFFIX: &str = "@@metadata";
+pub const DIRECTORY_MARKER_SUFFIX: &str = "/@@dir";
 pub const FILE_STATUS_PLACEHOLDER: &str = "placeholder";
-pub const FILE_STATUS_SUFFIX: &str = ".status";
+pub const FILE_STATUS_SUFFIX: &str = "@@status";
 
 // VFS trait definition
 pub trait VirtualFileSystem {

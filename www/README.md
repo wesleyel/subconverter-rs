@@ -14,7 +14,7 @@ A modern web UI for the subconverter-rs project, deployable to Vercel with a sin
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 18.x or later
-- [pnpm](https://pnpm.io/) 8.x or later
+- [yarn](https://yarn.io/) 8.x or later
 - [Rust](https://www.rust-lang.org/) (for building the WebAssembly component)
 
 ### Setup
@@ -33,12 +33,12 @@ A modern web UI for the subconverter-rs project, deployable to Vercel with a sin
 3. Install dependencies for the Vercel app:
    ```bash
    cd vercel
-   pnpm install
+   yarn install
    ```
 
 4. Run the development server:
    ```bash
-   pnpm dev
+   yarn dev
    ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
@@ -46,7 +46,7 @@ A modern web UI for the subconverter-rs project, deployable to Vercel with a sin
 ### Build for Production
 
 ```bash
-pnpm build
+yarn build
 ```
 
 ## Deployment

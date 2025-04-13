@@ -5,6 +5,7 @@
 // Expose the localStorageMap for debugging
 let localStorageMap = new Map(); // Local in-memory fallback
 let kv; // Lazy load KV
+let isNetlifyBlobs = false; // Flag to track if we're using Netlify Blobs
 
 async function getKv() {
     if (!kv) {
@@ -23,6 +24,7 @@ async function getKv() {
                 try {
                     const { getStore } = require('@netlify/blobs');
                     const store = getStore('subconverter-data');
+                    isNetlifyBlobs = true;
 
                     // Create adapter to match Vercel KV interface
                     kv = {
@@ -64,11 +66,13 @@ async function getKv() {
 
                             // If we haven't started scanning yet (cursor = 0), get all keys
                             if (cursor === 0 || cursor === '0') {
-                                const list = await store.list();
+                                // If matching starts with a prefix and ends with wildcard, use prefix directly
+                                const prefix = match.endsWith('*') ? match.slice(0, -1) : '';
+                                const list = await store.list({ prefix });
                                 allKeys = list.blobs.map(blob => blob.key);
 
-                                // Filter by pattern if needed
-                                if (match !== "*") {
+                                // If we're using an actual regex pattern (not just prefix*), filter the results
+                                if (match !== "*" && !match.match(/^[^*]+\*$/)) {
                                     // Convert glob pattern to regex (simplistic approach)
                                     const pattern = match.replace(/\*/g, ".*");
                                     const regex = new RegExp(`^${pattern}$`);
@@ -103,6 +107,8 @@ async function getKv() {
                                 return [nextCursor, batch];
                             }
                         },
+                        // Store reference for direct access to the Netlify Blobs store
+                        _store: store,
                         // Delete a key
                         del: async (key) => {
                             try {
@@ -241,6 +247,14 @@ async function kv_exists(key) {
 async function kv_list(prefix) {
     try {
         const kvClient = await getKv();
+
+        // If using Netlify Blobs, use its native list method with prefix support
+        if (isNetlifyBlobs && kvClient._store) {
+            const result = await kvClient._store.list({ prefix });
+            return result.blobs.map(blob => blob.key);
+        }
+
+        // Otherwise, fall back to using scan with pattern matching
         let cursor = 0;
         const keys = [];
         let scanResult;

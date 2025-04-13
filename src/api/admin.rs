@@ -247,11 +247,11 @@ pub async fn debug_list_directory(path: String, shallow: bool) -> Result<JsValue
     let mut directory_marker_keys = Vec::new();
 
     for key in &raw_keys {
-        if key.ends_with(".content") {
+        if key.ends_with(crate::vfs::vercel_kv_types::FILE_CONTENT_SUFFIX) {
             content_keys.push(key.clone());
-        } else if key.ends_with(".metadata") {
+        } else if key.ends_with(crate::vfs::vercel_kv_types::FILE_METADATA_SUFFIX) {
             metadata_keys.push(key.clone());
-        } else if key.ends_with("/.dir") {
+        } else if key.ends_with(crate::vfs::vercel_kv_types::DIRECTORY_MARKER_SUFFIX) {
             directory_marker_keys.push(key.clone());
         }
     }
