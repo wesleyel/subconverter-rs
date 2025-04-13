@@ -36,11 +36,5 @@
     "react-dom": "^19.1.0",
     "react-split": "^2.0.14",
     "subconverter-wasm": "^0.1.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp"
-    ]
   }
 }

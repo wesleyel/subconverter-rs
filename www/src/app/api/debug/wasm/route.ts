@@ -20,39 +20,23 @@ export async function GET(_request: NextRequest) {
 
         const functionResults: Record<string, any> = {};
 
-        // Test conversion function if available
-        if (wasmModule && typeof wasmModule.convert_subscription === 'function') {
-            try {
-                const testUrl = 'https://example.com/test-subscription';
-                functionResults.convert_subscription = {
-                    called: true,
-                    result: (await wasmModule.convert_subscription(testUrl, 'clash')).substring(0, 100) + '...',
-                };
-            } catch (error) {
-                functionResults.convert_subscription = {
-                    called: true,
-                    error: String(error),
-                };
-            }
-        }
-
         // Test admin functions if available
         const adminFunctions = [
             'admin_file_exists',
             'list_directory',
             'admin_read_file',
-        ];
+        ] as const;
 
         for (const funcName of adminFunctions) {
-            if (wasmModule && typeof wasmModule[funcName] === 'function') {
+            if (wasmModule && typeof (wasmModule as any)[funcName] === 'function') {
                 try {
                     let result;
                     if (funcName === 'admin_file_exists') {
-                        result = await wasmModule[funcName]('README.md');
+                        result = await (wasmModule as any)[funcName]('README.md');
                     } else if (funcName === 'list_directory') {
-                        result = await wasmModule[funcName]('/');
+                        result = await (wasmModule as any)[funcName]('/');
                     } else if (funcName === 'admin_read_file') {
-                        result = (await wasmModule[funcName]('README.md')).substring(0, 100) + '...';
+                        result = (await (wasmModule as any)[funcName]('README.md')).substring(0, 100) + '...';
                     }
 
                     functionResults[funcName] = {
@@ -70,7 +54,7 @@ export async function GET(_request: NextRequest) {
 
         // Get list of available functions
         const availableFunctions = Object.keys(wasmModule || {}).filter(
-            key => typeof wasmModule?.[key] === 'function'
+            key => typeof (wasmModule as any)?.[key] === 'function'
         );
 
         return NextResponse.json({

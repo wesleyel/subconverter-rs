@@ -26,6 +26,9 @@ extern "C" {
 
     #[wasm_bindgen(catch)]
     pub async fn response_bytes(response: &JsValue) -> Result<Uint8Array, JsValue>;
+
+    #[wasm_bindgen(catch)]
+    pub fn dummy() -> Result<JsValue, JsValue>;
 }
 
 // Helper to convert JsValue error to VfsError

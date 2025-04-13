@@ -311,5 +311,9 @@ export async function response_bytes(response /* Response object */) {
     }
 }
 
+export function dummy() {
+    return "dummy";
+}
+
 // Make getKv function public for direct testing
 export { getKv }; 

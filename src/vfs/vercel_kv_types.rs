@@ -3,8 +3,10 @@ use crate::vfs::VfsError;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::time::UNIX_EPOCH;
+use wasm_bindgen::prelude::*;
 
 // File metadata structure
+#[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileAttributes {
     /// Size of the file in bytes
@@ -14,6 +16,7 @@ pub struct FileAttributes {
     /// Last modified timestamp (seconds since UNIX epoch)
     pub modified_at: u64,
     /// File type (mime type or extension)
+    #[wasm_bindgen(getter_with_clone)]
     pub file_type: String,
     /// Is this a directory marker
     pub is_directory: bool,
@@ -37,15 +40,20 @@ impl Default for FileAttributes {
 }
 
 // Directory entry for listing
+#[wasm_bindgen]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DirectoryEntry {
     /// Name of the file or directory (not the full path)
+    #[wasm_bindgen(getter_with_clone)]
     pub name: String,
     /// Full path to the file or directory
+    #[wasm_bindgen(getter_with_clone)]
     pub path: String,
     /// Is this entry a directory
+    #[wasm_bindgen(getter_with_clone)]
     pub is_directory: bool,
     /// File attributes
+    #[wasm_bindgen(getter_with_clone)]
     pub attributes: Option<FileAttributes>,
 }
 

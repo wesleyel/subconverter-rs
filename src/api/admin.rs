@@ -6,7 +6,8 @@ use crate::vfs::VfsError;
 use log::{debug, error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use crate::vfs::vercel_kv_types::VirtualFileSystem;
+use crate::vfs::vercel_kv_types::{VirtualFileSystem, DirectoryEntry, FileAttributes};
+
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -64,21 +65,14 @@ pub async fn admin_file_exists(path: String) -> Result<bool, JsValue> {
 
 /// Get file attributes - admin endpoint
 #[wasm_bindgen]
-pub async fn admin_get_file_attributes(path: String) -> Result<JsValue, JsValue> {
+pub async fn admin_get_file_attributes(path: String) -> Result<FileAttributes, JsValue> {
     info!("admin_get_file_attributes called for {}", path);
     let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
 
     // Read file attributes from the VFS
     match vfs.read_file_attributes(&path).await {
         Ok(attributes) => {
-            // Convert the FileAttributes struct to a JavaScript object
-            match serde_wasm_bindgen::to_value(&attributes) {
-                Ok(js_attributes) => Ok(js_attributes),
-                Err(e) => Err(JsValue::from_str(&format!(
-                    "Error serializing attributes: {}",
-                    e
-                ))),
-            }
+            Ok(attributes)
         }
         Err(e) => {
             error!("Error getting file attributes: {}", e);
@@ -108,20 +102,13 @@ pub async fn admin_create_directory(path: String) -> Result<(), JsValue> {
 
 /// List directory contents - admin endpoint
 #[wasm_bindgen]
-pub async fn list_directory(path: String) -> Result<JsValue, JsValue> {
+pub async fn list_directory(path: String) -> Result<Vec<DirectoryEntry>, JsValue> {
     info!("list_directory called for path: {}", path);
     let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
 
     match vfs.list_directory(&path).await {
         Ok(entries) => {
-            // Convert the entries to a JavaScript Array
-            match serde_wasm_bindgen::to_value(&entries) {
-                Ok(js_entries) => Ok(js_entries),
-                Err(e) => Err(JsValue::from_str(&format!(
-                    "Error serializing directory entries: {}",
-                    e
-                ))),
-            }
+            Ok(entries)
         }
         Err(e) => {
             error!("Error listing directory: {}", e);
@@ -310,4 +297,9 @@ pub fn admin_debug_test_panic() -> Result<(), JsValue> {
     log::warn!("admin_debug_test_panic called - triggering intentional panic");
     // This function is only for debugging panic capture
     panic!("This is an intentional test panic from admin_debug_test_panic()");
+}
+
+#[wasm_bindgen]
+pub fn admin_init_kv_bindings_js() -> Result<JsValue, JsValue> {
+    dummy().map_err(|_| JsValue::from_str("Failed to initialize KV bindings"))
 }
