@@ -7,6 +7,7 @@ use crate::utils::matcher::{apply_matcher, reg_find};
 use crate::utils::network::is_link;
 use crate::utils::url::url_decode;
 use crate::utils::{file_exists, file_get_async, web_get_async};
+use log::warn;
 
 /// Equivalent to ConfType enum in C++
 #[derive(Debug, PartialEq, Eq)]
@@ -104,10 +105,16 @@ pub async fn add_nodes(
             }
 
             // Download subscription content
-            let (sub_content, headers) = match web_get_async(&link, proxy, request_header).await {
-                Ok((content, headers)) => (content, headers),
-                Err(err) => return Err(format!("Cannot download subscription data: {}", err)),
+            let response = match web_get_async(&link, proxy, request_header).await {
+                Ok(response) => response,
+                Err(e) => {
+                    warn!("Failed to get subscription content from {}: {}", link, e);
+                    return Err(format!("HTTP request failed: {}", e));
+                }
             };
+
+            let sub_content = response.body;
+            let headers = response.headers;
 
             if !sub_content.is_empty() {
                 // Parse the subscription content

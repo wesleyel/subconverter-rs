@@ -72,8 +72,8 @@ pub async fn fetch_ruleset(
 async fn fetch_from_url(url: &str, proxy: &ProxyConfig) -> Result<String, String> {
     debug!("Fetching ruleset from URL: {}", url);
     match web_get_async(url, proxy, None).await {
-        Ok((content, _)) => Ok(content),
-        Err(e) => Err(format!("Failed to fetch ruleset from URL: {}", e)),
+        Ok(response) => Ok(response.body),
+        Err(e) => Err(e.message),
     }
 }
 

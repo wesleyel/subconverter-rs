@@ -1,19 +1,80 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileAttributes } from 'subconverter-wasm';
 import * as apiClient from '@/lib/api-client';
+import Editor, { Monaco } from '@monaco-editor/react';
+import { editor } from 'monaco-editor';
 
 interface CodeEditorProps {
     filePath: string | null;
+    language?: string;
+    theme?: string;
+    onChange?: (value: string | undefined) => void;
+    onSave?: () => void;
 }
 
-export default function CodeEditor({ filePath }: CodeEditorProps) {
+export default function CodeEditor({
+    filePath,
+    language,
+    theme = 'vs-dark',
+    onChange,
+    onSave
+}: CodeEditorProps) {
     const [content, setContent] = useState<string>('');
+    const [editorLanguage, setEditorLanguage] = useState<string>(language || 'plaintext');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [fileAttributes, setFileAttributes] = useState<FileAttributes | null>(null);
+    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+    // Detect language from file extension
+    useEffect(() => {
+        if (!filePath || language) return;
+
+        const extension = filePath.split('.').pop()?.toLowerCase();
+        let detectedLanguage = 'plaintext';
+
+        switch (extension) {
+            case 'js':
+                detectedLanguage = 'javascript';
+                break;
+            case 'ts':
+                detectedLanguage = 'typescript';
+                break;
+            case 'json':
+                detectedLanguage = 'json';
+                break;
+            case 'yml':
+            case 'yaml':
+                detectedLanguage = 'yaml';
+                break;
+            case 'rs':
+                detectedLanguage = 'rust';
+                break;
+            case 'md':
+                detectedLanguage = 'markdown';
+                break;
+            case 'html':
+                detectedLanguage = 'html';
+                break;
+            case 'css':
+                detectedLanguage = 'css';
+                break;
+            case 'ini':
+                detectedLanguage = 'ini';
+                break;
+            case 'sh':
+            case 'bash':
+                detectedLanguage = 'shell';
+                break;
+            default:
+                detectedLanguage = 'plaintext';
+        }
+
+        setEditorLanguage(detectedLanguage);
+    }, [filePath, language]);
 
     // Load file content when filePath changes
     useEffect(() => {
@@ -52,6 +113,17 @@ export default function CodeEditor({ filePath }: CodeEditorProps) {
         loadFile();
     }, [filePath]);
 
+    // Handle editor mount
+    function handleEditorDidMount(editor: editor.IStandaloneCodeEditor, _monaco: Monaco) {
+        editorRef.current = editor;
+
+        // Add keyboard shortcut for saving (Ctrl+S)
+        editor.addCommand(
+            _monaco.KeyMod.CtrlCmd | _monaco.KeyCode.KeyS,
+            () => handleSave()
+        );
+    }
+
     // Save file content
     const handleSave = async () => {
         if (!filePath) return;
@@ -68,12 +140,20 @@ export default function CodeEditor({ filePath }: CodeEditorProps) {
             } catch (attrError) {
                 console.error('Error refreshing file attributes:', attrError);
             }
+
+            if (onSave) onSave();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to save file');
             console.error('Error saving file:', err);
         } finally {
             setSaving(false);
         }
+    };
+
+    // Handle content change
+    const handleEditorChange = (value: string | undefined) => {
+        setContent(value || '');
+        if (onChange) onChange(value);
     };
 
     return (
@@ -122,10 +202,22 @@ export default function CodeEditor({ filePath }: CodeEditorProps) {
                         Select a file to edit
                     </div>
                 ) : (
-                    <textarea
-                        className="w-full h-full p-4 bg-gray-800 text-gray-200 resize-none font-mono text-sm focus:outline-none border-none"
+                    <Editor
+                        height="100%"
+                        language={editorLanguage}
+                        theme={theme}
                         value={content}
-                        onChange={(e) => setContent(e.target.value)}
+                        onChange={handleEditorChange}
+                        onMount={handleEditorDidMount}
+                        options={{
+                            minimap: { enabled: true },
+                            fontSize: 14,
+                            wordWrap: 'on',
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            tabSize: 2,
+                            lineNumbers: 'on',
+                        }}
                     />
                 )}
             </div>

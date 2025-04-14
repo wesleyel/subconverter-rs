@@ -1,4 +1,3 @@
-
 use case_insensitive_string::CaseInsensitiveString;
 use std::collections::HashMap;
 
@@ -16,18 +15,23 @@ mod platform {
 // Re-export platform-specific implementations
 pub use platform::*;
 
-/// Version of web_get that returns only the body content
-/// This is for backward compatibility where headers are not needed
-/// Asynchronous version of web_get_content that returns only the body content
-/// This is useful in WASM environment where synchronous functions can't be used
+/// Asynchronous function that returns only the body content if status is 2xx,
+/// otherwise treats as error
+/// This provides backward compatibility with code expecting only successful responses
 pub async fn web_get_content_async(
     url: &str,
     proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
 ) -> Result<String, String> {
     match web_get_async(url, proxy_config, headers).await {
-        Ok((body, _)) => Ok(body),
-        Err(e) => Err(e),
+        Ok(response) => {
+            if (200..300).contains(&response.status) {
+                Ok(response.body)
+            } else {
+                Err(format!("HTTP error {}: {}", response.status, response.body))
+            }
+        }
+        Err(e) => Err(e.message),
     }
 }
 

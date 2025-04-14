@@ -29,8 +29,8 @@ pub async fn load_content_async(path: &str) -> Result<String, String> {
     if path.starts_with("http://") || path.starts_with("https://") {
         // It's a URL, use HTTP client
         match web_get_async(path, &parse_proxy(&Settings::current().proxy_config), None).await {
-            Ok((data, _)) => Ok(data),
-            Err(e) => Err(format!("Failed to fetch content: {}", e)),
+            Ok(response) => Ok(response.body),
+            Err(e) => Err(format!("Failed to read file from URL: {}", e)),
         }
     } else if file_exists(path).await {
         // It's a file, read it asynchronously

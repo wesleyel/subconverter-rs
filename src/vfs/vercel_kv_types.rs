@@ -130,6 +130,31 @@ pub const DIRECTORY_MARKER_SUFFIX: &str = "/@@dir";
 pub const FILE_STATUS_PLACEHOLDER: &str = "placeholder";
 pub const FILE_STATUS_SUFFIX: &str = "@@status";
 
+//------------------------------------------------------------------------------
+// GITHUB CACHE TYPES
+//------------------------------------------------------------------------------
+
+/// The suffix for GitHub tree cache entries in KV store
+pub const GITHUB_TREE_CACHE_SUFFIX: &str = "@@github_tree_cache";
+
+/// Structure to store GitHub tree cache data
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GitHubTreeCache {
+    /// Tree response data
+    pub data: String,
+    /// When the cache was created
+    pub created_at: u64,
+    /// How long the cache is valid for in seconds
+    pub ttl: u64,
+}
+
+impl GitHubTreeCache {
+    /// Check if the cache entry has expired
+    pub fn is_expired(&self, current_time: u64) -> bool {
+        current_time > self.created_at + self.ttl
+    }
+}
+
 // VFS trait definition
 pub trait VirtualFileSystem {
     fn read_file(&self, path: &str)

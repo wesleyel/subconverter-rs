@@ -18,9 +18,27 @@ async fn get_vfs() -> Result<VercelKvVfs, VfsError> {
         .map_err(|e| VfsError::Other(format!("Failed to get VFS: {}", e)))
 }
 
-// Helper to convert VfsError to JsValue for FFI boundary
+// Helper to convert VfsError to JsValue for FFI boundary with error type information
 fn vfs_error_to_js(err: VfsError) -> JsValue {
-    JsValue::from_str(&format!("VFS Error: {}", err))
+    let error_type = match &err {
+        VfsError::NotFound(_) => "NotFound",
+        VfsError::ConfigError(_) => "ConfigError",
+        VfsError::StorageError(_) => "StorageError",
+        VfsError::NetworkError(_) => "NetworkError",
+        VfsError::IoError(_) => "IoError",
+        VfsError::IsDirectory(_) => "IsDirectory",
+        VfsError::NotDirectory(_) => "NotDirectory",
+        VfsError::Other(_) => "Other",
+    };
+
+    let error_obj = json!({
+        "type": error_type,
+        "message": format!("{}", err)
+    });
+
+    // Convert to string first since we don't have serde support
+    let error_json = error_obj.to_string();
+    JsValue::from_str(&error_json)
 }
 
 #[wasm_bindgen]

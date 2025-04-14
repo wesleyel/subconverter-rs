@@ -8,6 +8,54 @@ interface ArboristFileExplorerProps {
     onFileSelect: (path: string) => void;
 }
 
+// FileButton component for rendering file/directory items
+interface FileButtonProps {
+    file: DirectoryEntry;
+    onDirClick: (path: string) => void;
+    onFileClick: (path: string) => void;
+}
+
+const FileButton: React.FC<FileButtonProps> = ({ file, onDirClick, onFileClick }) => {
+    return (
+        <button
+            className="flex items-center flex-grow text-left overflow-hidden text-gray-200"
+            onClick={() => file.is_directory ? onDirClick(file.path) : onFileClick(file.path)}
+        >
+            <span className="mr-2 flex items-center">
+                {file.is_directory ? (
+                    <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
+                    </svg>
+                ) : (
+                    <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"></path>
+                    </svg>
+                )}
+                {file.attributes?.source_type && (
+                    <span className="relative -ml-1">
+                        {file.attributes.source_type === 'user' && (
+                            <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
+                            </svg>
+                        )}
+                        {file.attributes.source_type === 'cloud' && (
+                            <svg className="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" clipRule="evenodd"></path>
+                            </svg>
+                        )}
+                        {file.attributes.source_type === 'placeholder' && (
+                            <svg className="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"></path>
+                            </svg>
+                        )}
+                    </span>
+                )}
+            </span>
+            <span className="truncate">{file.name}</span>
+        </button>
+    );
+};
+
 export default function ArboristFileExplorer({ onFileSelect }: ArboristFileExplorerProps) {
     const [currentPath, setCurrentPath] = useState('');
     const [files, setFiles] = useState<DirectoryEntry[]>([]);
@@ -219,42 +267,11 @@ export default function ArboristFileExplorer({ onFileSelect }: ArboristFileExplo
                                 key={`${file.path}-${file.attributes?.created_at}`}
                                 className="flex items-center justify-between px-2 py-1 hover:bg-gray-700 border-b border-gray-700 last:border-b-0"
                             >
-                                <button
-                                    className="flex items-center flex-grow text-left overflow-hidden text-gray-200"
-                                    onClick={() => file.is_directory ? handleDirClick(file.path) : handleFileClick(file.path)}
-                                >
-                                    <span className="mr-2 flex items-center">
-                                        {file.is_directory ? (
-                                            <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd"></path>
-                                            </svg>
-                                        )}
-                                        {file.attributes?.source_type && (
-                                            <span className="relative -ml-1">
-                                                {file.attributes.source_type === 'user' && (
-                                                    <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"></path>
-                                                    </svg>
-                                                )}
-                                                {file.attributes.source_type === 'cloud' && (
-                                                    <svg className="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M5.5 16a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 16h-8z" clipRule="evenodd"></path>
-                                                    </svg>
-                                                )}
-                                                {file.attributes.source_type === 'placeholder' && (
-                                                    <svg className="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"></path>
-                                                    </svg>
-                                                )}
-                                            </span>
-                                        )}
-                                    </span>
-                                    <span className="truncate">{file.name}</span>
-                                </button>
+                                <FileButton
+                                    file={file}
+                                    onDirClick={handleDirClick}
+                                    onFileClick={handleFileClick}
+                                />
                                 <div className="flex items-center mr-2 text-xs">
                                     {file.attributes && !file.is_directory && (
                                         <span className="text-gray-400">

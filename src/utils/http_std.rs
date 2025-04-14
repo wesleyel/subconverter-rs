@@ -1,6 +1,7 @@
 use crate::utils::system::get_system_proxy;
 use case_insensitive_string::CaseInsensitiveString;
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::time::Duration;
 
 use reqwest::{Client, Proxy, StatusCode};
@@ -16,6 +17,42 @@ pub struct ProxyConfig {
 impl Default for ProxyConfig {
     fn default() -> Self {
         ProxyConfig { proxy: None }
+    }
+}
+
+/// HTTP response structure
+#[derive(Debug, Clone)]
+pub struct HttpResponse {
+    /// HTTP status code
+    pub status: u16,
+    /// Response body
+    pub body: String,
+    /// Response headers
+    pub headers: HashMap<String, String>,
+}
+
+/// HTTP error structure
+#[derive(Debug, Clone)]
+pub struct HttpError {
+    /// Error message
+    pub message: String,
+    /// Optional status code if available
+    pub status: Option<u16>,
+}
+
+impl std::fmt::Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(status) = self.status {
+            write!(f, "HTTP error {}: {}", status, self.message)
+        } else {
+            write!(f, "HTTP error: {}", self.message)
+        }
+    }
+}
+
+impl StdError for HttpError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        None
     }
 }
 
@@ -42,13 +79,13 @@ pub fn parse_proxy(proxy_str: &str) -> ProxyConfig {
 /// * `headers` - Optional custom headers
 ///
 /// # Returns
-/// * `Ok(String)` - The response body as a string
-/// * `Err(String)` - Error message if the request failed
+/// * `Ok(HttpResponse)` - The response with status, body, and headers
+/// * `Err(HttpError)` - Error details if the request failed
 pub async fn web_get_async(
     url: &str,
     proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
-) -> Result<(String, HashMap<String, String>), String> {
+) -> Result<HttpResponse, HttpError> {
     // Build client with proxy if specified
     let mut client_builder = Client::builder()
         .timeout(Duration::from_secs(DEFAULT_TIMEOUT))
@@ -61,7 +98,10 @@ pub async fn web_get_async(
                     client_builder = client_builder.proxy(proxy);
                 }
                 Err(e) => {
-                    return Err(format!("Failed to set proxy: {}", e));
+                    return Err(HttpError {
+                        message: format!("Failed to set proxy: {}", e),
+                        status: None,
+                    });
                 }
             }
         }
@@ -70,7 +110,10 @@ pub async fn web_get_async(
     let client = match client_builder.build() {
         Ok(client) => client,
         Err(e) => {
-            return Err(format!("Failed to build HTTP client: {}", e));
+            return Err(HttpError {
+                message: format!("Failed to build HTTP client: {}", e),
+                status: None,
+            });
         }
     };
 
@@ -86,9 +129,15 @@ pub async fn web_get_async(
     let response = match request_builder.send().await {
         Ok(resp) => resp,
         Err(e) => {
-            return Err(format!("Failed to send request: {}", e));
+            return Err(HttpError {
+                message: format!("Failed to send request: {}", e),
+                status: None,
+            });
         }
     };
+
+    // Get status and headers before attempting to read the body
+    let status = response.status().as_u16();
 
     // Get response headers
     let mut resp_headers = HashMap::new();
@@ -98,15 +147,17 @@ pub async fn web_get_async(
         }
     }
 
-    // Check status code
-    if response.status() != StatusCode::OK {
-        return Err(format!("HTTP error: {}", response.status()));
-    }
-
-    // Get response body
+    // Get response body, even for error responses
     match response.text().await {
-        Ok(body) => Ok((body, resp_headers)),
-        Err(e) => Err(format!("Failed to read response body: {}", e)),
+        Ok(body) => Ok(HttpResponse {
+            status,
+            body,
+            headers: resp_headers,
+        }),
+        Err(e) => Err(HttpError {
+            message: format!("Failed to read response body: {}", e),
+            status: Some(status),
+        }),
     }
 }
 
@@ -117,7 +168,7 @@ pub fn web_get(
     url: &str,
     proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
-) -> Result<(String, HashMap<String, String>), String> {
+) -> Result<HttpResponse, HttpError> {
     // Create a tokio runtime for running the async function
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -125,7 +176,10 @@ pub fn web_get(
     {
         Ok(rt) => rt,
         Err(e) => {
-            return Err(format!("Failed to create tokio runtime: {}", e));
+            return Err(HttpError {
+                message: format!("Failed to create tokio runtime: {}", e),
+                status: None,
+            });
         }
     };
 
@@ -133,18 +187,23 @@ pub fn web_get(
     rt.block_on(web_get_async(url, proxy_config, headers))
 }
 
-/// Version of web_get that returns only the body content
-/// This is for backward compatibility where headers are not needed
-/// Asynchronous version of web_get_content that returns only the body content
-/// This is useful in WASM environment where synchronous functions can't be used
+/// Asynchronous function that returns only the body content if status is 2xx,
+/// otherwise treats as error
+/// This provides backward compatibility with code expecting only successful responses
 pub async fn web_get_content_async(
     url: &str,
     proxy_config: &ProxyConfig,
     headers: Option<&HashMap<CaseInsensitiveString, String>>,
 ) -> Result<String, String> {
     match web_get_async(url, proxy_config, headers).await {
-        Ok((body, _)) => Ok(body),
-        Err(e) => Err(e),
+        Ok(response) => {
+            if (200..300).contains(&response.status) {
+                Ok(response.body)
+            } else {
+                Err(format!("HTTP error {}: {}", response.status, response.body))
+            }
+        }
+        Err(e) => Err(e.message),
     }
 }
 

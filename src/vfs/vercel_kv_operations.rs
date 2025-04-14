@@ -1,9 +1,12 @@
+use crate::utils::http_wasm::{web_get_async, ProxyConfig};
+use crate::utils::string::normalize_dir_path;
 use crate::vfs::vercel_kv_helpers::*;
-use crate::vfs::vercel_kv_js_bindings::*;
 use crate::vfs::vercel_kv_store::create_file_attributes;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
 use crate::vfs::VfsError;
+use case_insensitive_string::CaseInsensitiveString;
+use std::collections::HashMap;
 
 // Define helper methods for VercelKvVfs to keep the implementation
 // manageable and well-organized
@@ -187,11 +190,26 @@ impl VercelKvVfs {
             return Ok(true);
         }
 
-        // For directory paths, check if directory marker exists
+        // First check if this is explicitly a directory path (ends with /)
         if is_directory_path(&normalized_path) {
             if let Ok(exists) = self.store.directory_exists_in_kv(&normalized_path).await {
                 if exists {
                     log::trace!("Exists check (directory marker found): {}", normalized_path);
+                    return Ok(true);
+                }
+            }
+        }
+        // If not explicitly a directory, also check if it might be a directory without trailing slash
+        else {
+            // Try to check with a trailing slash (as a directory)
+            let dir_path = normalize_dir_path(&normalized_path);
+            if let Ok(exists) = self.store.directory_exists_in_kv(&dir_path).await {
+                if exists {
+                    log::trace!(
+                        "Exists check (directory without trailing slash): {} -> {}",
+                        normalized_path,
+                        dir_path
+                    );
                     return Ok(true);
                 }
             }
@@ -262,37 +280,65 @@ impl VercelKvVfs {
         let url = self.github_config.get_raw_url(path);
         log::debug!("Fetching from GitHub: {}", url);
 
-        let fetch_response = fetch_url(&url)
-            .await
-            .map_err(|e| js_error_to_vfs(e, "Fetch GitHub URL failed"))?;
+        // Prepare headers with authorization if token is available
+        let mut headers = HashMap::new();
+        if let Some(token) = &self.github_config.auth_token {
+            log::debug!("Using GitHub token for raw content request");
+            headers.insert(
+                CaseInsensitiveString::new("Authorization"),
+                format!("token {}", token),
+            );
+        }
+        headers.insert(
+            CaseInsensitiveString::new("Accept"),
+            "application/vnd.github.v3.raw".to_string(),
+        );
+        headers.insert(
+            CaseInsensitiveString::new("User-Agent"),
+            "subconverter-rs".to_string(),
+        );
 
-        let status_js = response_status(&fetch_response)
-            .await
-            .map_err(|e| js_error_to_vfs(e, "Get fetch status failed"))?;
-        let status = status_js
-            .as_f64()
-            .map(|f| f as u16)
-            .ok_or_else(|| js_error_to_vfs(status_js, "GitHub fetch status was not a number"))?;
+        // Make the request
+        let proxy_config = ProxyConfig::default();
+        let fetch_result = web_get_async(&url, &proxy_config, Some(&headers)).await;
 
-        if !(200..300).contains(&status) {
-            log::warn!("GitHub fetch failed for {}: Status {}", url, status);
-            if status == 404 {
-                return Err(VfsError::NotFound(format!(
-                    "File not found on GitHub: {}",
-                    path
-                )));
-            } else {
+        match fetch_result {
+            Ok(response) => {
+                // Check if the response is successful (2xx)
+                if (200..300).contains(&response.status) {
+                    log::debug!("Successfully fetched raw file from GitHub");
+
+                    // Check if we got rate limit headers
+                    if let Some(rate_limit) = response.headers.get("x-ratelimit-remaining") {
+                        log::info!("GitHub API rate limit remaining: {}", rate_limit);
+                    }
+
+                    Ok(response.body.into_bytes())
+                } else if response.status == 404 {
+                    log::error!("File not found on GitHub (404): {}", path);
+                    return Err(VfsError::NotFound(format!(
+                        "File not found on GitHub: {}",
+                        path
+                    )));
+                } else {
+                    log::error!(
+                        "GitHub API returned error status {}: {}",
+                        response.status,
+                        response.body
+                    );
+                    return Err(VfsError::NetworkError(format!(
+                        "GitHub API returned error status {}: {}",
+                        response.status, response.body
+                    )));
+                }
+            }
+            Err(e) => {
+                log::error!("Error fetching GitHub raw file: {}", e.message);
                 return Err(VfsError::NetworkError(format!(
-                    "GitHub fetch failed with status: {}",
-                    status
+                    "GitHub raw file request failed: {}",
+                    e.message
                 )));
             }
         }
-
-        let uint8_array = response_bytes(&fetch_response)
-            .await
-            .map_err(|e| js_error_to_vfs(e, "Get fetch response bytes failed"))?;
-
-        Ok(uint8_array.to_vec())
     }
 }

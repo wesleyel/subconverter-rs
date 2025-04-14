@@ -4,6 +4,96 @@ import { loadWasmSingleton } from '@/lib/wasm';
 // Define correct types for route parameters according to Next.js 15
 type RouteParams = any;
 
+// Helper function to process WASM error
+function processWasmError(error: any, filePath: string): NextResponse {
+    // Try to parse structured error from WASM
+    try {
+        let errorData;
+
+        if (typeof error === 'object' && error !== null) {
+            // Parse error object if it's already an object
+            errorData = error;
+        } else if (typeof error === 'string') {
+            // See if it's a JSON string we can parse 
+            try {
+                errorData = JSON.parse(error);
+            } catch {
+                // Not valid JSON, use as is
+                errorData = { type: 'Unknown', message: error };
+            }
+        } else {
+            // Fallback for unknown error format
+            errorData = {
+                type: 'Unknown',
+                message: error?.message || String(error)
+            };
+        }
+
+        // Handle specific error types
+        switch (errorData.type) {
+            case 'NotFound':
+                return NextResponse.json(
+                    { error: `File not found: ${filePath}`, details: errorData.message },
+                    { status: 404 }
+                );
+            case 'IsDirectory':
+                return NextResponse.json(
+                    { error: `Is a directory: ${filePath}`, details: errorData.message },
+                    { status: 400 }
+                );
+            case 'NotDirectory':
+                return NextResponse.json(
+                    { error: `Not a directory: ${filePath}`, details: errorData.message },
+                    { status: 400 }
+                );
+            case 'ConfigError':
+                return NextResponse.json(
+                    { error: `Configuration error: ${filePath}`, details: errorData.message },
+                    { status: 500 }
+                );
+            case 'StorageError':
+                return NextResponse.json(
+                    { error: `Storage error: ${filePath}`, details: errorData.message },
+                    { status: 500 }
+                );
+            case 'NetworkError':
+                return NextResponse.json(
+                    { error: `Network error: ${filePath}`, details: errorData.message },
+                    { status: 503 }
+                );
+            case 'IoError':
+                return NextResponse.json(
+                    { error: `I/O error: ${filePath}`, details: errorData.message },
+                    { status: 500 }
+                );
+            default:
+                return NextResponse.json(
+                    { error: `Operation failed on ${filePath}`, details: errorData.message },
+                    { status: 500 }
+                );
+        }
+    } catch (e) {
+        // Fallback for any error parsing issues
+        console.error('Error processing WASM error:', e);
+
+        // Legacy string parsing for backward compatibility
+        const errorMessage = String(error);
+
+        // Try to determine error type from string
+        if (errorMessage.includes('NotFound') || errorMessage.includes('not found')) {
+            return NextResponse.json(
+                { error: `File not found: ${filePath}`, details: errorMessage },
+                { status: 404 }
+            );
+        } else {
+            return NextResponse.json(
+                { error: `Internal server error processing ${filePath}`, details: errorMessage },
+                { status: 500 }
+            );
+        }
+    }
+}
+
 // Handle file operations via admin API
 export async function GET(
     request: NextRequest,
@@ -23,8 +113,10 @@ export async function GET(
         );
     }
 
+    const path = (await params).path;
+
     // Extract path from dynamic route parameter
-    const filePath = params.path.join('/');
+    const filePath = path.join('/');
 
     if (!filePath) {
         return NextResponse.json({ error: 'File path is required' }, { status: 400 });
@@ -53,24 +145,7 @@ export async function GET(
         }
     } catch (error: any) {
         console.error(`Error processing admin GET request for ${filePath}:`, error);
-        const errorMessage = typeof error === 'string' ? error : (error.message || 'Unknown WASM error');
-
-        if (errorMessage.includes('Not found')) {
-            return NextResponse.json(
-                { error: `File not found: ${filePath}`, details: errorMessage },
-                { status: 404 }
-            );
-        } else if (errorMessage.includes('VFS Error')) {
-            return NextResponse.json(
-                { error: `VFS operation failed for ${filePath}`, details: errorMessage },
-                { status: 500 }
-            );
-        } else {
-            return NextResponse.json(
-                { error: `Internal server error processing ${filePath}`, details: errorMessage },
-                { status: 500 }
-            );
-        }
+        return processWasmError(error, filePath);
     }
 }
 
@@ -131,12 +206,7 @@ export async function POST(
         }
     } catch (error: any) {
         console.error(`Error processing admin POST request for ${filePath}:`, error);
-        const errorMessage = typeof error === 'string' ? error : (error.message || 'Unknown WASM error');
-
-        return NextResponse.json(
-            { error: `Failed to write file: ${filePath}`, details: errorMessage },
-            { status: 500 }
-        );
+        return processWasmError(error, filePath);
     }
 }
 
@@ -185,18 +255,6 @@ export async function DELETE(
         });
     } catch (error: any) {
         console.error(`Error processing admin DELETE request for ${filePath}:`, error);
-        const errorMessage = typeof error === 'string' ? error : (error.message || 'Unknown WASM error');
-
-        if (errorMessage.includes('Not found')) {
-            return NextResponse.json(
-                { error: `File not found: ${filePath}`, details: errorMessage },
-                { status: 404 }
-            );
-        } else {
-            return NextResponse.json(
-                { error: `Failed to delete file: ${filePath}`, details: errorMessage },
-                { status: 500 }
-            );
-        }
+        return processWasmError(error, filePath);
     }
 } 

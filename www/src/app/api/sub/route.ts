@@ -91,22 +91,10 @@ export async function POST(request: NextRequest) {
 
     try {
         // Parse request body as JSON
-        const params = await request.json();
-
-        if (!params.target) {
-            return NextResponse.json(
-                { error: 'Missing required parameter: target' },
-                { status: 400 }
-            );
-        }
-
-        console.log(`Sub API request: POST /api/sub with target=${params.target}`);
-
-        // Convert parameters to a JSON string for the WASM function
-        const queryJson = JSON.stringify(params);
+        const paramsJsonStr = await request.text();
 
         // Call the WASM function to process the subscription
-        const responsePromise = wasmModule.sub_process_wasm(queryJson);
+        const responsePromise = wasmModule.sub_process_wasm(paramsJsonStr);
 
         // Wait for the Promise to resolve
         const responseJsonString = await responsePromise;

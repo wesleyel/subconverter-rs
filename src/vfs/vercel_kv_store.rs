@@ -400,6 +400,86 @@ impl VercelKvStore {
 
         unique_paths.into_iter().collect()
     }
+
+    //------------------------------------------------------------------------------
+    // GitHub Cache Operations
+    //------------------------------------------------------------------------------
+
+    /// Read GitHub tree cache from KV store
+    pub async fn read_github_tree_cache(
+        &self,
+        cache_key: &str,
+    ) -> Result<Option<GitHubTreeCache>, VfsError> {
+        match kv_get(cache_key).await {
+            Ok(js_value) => {
+                if js_value.is_null() || js_value.is_undefined() {
+                    Ok(None)
+                } else {
+                    // Convert JsValue to Vec<u8>
+                    let cache_bytes: Vec<u8> =
+                        serde_wasm_bindgen::from_value(js_value).map_err(|e| {
+                            VfsError::Other(format!("Failed to deserialize cache bytes: {}", e))
+                        })?;
+
+                    let cache: GitHubTreeCache =
+                        serde_json::from_slice(&cache_bytes).map_err(|e| {
+                            VfsError::Other(format!("Failed to parse GitHub tree cache: {}", e))
+                        })?;
+
+                    Ok(Some(cache))
+                }
+            }
+            Err(e) => Err(js_error_to_vfs(
+                e,
+                "Failed to read GitHub tree cache from KV",
+            )),
+        }
+    }
+
+    /// Write GitHub tree cache to KV store
+    pub async fn write_github_tree_cache(
+        &self,
+        cache_key: &str,
+        cache: &GitHubTreeCache,
+    ) -> Result<(), VfsError> {
+        let cache_json = serde_json::to_vec(cache).map_err(|e| {
+            VfsError::Other(format!("Failed to serialize GitHub tree cache: {}", e))
+        })?;
+
+        match kv_set(cache_key, &cache_json).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(js_error_to_vfs(
+                e,
+                "Failed to write GitHub tree cache to KV",
+            )),
+        }
+    }
+
+    /// Write GitHub tree cache to KV store in background
+    pub fn write_github_tree_cache_background(&self, cache_key: String, cache: GitHubTreeCache) {
+        let cache_json = match serde_json::to_vec(&cache) {
+            Ok(json) => json,
+            Err(e) => {
+                log::error!("Failed to serialize GitHub tree cache: {}", e);
+                return;
+            }
+        };
+
+        wasm_bindgen_futures::spawn_local(async move {
+            match kv_set(&cache_key, &cache_json).await {
+                Ok(_) => {
+                    log::debug!("Successfully stored GitHub tree cache for {}", cache_key);
+                }
+                Err(e) => {
+                    log::error!(
+                        "Background KV write error for GitHub tree cache {}: {:?}",
+                        cache_key,
+                        e
+                    );
+                }
+            }
+        });
+    }
 }
 
 // Helper function to create default FileAttributes for a file

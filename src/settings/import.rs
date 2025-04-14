@@ -35,8 +35,8 @@ pub async fn import_items(
 
         let content = if path.starts_with("http://") || path.starts_with("https://") {
             // Fetch from URL
-            let (data, _) = crate::utils::http::web_get_async(&path, &proxy_config, None).await?;
-            data
+            let response = crate::utils::http::web_get_async(&path, &proxy_config, None).await?;
+            response.body
         } else if file_exists(&path).await {
             // Read from file
             if scope_limit {

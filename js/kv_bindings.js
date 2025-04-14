@@ -7,6 +7,44 @@ let localStorageMap = new Map(); // Local in-memory fallback
 let kv; // Lazy load KV
 let isNetlifyBlobs = false; // Flag to track if we're using Netlify Blobs
 
+// Environment variable cache to avoid repeated lookups
+let envCache = new Map();
+
+// Function to read environment variables from various runtimes
+// This is needed because std::env::var doesn't work in WebAssembly
+function getenv(name, defaultValue = "") {
+    // Check cache first
+    if (envCache.has(name)) {
+        return envCache.get(name);
+    }
+
+    let value = defaultValue;
+
+    try {
+        // Check for Node.js process.env
+        if (typeof process !== 'undefined' && process.env) {
+            if (name in process.env) {
+                value = process.env[name];
+            }
+        }
+        // Check for browser environment
+        else if (typeof window !== 'undefined') {
+            // Try for environment variables set via window.__ENV__ (common pattern)
+            if (window.__ENV__ && name in window.__ENV__) {
+                value = window.__ENV__[name];
+            }
+        }
+        // Cloudflare Workers and other edge runtimes might have their own way
+        // For example, Cloudflare Workers use env bindings set during deployment
+    } catch (error) {
+        console.warn(`Error reading environment variable ${name}:`, error);
+    }
+
+    // Cache the result
+    envCache.set(name, value);
+    return value;
+}
+
 async function getKv() {
     if (!kv) {
         try {
@@ -325,6 +363,72 @@ async function response_bytes(response /* Response object */) {
     }
 }
 
+// WASM-compatible fetch function that works in Node.js environment
+async function wasm_fetch_with_request(url, options) {
+    try {
+        // In Node.js environment, use node-fetch or global fetch
+        // This mimics the browser's fetch API for WASM
+        let headers = {};
+
+        // Extract headers from options if present
+        if (options && options.headers) {
+            const headerEntries = Object.entries(options.headers);
+            for (const [key, value] of headerEntries) {
+                headers[key] = value;
+            }
+        }
+
+        // Use the method from options or default to GET
+        const method = options && options.method ? options.method : 'GET';
+
+        // Use either global fetch (Node.js 18+) or require node-fetch
+        let fetchFunc = fetch;
+        if (typeof fetch === 'undefined') {
+            try {
+                const nodeFetch = require('node-fetch');
+                fetchFunc = nodeFetch;
+            } catch (e) {
+                console.error('Neither global fetch nor node-fetch is available:', e);
+                throw new Error('No fetch implementation available');
+            }
+        }
+
+        const response = await fetchFunc(url, {
+            method,
+            headers,
+            // Add other options as needed
+        });
+
+        return response;
+    } catch (error) {
+        console.error(`WASM fetch error for ${url}:`, error);
+        throw error;
+    }
+}
+
+// Helper to get headers from Response as an object
+async function response_headers(response) {
+    if (!(response instanceof Response)) {
+        throw new Error("Input is not a Response object");
+    }
+
+    const headers = {};
+    for (const [key, value] of response.headers.entries()) {
+        headers[key] = value;
+    }
+
+    return headers;
+}
+
+// Helper to get text from Response
+async function response_text(response) {
+    if (!(response instanceof Response)) {
+        throw new Error("Input is not a Response object");
+    }
+
+    return await response.text();
+}
+
 function dummy() {
     return "dummy";
 }
@@ -341,5 +445,9 @@ module.exports = {
     fetch_url,
     response_status,
     response_bytes,
+    wasm_fetch_with_request,
+    response_headers,
+    response_text,
+    getenv,
     dummy
 }; 

@@ -865,7 +865,8 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
                 &mut ruleset_content,
                 &config.proxy_groups,
                 &mut config.extra.clone(),
-            ).await
+            )
+            .await
         }
         SubconverterTarget::SSSub => {
             info!("Generate target: SS Subscription");
@@ -1064,12 +1065,17 @@ impl RuleBases {
             // Check if path is a URL
             if path.starts_with("http://") || path.starts_with("https://") {
                 match web_get_async(path, &proxy_config, None).await {
-                    Ok((content, _)) => {
+                    Ok(response) => {
+                        let content = response.body;
+                        if content.is_empty() {
+                            debug!("Empty content from URL: {}", path);
+                            return None;
+                        }
                         debug!("Loaded rule base from URL: {}", path);
                         Some(content)
                     }
                     Err(e) => {
-                        warn!("Failed to load rule base from URL {}: {}", path, e);
+                        debug!("Failed to load rule base from URL {}: {}", path, e);
                         None
                     }
                 }
@@ -1148,7 +1154,12 @@ impl RuleBases {
             // Check if path is a URL
             if path.starts_with("http://") || path.starts_with("https://") {
                 match web_get_async(path, &proxy_config, None).await {
-                    Ok((content, _)) => {
+                    Ok(response) => {
+                        let content = response.body;
+                        if content.is_empty() {
+                            debug!("Empty content from URL: {}", path);
+                            return String::new();
+                        }
                         debug!("Loaded rule base from URL: {}", path);
                         content
                     }

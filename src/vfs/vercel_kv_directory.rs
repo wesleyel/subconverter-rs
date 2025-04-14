@@ -1,4 +1,7 @@
 use crate::log_debug;
+use crate::utils::string::{
+    build_dir_entry_path, build_file_entry_path, normalize_dir_path, normalize_file_path,
+};
 use crate::vfs::vercel_kv_helpers::*;
 use crate::vfs::vercel_kv_store::{create_directory_attributes, create_file_attributes};
 use crate::vfs::vercel_kv_types::*;
@@ -161,7 +164,7 @@ impl VercelKvVfs {
         let prefix = if path.is_empty() {
             "".to_string() // For root, use empty prefix, not "/"
         } else {
-            format!("{}{}", path, if path.ends_with('/') { "" } else { "/" })
+            normalize_dir_path(&path)
         };
         log_debug!("Using prefix for KV scan: '{}'", prefix);
 
@@ -263,13 +266,7 @@ impl VercelKvVfs {
 
                                         files.push(DirectoryEntry {
                                             name: get_filename(file_path),
-                                            path: if file_path.starts_with('/')
-                                                || file_path.is_empty()
-                                            {
-                                                file_path.clone()
-                                            } else {
-                                                format!("/{}", file_path)
-                                            },
+                                            path: normalize_file_path(file_path),
                                             is_directory: false,
                                             attributes: Some(attrs),
                                         });
@@ -335,11 +332,7 @@ impl VercelKvVfs {
             // For files directly under this directory
             if !rel_path.contains('/') {
                 log_debug!("Found file in directory: '{}'", rel_path);
-                let fpath = if path.is_empty() {
-                    format!("/{}", rel_path)
-                } else {
-                    format!("{}{}", path, rel_path)
-                };
+                let fpath = build_file_entry_path(&path, &rel_path);
                 // Get file attributes
                 if let Some(attrs) = self.read_file_attributes(&fpath).await.ok() {
                     log_debug!("Found attributes for file: '{}'", fpath);
@@ -380,19 +373,7 @@ impl VercelKvVfs {
 
                 if !dir_name.is_empty() && dir_names.insert(dir_name.clone()) {
                     log_debug!("Adding directory entry: '{}'", dir_name);
-                    let dir_full_path = if path.is_empty() {
-                        format!("/{}/", dir_name)
-                    } else {
-                        format!(
-                            "{}{}/",
-                            if path.ends_with('/') {
-                                &path[..path.len() - 1]
-                            } else {
-                                &path
-                            },
-                            dir_name
-                        )
-                    };
+                    let dir_full_path = build_dir_entry_path(&path, &dir_name);
                     log_debug!("Directory full path: '{}'", dir_full_path);
                     files.push(DirectoryEntry {
                         name: dir_name,
@@ -474,12 +455,7 @@ impl VercelKvVfs {
 
                                 if !dir_exists {
                                     // Add as directory entry
-                                    let dir_path_prefix = if path.ends_with('/') {
-                                        path.to_string()
-                                    } else {
-                                        format!("{}/", path)
-                                    };
-                                    let dir_path = format!("{}{}/", dir_path_prefix, dir_name);
+                                    let dir_path = build_dir_entry_path(&path, dir_name);
 
                                     log_debug!(
                                         "Adding direct subdirectory from GitHub: '{}'",
@@ -520,11 +496,7 @@ impl VercelKvVfs {
 
                                 files.push(DirectoryEntry {
                                     name: get_filename(file_path),
-                                    path: if file_path.starts_with('/') || file_path.is_empty() {
-                                        file_path.clone()
-                                    } else {
-                                        format!("/{}", file_path)
-                                    },
+                                    path: normalize_file_path(file_path),
                                     is_directory: false,
                                     attributes: Some(attrs),
                                 });
@@ -545,11 +517,7 @@ impl VercelKvVfs {
     /// Create directory
     pub(crate) async fn create_directory_impl(&self, path: &str) -> Result<(), VfsError> {
         let normalized_path = normalize_path(path);
-        let dir_path = if normalized_path.is_empty() || normalized_path.ends_with('/') {
-            normalized_path
-        } else {
-            format!("{}/", normalized_path)
-        };
+        let dir_path = normalize_dir_path(&normalized_path);
 
         log::debug!("Creating directory: {}", dir_path);
 

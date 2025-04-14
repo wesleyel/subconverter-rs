@@ -27,6 +27,9 @@ extern "C" {
     #[wasm_bindgen(catch)]
     pub async fn response_bytes(response: &JsValue) -> Result<Uint8Array, JsValue>;
 
+    #[wasm_bindgen]
+    pub fn getenv(name: &str, default_value: &str) -> String;
+
     #[wasm_bindgen(catch)]
     pub fn dummy() -> Result<JsValue, JsValue>;
 }

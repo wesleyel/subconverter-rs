@@ -1,3 +1,4 @@
+use crate::utils::http_wasm::{web_get_async, ProxyConfig};
 use crate::utils::system::safe_system_time;
 use crate::vfs::vercel_kv_github::GitHubTreeResponse;
 use crate::vfs::vercel_kv_helpers::*;
@@ -5,6 +6,8 @@ use crate::vfs::vercel_kv_js_bindings::*;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
 use crate::vfs::VfsError;
+use case_insensitive_string::CaseInsensitiveString;
+use std::collections::HashMap;
 use std::time::UNIX_EPOCH;
 
 impl VercelKvVfs {
@@ -39,97 +42,119 @@ impl VercelKvVfs {
 
         log::info!("Loading all files from GitHub directory: {}", dir_path);
 
-        // Use GitHub API to fetch tree information for this directory
-        // When recursive=0, API returns only direct children of the tree
-        // When recursive=1, API returns all descendants recursively
-        let api_url = format!(
-            "https://api.github.com/repos/{}/{}/git/trees/{}?recursive={}",
-            self.github_config.owner,
-            self.github_config.repo,
-            self.github_config.branch,
-            if recursive { "1" } else { "0" }
+        // Generate cache key for this directory lookup
+        let cache_key = get_github_tree_cache_key(
+            &self.github_config.owner,
+            &self.github_config.repo,
+            &self.github_config.branch,
+            recursive,
         );
 
-        log::debug!("Fetching GitHub directory tree from: {}", api_url);
+        // Check if we have cached data
+        let current_time = safe_system_time()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
 
-        let fetch_response = match fetch_url(&api_url).await {
-            Ok(response) => {
-                log::debug!("Successfully fetched GitHub API response");
-                response
-            }
-            Err(e) => {
-                log::error!("Error fetching GitHub API: {:?}", e);
-                return Err(js_error_to_vfs(e, "Fetch GitHub API failed"));
-            }
-        };
+        let mut response_text = None;
 
-        let status_js = match response_status(&fetch_response).await {
-            Ok(status) => {
-                log::debug!("Successfully got response status");
-                status
+        if let Ok(Some(cache)) = self.store.read_github_tree_cache(&cache_key).await {
+            if !cache.is_expired(current_time) {
+                log::debug!("Using cached GitHub tree data from KV");
+                response_text = Some(cache.data);
+            } else {
+                log::debug!("GitHub tree cache is expired");
             }
-            Err(e) => {
-                log::error!("Error getting response status: {:?}", e);
-                return Err(js_error_to_vfs(e, "Get GitHub API status failed"));
-            }
-        };
+        }
 
-        let status = match status_js.as_f64().map(|f| f as u16) {
-            Some(s) => {
-                log::debug!("Response status code: {}", s);
-                s
-            }
-            None => {
-                log::error!("Status is not a number: {:?}", status_js);
-                return Err(js_error_to_vfs(
-                    status_js,
-                    "GitHub API status was not a number",
-                ));
-            }
-        };
+        // If no valid cache, fetch from GitHub API
+        if response_text.is_none() {
+            // When recursive=0, API returns only direct children of the tree
+            // When recursive=1, API returns all descendants recursively
+            let api_url = format!(
+                "https://api.github.com/repos/{}/{}/git/trees/{}?recursive={}",
+                self.github_config.owner,
+                self.github_config.repo,
+                self.github_config.branch,
+                if recursive { "1" } else { "0" }
+            );
 
-        if !(200..300).contains(&status) {
-            log::warn!("GitHub API call failed: Status {}", status);
-            return Err(VfsError::NetworkError(format!(
-                "GitHub API call failed with status: {}",
-                status
-            )));
+            log::debug!("Fetching GitHub directory tree from: {}", api_url);
+
+            // Prepare headers with authorization if token is available
+            let mut headers = HashMap::new();
+            if let Some(token) = &self.github_config.auth_token {
+                log::debug!("Using GitHub token for API request");
+                headers.insert(
+                    CaseInsensitiveString::new("Authorization"),
+                    format!("token {}", token),
+                );
+            }
+            headers.insert(
+                CaseInsensitiveString::new("Accept"),
+                "application/vnd.github.v3+json".to_string(),
+            );
+            headers.insert(
+                CaseInsensitiveString::new("User-Agent"),
+                "subconverter-rs".to_string(),
+            );
+
+            // Make the request
+            let proxy_config = ProxyConfig::default();
+            let fetch_result = web_get_async(&api_url, &proxy_config, Some(&headers)).await;
+
+            match fetch_result {
+                Ok(response) => {
+                    // Check if the response is successful (2xx)
+                    if (200..300).contains(&response.status) {
+                        log::debug!("Successfully fetched GitHub API response");
+
+                        // Check if we got rate limit headers
+                        if let Some(rate_limit) = response.headers.get("x-ratelimit-remaining") {
+                            log::info!("GitHub API rate limit remaining: {}", rate_limit);
+                        }
+
+                        response_text = Some(response.body);
+
+                        // Cache the result
+                        let cache = GitHubTreeCache {
+                            data: response_text.as_ref().unwrap().clone(),
+                            created_at: current_time,
+                            ttl: self.github_config.cache_ttl_seconds,
+                        };
+
+                        // Store cache in background
+                        self.store
+                            .write_github_tree_cache_background(cache_key.clone(), cache);
+                    } else {
+                        log::error!(
+                            "GitHub API returned error status {}: {}",
+                            response.status,
+                            response.body
+                        );
+                        return Err(VfsError::NetworkError(format!(
+                            "GitHub API returned error status {}: {}",
+                            response.status, response.body
+                        )));
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error fetching GitHub API: {}", e.message);
+                    return Err(VfsError::NetworkError(format!(
+                        "GitHub API request failed: {}",
+                        e.message
+                    )));
+                }
+            }
         }
 
         // Parse the response to get file information
-        let response_bytes = match response_bytes(&fetch_response).await {
-            Ok(bytes) => {
-                log::debug!(
-                    "Successfully got response bytes, length: {}",
-                    bytes.length()
-                );
-                bytes
-            }
-            Err(e) => {
-                log::error!("Error getting response bytes: {:?}", e);
-                return Err(js_error_to_vfs(e, "Get GitHub API response bytes failed"));
-            }
-        };
-
-        let response_text = match String::from_utf8(response_bytes.to_vec()) {
-            Ok(text) => {
-                log::debug!(
-                    "Successfully converted bytes to text, length: {}",
-                    text.len()
-                );
-                if text.len() < 1000 {
-                    log::debug!("Response text: {}", text);
-                } else {
-                    log::debug!("Response text too long to log in full");
-                }
-                text
-            }
-            Err(e) => {
-                log::error!("Error converting bytes to text: {:?}", e);
-                return Err(VfsError::Other(format!(
-                    "Failed to parse GitHub API response: {}",
-                    e
-                )));
+        let response_text = match response_text {
+            Some(text) => text,
+            None => {
+                return Err(VfsError::NetworkError(
+                    "Failed to get GitHub API response".to_string(),
+                ))
             }
         };
 
@@ -167,7 +192,7 @@ impl VercelKvVfs {
         let mut directories = std::collections::HashSet::new();
 
         // Filter files to only include those in the requested directory
-        let mut files_to_load = Vec::new();
+        let mut files_to_process = Vec::new();
 
         for item in &tree_response.tree {
             // Handle both blob (file) and tree (directory) items
@@ -200,9 +225,9 @@ impl VercelKvVfs {
                 log::debug!("Adding directory to create: {}", dir_path);
                 directories.insert(dir_path.clone());
             } else {
-                // This is a file, add to loading list
+                // This is a file, add to loading list with reference to original item
                 log::debug!("Adding file to load queue: {}", relative_path);
-                files_to_load.push(relative_path.clone());
+                files_to_process.push((relative_path.clone(), item));
             }
 
             // Track all parent directories for this file or directory
@@ -215,7 +240,7 @@ impl VercelKvVfs {
 
         log::info!(
             "Found {} files to load and {} directories to create",
-            files_to_load.len(),
+            files_to_process.len(),
             directories.len()
         );
 
@@ -267,15 +292,15 @@ impl VercelKvVfs {
 
         log::info!(
             "Processing {} files (shallow: {})",
-            files_to_load.len(),
+            files_to_process.len(),
             shallow
         );
 
-        for (index, file_path) in files_to_load.iter().enumerate() {
+        for (index, (file_path, item)) in files_to_process.iter().enumerate() {
             log::debug!(
                 "Processing file {}/{}: {}",
                 index + 1,
-                files_to_load.len(),
+                files_to_process.len(),
                 file_path
             );
 
@@ -283,13 +308,11 @@ impl VercelKvVfs {
                 // In shallow mode, just create placeholders for files without downloading content
                 let normalized_path = normalize_path(file_path);
 
-                // Create file attributes with estimated size if available
-                let size_estimate = tree_response
-                    .tree
-                    .iter()
-                    .find(|item| item.path == *file_path)
-                    .and_then(|item| item.size)
-                    .unwrap_or(0);
+                // Get size estimate directly from the item
+                let size_estimate = item.size.unwrap_or(0);
+                if size_estimate == 0 {
+                    log::warn!("File size estimate is 0 for: {}", normalized_path);
+                }
 
                 let attributes = FileAttributes {
                     size: size_estimate,
@@ -400,7 +423,7 @@ impl VercelKvVfs {
         }
 
         Ok(LoadDirectoryResult {
-            total_files: files_to_load.len(),
+            total_files: files_to_process.len(),
             successful_files: successes,
             failed_files: failures,
             loaded_files,
@@ -431,58 +454,118 @@ impl VercelKvVfs {
             format!("{}/{}", root_path, api_path)
         };
 
-        // Create GitHub API URL to get file info
-        // Use the trees API to get file size without downloading the content
-        let url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1",
-            owner = self.github_config.owner,
-            repo = self.github_config.repo,
-            branch = self.github_config.branch
+        // Cache key for GitHub tree API
+        let cache_key = get_github_tree_cache_key(
+            &self.github_config.owner,
+            &self.github_config.repo,
+            &self.github_config.branch,
+            true, // Always use recursive tree for file info
         );
 
-        log::debug!("Fetching GitHub tree from: {}", url);
+        // Check if we have cached data
+        let current_time = safe_system_time()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
 
-        // Call GitHub API
-        let fetch_response = match fetch_url(&url).await {
-            Ok(response) => response,
-            Err(e) => return Err(js_error_to_vfs(e, "Fetch GitHub API failed")),
-        };
+        let mut response_text = None;
 
-        let status_js = match response_status(&fetch_response).await {
-            Ok(status) => status,
-            Err(e) => return Err(js_error_to_vfs(e, "Get GitHub API status failed")),
-        };
-
-        let status = match status_js.as_f64().map(|f| f as u16) {
-            Some(s) => s,
-            None => {
-                return Err(js_error_to_vfs(
-                    status_js,
-                    "GitHub API status was not a number",
-                ))
+        if let Ok(Some(cache)) = self.store.read_github_tree_cache(&cache_key).await {
+            if !cache.is_expired(current_time) {
+                log::debug!("Using cached GitHub tree data for file info");
+                response_text = Some(cache.data);
+            } else {
+                log::debug!("GitHub tree cache is expired");
             }
-        };
+        }
 
-        if !(200..300).contains(&status) {
-            return Err(VfsError::NetworkError(format!(
-                "GitHub API call failed with status: {}",
-                status
-            )));
+        // If no valid cache, fetch from GitHub API
+        if response_text.is_none() {
+            // Create GitHub API URL to get file info
+            // Use the trees API to get file size without downloading the content
+            let url = format!(
+                "https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1",
+                owner = self.github_config.owner,
+                repo = self.github_config.repo,
+                branch = self.github_config.branch
+            );
+
+            log::debug!("Fetching GitHub tree from: {}", url);
+
+            // Prepare headers with authorization if token is available
+            let mut headers = HashMap::new();
+            if let Some(token) = &self.github_config.auth_token {
+                log::debug!("Using GitHub token for API request");
+                headers.insert(
+                    CaseInsensitiveString::new("Authorization"),
+                    format!("token {}", token),
+                );
+            }
+            headers.insert(
+                CaseInsensitiveString::new("Accept"),
+                "application/vnd.github.v3+json".to_string(),
+            );
+            headers.insert(
+                CaseInsensitiveString::new("User-Agent"),
+                "subconverter-rs".to_string(),
+            );
+
+            // Make the request
+            let proxy_config = ProxyConfig::default();
+            let fetch_result = web_get_async(&url, &proxy_config, Some(&headers)).await;
+
+            match fetch_result {
+                Ok(response) => {
+                    // Check if the response is successful (2xx)
+                    if (200..300).contains(&response.status) {
+                        log::debug!("Successfully fetched GitHub API response for file info");
+
+                        // Check if we got rate limit headers
+                        if let Some(rate_limit) = response.headers.get("x-ratelimit-remaining") {
+                            log::info!("GitHub API rate limit remaining: {}", rate_limit);
+                        }
+
+                        response_text = Some(response.body);
+
+                        // Cache the result
+                        let cache = GitHubTreeCache {
+                            data: response_text.as_ref().unwrap().clone(),
+                            created_at: current_time,
+                            ttl: self.github_config.cache_ttl_seconds,
+                        };
+
+                        // Store cache in background
+                        self.store
+                            .write_github_tree_cache_background(cache_key.clone(), cache);
+                    } else {
+                        log::error!(
+                            "GitHub API returned error status {}: {}",
+                            response.status,
+                            response.body
+                        );
+                        return Err(VfsError::NetworkError(format!(
+                            "GitHub API returned error status {}: {}",
+                            response.status, response.body
+                        )));
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error fetching GitHub API for file info: {}", e.message);
+                    return Err(VfsError::NetworkError(format!(
+                        "GitHub API request failed: {}",
+                        e.message
+                    )));
+                }
+            }
         }
 
         // Parse the response to get file information
-        let response_bytes = match response_bytes(&fetch_response).await {
-            Ok(bytes) => bytes,
-            Err(e) => return Err(js_error_to_vfs(e, "Get GitHub API response bytes failed")),
-        };
-
-        let response_text = match String::from_utf8(response_bytes.to_vec()) {
-            Ok(text) => text,
-            Err(e) => {
-                return Err(VfsError::Other(format!(
-                    "Failed to parse GitHub API response: {}",
-                    e
-                )))
+        let response_text = match response_text {
+            Some(text) => text,
+            None => {
+                return Err(VfsError::NetworkError(
+                    "Failed to get GitHub API response".to_string(),
+                ))
             }
         };
 

@@ -368,13 +368,15 @@ impl Settings {
 
         // Try to load the content from file or URL
         if path.starts_with("http://") || path.starts_with("https://") {
-            let (data, _) = web_get_async(path, &ProxyConfig::default(), None).await?;
-            _content = data;
+            let response = web_get_async(path, &ProxyConfig::default(), None).await?;
+            _content = response.body;
         } else {
             _content = file_get_async(path, None).await?;
         }
+
+        // Load from content and set the path
         let mut settings = Settings::load_from_content(&_content, path).await?;
-        settings.pref_path = path.to_owned();
+        settings.pref_path = path.to_string();
         Ok(settings)
     }
 }

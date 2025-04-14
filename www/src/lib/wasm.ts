@@ -80,7 +80,7 @@ export async function initWasm(): Promise<typeof subconverterWasm> {
 
         // Initialize necessary hooks
         if (typeof subconverterWasm.init_panic_hook === 'function') {
-            console.log('Initializing panic hook...');
+            console.log('Initializing panic hoFok...');
             subconverterWasm.init_panic_hook();
         }
 

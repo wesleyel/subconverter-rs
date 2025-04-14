@@ -29,17 +29,34 @@ pub fn normalize_path(path: &str) -> String {
     normalized
 }
 
-/// Checks if a path represents a directory (ends with '/' or is empty)
+/// Checks if a path represents a directory
+///
+/// A path can be a directory in several ways:
+/// 1. It ends with '/' (explicitly a directory)
+/// 2. It is empty (the root directory)
+/// 3. It could be a directory without trailing slash (will need additional verification)
 ///
 /// # Arguments
 /// * `path` - The path to check
 ///
 /// # Returns
-/// `true` if the path is a directory path, `false` otherwise
+/// `true` if the path is definitely a directory path, `false` if it might be a file
 pub fn is_directory_path(path: &str) -> bool {
-    let is_dir = path.ends_with('/') || path.is_empty();
-    log_debug!("Checking if path '{}' is directory: {}", path, is_dir);
-    is_dir
+    // Always consider explicit directory paths (ending with /) or root as directories
+    let is_explicit_dir = path.ends_with('/') || path.is_empty();
+
+    if is_explicit_dir {
+        log_debug!("Path '{}' is explicitly a directory", path);
+        return true;
+    }
+
+    // For paths without trailing slash, they could be directories
+    // The caller should verify with directory_exists_in_kv
+    log_debug!(
+        "Path '{}' might be a file or directory without trailing slash",
+        path
+    );
+    false
 }
 
 /// Extracts the parent directory path from a given path
@@ -55,7 +72,7 @@ pub fn get_parent_directory(path: &str) -> String {
         Some(idx) => path[..=idx].to_string(),
         None => "".to_string(),
     };
-    log_debug!("Parent directory of '{}': '{}'", path, parent);
+    // log_debug!("Parent directory of '{}': '{}'", path, parent);
     parent
 }
 
@@ -72,7 +89,7 @@ pub fn get_filename(path: &str) -> String {
         Some(idx) => path[idx + 1..].to_string(),
         None => path.to_string(),
     };
-    log_debug!("Filename from path '{}': '{}'", path, filename);
+    // log_debug!("Filename from path '{}': '{}'", path, filename);
     filename
 }
 
@@ -90,12 +107,12 @@ pub fn get_filename(path: &str) -> String {
 /// A key string for KV storage
 pub fn get_key_with_suffix(path: &str, suffix: &str) -> String {
     let key = format!("{}{}", path, suffix);
-    log_debug!(
-        "Generated key with suffix '{}' for path '{}': '{}'",
-        suffix,
-        path,
-        key
-    );
+    // log_debug!(
+    //     "Generated key with suffix '{}' for path '{}': '{}'",
+    //     suffix,
+    //     path,
+    //     key
+    // );
     key
 }
 
@@ -148,6 +165,24 @@ pub fn get_directory_marker_key(path: &str) -> String {
         // For regular files, use the full suffix
         get_key_with_suffix(path, DIRECTORY_MARKER_SUFFIX)
     }
+}
+
+/// Generates the GitHub tree cache key for a repository+branch
+///
+/// # Arguments
+/// * `owner` - Repository owner
+/// * `repo` - Repository name
+/// * `branch` - Branch name
+/// * `recursive` - Whether this is for a recursive tree
+///
+/// # Returns
+/// A GitHub tree cache key string for KV storage
+pub fn get_github_tree_cache_key(owner: &str, repo: &str, branch: &str, recursive: bool) -> String {
+    let recursive_flag = if recursive { "1" } else { "0" };
+    format!(
+        "{}/{}@{}@{}{}",
+        owner, repo, branch, recursive_flag, GITHUB_TREE_CACHE_SUFFIX
+    )
 }
 
 //------------------------------------------------------------------------------
