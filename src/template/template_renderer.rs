@@ -1,7 +1,8 @@
+use crate::api::SubconverterQuery;
 use crate::utils::{file_exists, file_get_async};
 use crate::Settings;
-use log::error;
-use minijinja::{escape_formatter, Environment, Error as JinjaError, ErrorKind, Value};
+use log::{debug, error};
+use minijinja::{context, escape_formatter, Environment, Error as JinjaError, ErrorKind, Value};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -12,7 +13,7 @@ pub struct TemplateArgs {
     pub global_vars: HashMap<String, String>,
 
     /// Request parameters
-    pub request_params: HashMap<String, String>,
+    pub request_params: SubconverterQuery,
 
     /// Local variables
     pub local_vars: HashMap<String, String>,
@@ -71,6 +72,8 @@ pub fn render_template(
     env.add_function("endsWith", fn_ends_with);
     env.add_function("bool", fn_to_bool);
     env.add_function("string", fn_to_string);
+
+    env.add_function("default", fn_default);
     // env.add_function("fetch", fn_web_get);
 
     // Build context object
@@ -79,31 +82,15 @@ pub fn render_template(
         global_vars.insert(key.clone(), value.clone());
     }
 
-    let mut request_vars = HashMap::new();
-    let mut all_args = String::new();
-    for (key, value) in &args.request_params {
-        request_vars.insert(key.clone(), value.clone());
-
-        all_args.push_str(key);
-        if !value.is_empty() {
-            all_args.push_str(&format!("={}", value));
-        }
-        all_args.push('&');
-    }
-
-    // Remove trailing &
-    if !all_args.is_empty() {
-        all_args.pop();
-        request_vars.insert("_args".to_string(), all_args);
-    }
-
     // Create full context with all variables
-    let context = TemplateContext {
-        global: global_vars,
-        request: request_vars,
-        local: args.local_vars.clone(),
-        node_list: args.node_list.clone(),
-    };
+    let context = context!(
+        global => global_vars,
+        request => args.request_params,
+        local => args.local_vars,
+        node_list => args.node_list
+    );
+
+    debug!("Template context: {:?}", context);
 
     // Parse and render the template
     match env.template_from_str(content) {
@@ -255,4 +242,12 @@ fn fn_to_bool(s: Value) -> Result<bool, JinjaError> {
 
 fn fn_to_string(n: Value) -> Result<String, JinjaError> {
     Ok(n.to_string())
+}
+
+fn fn_default(value: Value, default: Value) -> Result<String, JinjaError> {
+    if value.is_undefined() || value.is_none() {
+        Ok(default.to_string())
+    } else {
+        Ok(value.to_string())
+    }
 }

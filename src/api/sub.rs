@@ -18,8 +18,9 @@ use {js_sys::Promise, wasm_bindgen::prelude::*, wasm_bindgen_futures::future_to_
 fn default_ver() -> u32 {
     3
 }
+
 /// Query parameters for subscription conversion
-#[derive(Deserialize, Debug, Default, Clone)]
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct SubconverterQuery {
     /// Target format
     pub target: Option<String>,
@@ -100,6 +101,10 @@ pub struct SubconverterQuery {
     pub classic: Option<bool>,
 
     pub expand: Option<bool>,
+
+    /// Singbox specific parameters
+    #[serde(default)]
+    pub singbox: HashMap<String, String>,
 }
 
 /// Parse a query string into a HashMap
@@ -261,16 +266,7 @@ pub async fn sub_process(
     let mut template_args = TemplateArgs::default();
     template_args.global_vars = global.template_vars.clone();
 
-    // Only process URL if provided
-    if let Some(url_str) = &req_url {
-        let uri = match url::Url::parse(url_str) {
-            Ok(parsed_url) => parsed_url,
-            Err(e) => {
-                return Ok(SubResponse::error(format!("Invalid URL: {}", e), 400));
-            }
-        };
-        template_args.request_params = uri.query_pairs().into_owned().collect();
-    }
+    template_args.request_params = query.clone();
 
     builder.append_proxy_type(query.append_type.unwrap_or(global.append_type));
 
@@ -314,6 +310,19 @@ pub async fn sub_process(
     builder.add_emoji(global.add_emoji);
     builder.remove_emoji(global.remove_emoji);
     builder.enable_rule_generator(global.enable_rule_gen);
+    let mut rule_bases = RuleBases {
+        clash_rule_base: global.clash_base.clone(),
+        surge_rule_base: global.surge_base.clone(),
+        surfboard_rule_base: global.surfboard_base.clone(),
+        mellow_rule_base: global.mellow_base.clone(),
+        quan_rule_base: global.quan_base.clone(),
+        quanx_rule_base: global.quanx_base.clone(),
+        loon_rule_base: global.loon_base.clone(),
+        sssub_rule_base: global.ssub_base.clone(),
+        singbox_rule_base: global.singbox_base.clone(),
+    };
+    builder.rule_bases(rule_bases.clone());
+    builder.template_args(template_args.clone());
 
     let ext_config = match query.config.as_deref() {
         Some(config) => config.to_owned(),
@@ -330,17 +339,6 @@ pub async fn sub_process(
             Ok(extconf) => {
                 debug!("Successfully loaded external config from {}", ext_config);
                 if !nodelist {
-                    let mut rule_bases = RuleBases {
-                        clash_rule_base: global.clash_base.clone(),
-                        surge_rule_base: global.surge_base.clone(),
-                        surfboard_rule_base: global.surfboard_base.clone(),
-                        mellow_rule_base: global.mellow_base.clone(),
-                        quan_rule_base: global.quan_base.clone(),
-                        quanx_rule_base: global.quanx_base.clone(),
-                        loon_rule_base: global.loon_base.clone(),
-                        sssub_rule_base: global.ssub_base.clone(),
-                        singbox_rule_base: global.singbox_base.clone(),
-                    };
                     rule_bases
                         .check_external_bases(&extconf, &global.base_path)
                         .await;
@@ -524,6 +522,7 @@ pub fn sub_process_wasm(query_json: &str) -> Promise {
         }
     };
 
+    let query_json_string = Some(query_json.to_string());
     // Create a future for the async sub_process
     let future = async move {
         match sub_process(None, query).await {

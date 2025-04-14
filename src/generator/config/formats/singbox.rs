@@ -174,7 +174,10 @@ pub fn proxy_to_singbox(
         match serde_json::from_str(base_conf) {
             Ok(json) => json,
             Err(e) => {
-                error!("SingBox base loader failed with error: {}", e);
+                error!(
+                    "SingBox base loader failed with error: {}, base_conf: {}",
+                    e, base_conf
+                );
                 return String::new();
             }
         }

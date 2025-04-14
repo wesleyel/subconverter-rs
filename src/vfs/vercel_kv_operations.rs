@@ -369,7 +369,6 @@ impl VercelKvVfs {
         // Prepare headers with authorization if token is available
         let mut headers = HashMap::new();
         if let Some(token) = &self.github_config.auth_token {
-            log::debug!("Using GitHub token for raw content request");
             headers.insert(
                 CaseInsensitiveString::new("Authorization"),
                 format!("token {}", token),
