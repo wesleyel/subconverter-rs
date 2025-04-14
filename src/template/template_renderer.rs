@@ -2,7 +2,10 @@ use crate::api::SubconverterQuery;
 use crate::utils::{file_exists, file_get_async};
 use crate::Settings;
 use log::{debug, error};
-use minijinja::{context, escape_formatter, Environment, Error as JinjaError, ErrorKind, Value};
+use minijinja::{
+    context, escape_formatter, Environment, Error as JinjaError, ErrorKind, UndefinedBehavior,
+    Value,
+};
 use serde::Serialize;
 use std::collections::HashMap;
 
@@ -58,6 +61,7 @@ pub fn render_template(
 
     // Copy settings from global environment
     env.set_formatter(escape_formatter);
+    env.set_undefined_behavior(UndefinedBehavior::Chainable);
 
     // Add the same filters and functions
     env.add_filter("trim", filter_trim);
