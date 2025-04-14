@@ -1,36 +1,7 @@
-use crate::Settings;
 use std::sync::Arc;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub async fn initialize_settings_from_content(content: &str) -> Result<(), JsValue> {
-    let content = content.to_string();
-    match Settings::load_from_content(&content, "").await {
-        Ok(settings) => {
-            *Settings::current_mut() = Arc::new(settings);
-            Ok(())
-        }
-        Err(err) => {
-            web_sys::console::error_1(&format!("Failed to initialize settings: {}", err).into());
-            Err(JsValue::from_str(&format!(
-                "Failed to initialize settings: {}",
-                err
-            )))
-        }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub async fn initialize_settings_from_content(
-    content: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let settings = Settings::load_from_content(content, "").await?;
-    *Settings::current_mut() = Arc::new(settings);
-    Ok(())
-}
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]

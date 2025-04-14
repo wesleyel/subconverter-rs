@@ -44,13 +44,6 @@ openssl = { version = "0.10", optional = true }
 minijinja = "2.9.0"
 bitflags = "2.9.0"
 futures = "0.3.31"
-reqwest = { version = "0.12.12", features = [
-    "json",
-    "blocking",
-    "gzip",
-    "brotli",
-    "rustls-tls",
-], default-features = false }
 thiserror = "2.0.12"
 serde_bytes = "0.11.17"
 anyhow = "1.0.97"
@@ -78,7 +71,13 @@ console_log = "1.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.43.0", features = ["rt", "fs", "sync", "io-util"] }
-
+reqwest = { version = "0.12.12", features = [
+    "json",
+    "blocking",
+    "gzip",
+    "brotli",
+    "rustls-tls",
+], default-features = false }
 
 [dev-dependencies]
 tempfile = "3.10.1"

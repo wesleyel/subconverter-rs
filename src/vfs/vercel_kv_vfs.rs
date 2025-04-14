@@ -97,23 +97,17 @@ impl VirtualFileSystem for VercelKvVfs {
 
     fn load_github_directory(
         &self,
-        directory_path: &str,
+        _directory_path: &str,
         shallow: bool,
     ) -> impl std::future::Future<Output = Result<LoadDirectoryResult, VfsError>> {
-        async move {
-            self.load_github_directory_impl(directory_path, shallow, true)
-                .await
-        }
+        async move { self.load_github_directory_impl(shallow, true).await }
     }
 
     fn load_github_directory_flat(
         &self,
-        directory_path: &str,
+        _directory_path: &str,
         shallow: bool,
     ) -> impl std::future::Future<Output = Result<LoadDirectoryResult, VfsError>> {
-        async move {
-            self.load_github_directory_impl(directory_path, shallow, false)
-                .await
-        }
+        async move { self.load_github_directory_impl(shallow, false).await }
     }
 }

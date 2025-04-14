@@ -109,7 +109,8 @@ pub fn is_valid(key: &str, max_age: u32) -> bool {
     };
 
     if let Some(item) = cache.cache.get(key) {
-        if let Ok(elapsed) = item.timestamp.elapsed() {
+        let now = safe_system_time();
+        if let Ok(elapsed) = now.duration_since(item.timestamp) {
             return elapsed.as_secs() < u64::from(max_age);
         }
     }
@@ -133,7 +134,8 @@ pub fn get_if_valid(key: &str, max_age: u32) -> Option<String> {
     };
 
     if let Some(item) = cache.cache.get(key) {
-        if let Ok(elapsed) = item.timestamp.elapsed() {
+        let now = safe_system_time();
+        if let Ok(elapsed) = now.duration_since(item.timestamp) {
             if elapsed.as_secs() < u64::from(max_age) {
                 return Some(item.content.clone());
             }

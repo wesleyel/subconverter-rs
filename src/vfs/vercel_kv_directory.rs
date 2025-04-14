@@ -182,18 +182,18 @@ impl VercelKvVfs {
                 if keys.is_empty() {
                     log_debug!("No keys found for prefix '{}', checking GitHub...", prefix);
                     // Try to load from GitHub if no keys are found
-                    match self.load_github_directory_impl(&path, true, false).await {
-                        Ok(load_result) => {
-                            log_debug!(
-                                "GitHub load for '{}' returned {} entries",
-                                path,
-                                load_result.loaded_files.len()
+                    match self.load_github_directory_impl(true, false).await {
+                        Ok(result) => {
+                            log::info!(
+                                "Loaded {} files from GitHub directory {}",
+                                result.successful_files,
+                                path
                             );
 
                             // Create a set to track unique directory names at this level
                             let mut direct_subdirs = std::collections::HashSet::new();
 
-                            for file in &load_result.loaded_files {
+                            for file in &result.loaded_files {
                                 let file_path = &file.path;
                                 // Skip if this isn't a direct child of the requested directory
                                 let rel_path = if file_path.starts_with(&path) {
@@ -392,19 +392,19 @@ impl VercelKvVfs {
                 path
             );
             // Try to supplement with GitHub data
-            match self.load_github_directory_impl(&path, true, false).await {
-                Ok(load_result) => {
-                    log_debug!(
-                        "GitHub load for '{}' returned {} entries",
-                        path,
-                        load_result.loaded_files.len()
+            match self.load_github_directory_impl(true, false).await {
+                Ok(result) => {
+                    log::info!(
+                        "Loaded {} files from GitHub directory {}",
+                        result.successful_files,
+                        path
                     );
 
                     // Convert LoadDirectoryResult to Vec<DirectoryEntry>
                     // Create a set to track unique directory names at this level
                     let mut direct_subdirs = std::collections::HashSet::new();
 
-                    for file in &load_result.loaded_files {
+                    for file in &result.loaded_files {
                         let file_path = &file.path;
                         log_debug!("Processing GitHub file: '{}'", file_path);
 

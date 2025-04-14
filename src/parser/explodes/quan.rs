@@ -1,6 +1,6 @@
 use crate::models::{
-    Proxy, HTTP_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP,
-    TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP,
+    Proxy, HTTP_DEFAULT_GROUP, SSR_DEFAULT_GROUP, SS_DEFAULT_GROUP, TROJAN_DEFAULT_GROUP,
+    V2RAY_DEFAULT_GROUP,
 };
 
 /// Parse Quantumult configuration into a vector of Proxy objects
@@ -398,8 +398,9 @@ fn parse_quan_trojan(name: &str, config_parts: Vec<&str>, node: &mut Proxy) -> b
         port,
         password.to_string(),
         None,
-        sni,
+        sni.clone(),
         None,
+        sni,
         true,
         udp,
         tfo,

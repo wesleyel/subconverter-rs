@@ -96,8 +96,9 @@ pub fn explode_trojan(trojan: &str, node: &mut Proxy) -> bool {
         port,
         password.to_string(),
         network,
-        sni,
+        sni.clone(),
         path,
+        sni,
         true,             // tls_secure
         None,             // udp
         tfo,              // tfo
@@ -150,7 +151,7 @@ pub fn explode_trojan_go(trojan_go: &str, node: &mut Proxy) -> bool {
     let network = params.get("type").map(|s| s.to_string());
     let host_param = params.get("host").map(|s| s.to_string());
     let path = params.get("path").map(|s| s.to_string());
-
+    let sni = params.get("sni").map(|s| s.to_string());
     // Extract TLS verification setting
     let skip_cert_verify = params
         .get("allowInsecure")
@@ -184,6 +185,7 @@ pub fn explode_trojan_go(trojan_go: &str, node: &mut Proxy) -> bool {
         network,
         host_param,
         path,
+        sni,
         true,             // tls_secure
         None,             // udp
         tfo,              // tfo

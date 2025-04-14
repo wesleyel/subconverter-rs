@@ -1,8 +1,15 @@
+#[cfg(target_arch = "wasm32")]
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::LazyLock;
+#[cfg(target_arch = "wasm32")]
+use std::sync::OnceLock;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::RwLock;
 
+use log::debug;
 use log::info;
 use serde_yaml;
 use toml;
@@ -18,6 +25,90 @@ use crate::utils::file_exists;
 use crate::utils::file_get_async;
 use crate::utils::http::ProxyConfig;
 use crate::utils::web_get_async;
+
+// For wasm32 targets, implement a mock RwLock that works in single-threaded environments
+#[cfg(target_arch = "wasm32")]
+pub struct MockRwLock<T> {
+    inner: UnsafeCell<T>,
+}
+
+#[cfg(target_arch = "wasm32")]
+unsafe impl<T: Send + Sync> Send for MockRwLock<T> {}
+#[cfg(target_arch = "wasm32")]
+unsafe impl<T: Send + Sync> Sync for MockRwLock<T> {}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> MockRwLock<T> {
+    pub fn new(value: T) -> Self {
+        Self {
+            inner: UnsafeCell::new(value),
+        }
+    }
+
+    pub fn read(&self) -> Result<MockReadGuard<T>, ()> {
+        // In Wasm, we're single-threaded, so this is safe
+        Ok(MockReadGuard {
+            data: unsafe { &*self.inner.get() },
+        })
+    }
+
+    pub fn write(&self) -> Result<MockWriteGuard<T>, ()> {
+        // In Wasm, we're single-threaded, so this is safe
+        Ok(MockWriteGuard {
+            data: unsafe { &mut *self.inner.get() },
+        })
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub struct MockReadGuard<'a, T> {
+    data: &'a T,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a, T> std::ops::Deref for MockReadGuard<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.data
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub struct MockWriteGuard<'a, T> {
+    data: &'a mut T,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a, T> std::ops::Deref for MockWriteGuard<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.data
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a, T> std::ops::DerefMut for MockWriteGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.data
+    }
+}
+
+// Type aliases for consistent code across targets
+#[cfg(target_arch = "wasm32")]
+type GlobalLock<T> = MockRwLock<T>;
+#[cfg(target_arch = "wasm32")]
+type GlobalLockReadGuard<'a, T> = MockReadGuard<'a, T>;
+#[cfg(target_arch = "wasm32")]
+type GlobalLockWriteGuard<'a, T> = MockWriteGuard<'a, T>;
+
+#[cfg(not(target_arch = "wasm32"))]
+type GlobalLock<T> = RwLock<T>;
+#[cfg(not(target_arch = "wasm32"))]
+type GlobalLockReadGuard<'a, T> = std::sync::RwLockReadGuard<'a, T>;
+#[cfg(not(target_arch = "wasm32"))]
+type GlobalLockWriteGuard<'a, T> = std::sync::RwLockWriteGuard<'a, T>;
 
 /// Settings structure to hold global configuration
 #[derive(Debug, Clone)]
@@ -291,13 +382,27 @@ impl Settings {
     }
 
     /// Get a mutable reference to the current settings
-    pub fn current_mut() -> std::sync::RwLockWriteGuard<'static, Arc<Settings>> {
-        GLOBAL.write().unwrap()
+    pub fn current_mut() -> GlobalLockWriteGuard<'static, Arc<Settings>> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            GLOBAL.write().unwrap()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            get_global().write().unwrap()
+        }
     }
 
     /// Get a read-only reference to the current settings
-    pub fn current() -> std::sync::RwLockReadGuard<'static, Arc<Settings>> {
-        GLOBAL.read().unwrap()
+    pub fn current() -> GlobalLockReadGuard<'static, Arc<Settings>> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            GLOBAL.read().unwrap()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            get_global().read().unwrap()
+        }
     }
 
     pub async fn load_from_content(
@@ -382,18 +487,38 @@ impl Settings {
 }
 
 // Global settings instance
-pub static GLOBAL: LazyLock<RwLock<Arc<Settings>>> =
-    LazyLock::new(|| RwLock::new(Arc::new(Settings::new())));
+#[cfg(not(target_arch = "wasm32"))]
+static GLOBAL: LazyLock<GlobalLock<Arc<Settings>>> =
+    LazyLock::new(|| GlobalLock::new(Arc::new(Settings::new())));
+
+#[cfg(target_arch = "wasm32")]
+static GLOBAL: OnceLock<GlobalLock<Arc<Settings>>> = OnceLock::new();
+
+#[cfg(target_arch = "wasm32")]
+fn get_global() -> &'static GlobalLock<Arc<Settings>> {
+    GLOBAL.get_or_init(|| GlobalLock::new(Arc::new(Settings::new())))
+}
 
 /// Refresh the configuration asynchronously
 pub async fn refresh_configuration() {
+    #[cfg(not(target_arch = "wasm32"))]
     let settings = GLOBAL.read().unwrap();
+    #[cfg(target_arch = "wasm32")]
+    let settings = get_global().read().unwrap();
+
     let path = settings.pref_path.clone();
     drop(settings); // Release the lock before potential long operation
 
     match Settings::load_from_file(&path).await {
         Ok(new_settings) => {
-            *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                *get_global().write().unwrap() = Arc::new(new_settings);
+            }
         }
         Err(err) => {
             eprintln!("Failed to refresh configuration from '{}': {}", path, err);
@@ -407,7 +532,15 @@ pub async fn update_settings_from_file(path: &str) -> Result<(), Box<dyn std::er
 
     match Settings::load_from_file(&path).await {
         Ok(new_settings) => {
-            *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            debug!("Updating settings from file: {}", path);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                *get_global().write().unwrap() = Arc::new(new_settings);
+            }
             Ok(())
         }
         Err(err) => {
@@ -464,7 +597,14 @@ pub async fn update_settings_from_content(content: &str) -> Result<(), Box<dyn s
 
     match Settings::load_from_content(&content, "").await {
         Ok(settings) => {
-            *GLOBAL.write().unwrap() = Arc::new(settings);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                *GLOBAL.write().unwrap() = Arc::new(settings);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                *get_global().write().unwrap() = Arc::new(settings);
+            }
             Ok(())
         }
         Err(err) => {

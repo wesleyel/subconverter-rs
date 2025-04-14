@@ -11,6 +11,7 @@ use crate::models::{
 };
 use crate::parser::parse_settings::ParseSettings;
 use crate::parser::subparser::add_nodes;
+use crate::rulesets::ruleset::refresh_rulesets;
 use crate::utils::file_get_async;
 use crate::utils::http::parse_proxy;
 use crate::utils::http::web_get_async;
@@ -723,16 +724,16 @@ pub async fn subconverter(config: SubconverterConfig) -> Result<SubconverterResu
     // Refresh rulesets if needed
     let mut ruleset_content = Vec::new();
     if config.extra.enable_rule_generator {
-        // Check if we're using custom rulesets or global rulesets
-        if config.ruleset_configs == global.custom_rulesets {
-            // Use global ruleset content if it's the same configuration
-            ruleset_content = global.rulesets_content.clone();
-        } else {
-            // Refresh rulesets with custom configuration
-            info!("Refreshing rulesets with custom configuration");
-            use crate::rulesets::ruleset::refresh_rulesets;
-            refresh_rulesets(&config.ruleset_configs, &mut ruleset_content).await;
-        }
+        // TODO: Check if we're using custom rulesets or global rulesets
+        // if config.ruleset_configs == global.custom_rulesets {
+        //     refresh_rulesets(&config.ruleset_configs, &mut global.rulesets_content).await;
+        //     debug!("Using global ruleset content");
+        //     // Use global ruleset content if it's the same configuration
+        //     ruleset_content = global.rulesets_content.clone();
+
+        // Refresh rulesets with custom configuration
+        info!("Refreshing rulesets with custom configuration");
+        refresh_rulesets(&config.ruleset_configs, &mut ruleset_content).await;
 
         // Prepend proxy direct ruleset if needed
         if global.prepend_proxy_direct_ruleset {

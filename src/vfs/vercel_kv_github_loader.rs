@@ -14,13 +14,11 @@ impl VercelKvVfs {
     /// Load all files from a GitHub repository directory
     pub(crate) async fn load_github_directory_impl(
         &self,
-        directory_path: &str,
         shallow: bool,
         recursive: bool,
     ) -> Result<LoadDirectoryResult, VfsError> {
         log::info!(
-            "Starting load_github_directory with path: {} (shallow: {}, recursive: {})",
-            directory_path,
+            "Starting load_github_directory (shallow: {}, recursive: {})",
             shallow,
             recursive
         );
@@ -31,16 +29,7 @@ impl VercelKvVfs {
             panic!("This is an intentional test panic to verify stack trace capture");
         }
 
-        let normalized_path = normalize_path(directory_path);
-        log::debug!("Normalized path: {}", normalized_path);
-
-        let dir_path = if normalized_path.is_empty() || normalized_path.ends_with('/') {
-            normalized_path
-        } else {
-            format!("{}/", normalized_path)
-        };
-
-        log::info!("Loading all files from GitHub directory: {}", dir_path);
+        log::info!("Loading all files from GitHub configured root path");
 
         // Generate cache key for this directory lookup
         let cache_key = get_github_tree_cache_key(
@@ -210,31 +199,32 @@ impl VercelKvVfs {
             };
 
             // Skip if not under the requested directory
-            if !relative_path.starts_with(&dir_path) && !dir_path.is_empty() {
-                continue;
-            }
+            // if !relative_path.starts_with(&dir_path) && !dir_path.is_empty() {
+            //     continue;
+            // }
 
             if is_directory {
                 // For directories, ensure they end with a slash
-                let dir_path = if relative_path.ends_with('/') {
+                let current_dir_path = if relative_path.ends_with('/') {
                     relative_path.clone()
                 } else {
                     format!("{}/", relative_path)
                 };
 
-                log::debug!("Adding directory to create: {}", dir_path);
-                directories.insert(dir_path.clone());
+                log::trace!("Found directory from GitHub tree: {}", current_dir_path);
+                directories.insert(current_dir_path.clone());
             } else {
                 // This is a file, add to loading list with reference to original item
-                log::debug!("Adding file to load queue: {}", relative_path);
+                log::trace!("Found file from GitHub tree: {}", relative_path);
                 files_to_process.push((relative_path.clone(), item));
             }
 
             // Track all parent directories for this file or directory
-            let mut current_dir = get_parent_directory(&relative_path);
-            while !current_dir.is_empty() {
-                directories.insert(current_dir.clone());
-                current_dir = get_parent_directory(&current_dir);
+            let mut current_parent_dir = get_parent_directory(&relative_path);
+            while !current_parent_dir.is_empty() {
+                log::trace!("Tracking parent directory: {}", current_parent_dir);
+                directories.insert(current_parent_dir.clone());
+                current_parent_dir = get_parent_directory(&current_parent_dir);
             }
         }
 
@@ -249,13 +239,17 @@ impl VercelKvVfs {
 
         // First create all necessary directories
         for dir in &directories {
+            // Skip creating the overall root path itself if it was derived from the argument
+            // if dir == &dir_path {
+            //     continue;
+            // }
             log::debug!("Creating directory: {}", dir);
             if let Err(e) = self.create_directory(dir).await {
                 log::warn!("Failed to create directory {}: {:?}", dir, e);
                 // Continue anyway
             } else {
                 // Set directory attributes
-                let dir_path = if dir.ends_with('/') {
+                let current_dir_path = if dir.ends_with('/') {
                     dir.clone()
                 } else {
                     format!("{}/", dir)
@@ -280,7 +274,7 @@ impl VercelKvVfs {
                 self.metadata_cache()
                     .write()
                     .await
-                    .insert(dir_path.clone(), dir_attributes);
+                    .insert(current_dir_path.clone(), dir_attributes);
             }
         }
 
@@ -405,8 +399,10 @@ impl VercelKvVfs {
 
         // Add created directories to the result
         for dir in &directories {
-            if dir != &dir_path && !dir.is_empty() {
-                // Don't include current or root directory
+            // if dir != &dir_path && !dir.is_empty() {
+            if !dir.is_empty() {
+                // Simplified condition
+                // Don't include root directory
                 let dir_path_with_slash = if dir.ends_with('/') {
                     dir.clone()
                 } else {

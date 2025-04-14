@@ -229,16 +229,102 @@ impl VercelKvVfs {
             return Ok(true);
         }
 
-        // File doesn't exist locally, try to check if it exists in GitHub
-        // But only if GitHub config is available
+        // File doesn't exist locally, check GitHub if configuration is available
         if !self.github_config.owner.is_empty() && !self.github_config.repo.is_empty() {
-            // For now, just return false
-            // In a real implementation, we'd check if the file exists in GitHub
-            log::trace!(
-                "Exists check (not found locally, not checking GitHub): {}",
-                normalized_path
-            );
-            return Ok(false);
+            // Get the parent directory path
+            let parent_dir = get_parent_directory(&normalized_path);
+
+            // Check if we have a GitHub cache key for tracking loaded directories
+            let dir_cache_key = format!("github_loaded_dir:{}", parent_dir);
+            let mut check_github = true;
+
+            // Check if we've already loaded this directory
+            if let Ok(Some(loaded_status)) = self.store.read_from_kv(&dir_cache_key).await {
+                if loaded_status == b"loaded" {
+                    log::trace!("Directory {} was previously loaded from GitHub", parent_dir);
+                    check_github = false;
+                }
+            }
+
+            if check_github {
+                log::debug!(
+                    "Directory {} not loaded yet, loading from GitHub",
+                    parent_dir
+                );
+
+                // For single files, check if the specific file exists first
+                if !is_directory_path(&normalized_path) {
+                    // Try to load file info without downloading content
+                    match self.load_github_file_info_impl(&normalized_path).await {
+                        Ok(_) => {
+                            log::debug!("File exists on GitHub: {}", normalized_path);
+
+                            // Create a placeholder for this file
+                            let _file_path = if normalized_path.starts_with('/') {
+                                &normalized_path[1..]
+                            } else {
+                                &normalized_path
+                            };
+
+                            match self.load_github_directory_impl(true, false).await {
+                                Ok(_) => {
+                                    // Mark this directory as loaded
+                                    let _ = self
+                                        .store
+                                        .write_to_kv(&dir_cache_key, b"loaded".to_vec().as_slice())
+                                        .await;
+                                    return Ok(true);
+                                }
+                                Err(e) => {
+                                    log::warn!(
+                                        "Failed to load parent directory from GitHub: {:?}",
+                                        e
+                                    );
+                                }
+                            }
+
+                            return Ok(true);
+                        }
+                        Err(VfsError::NotFound(_)) => {
+                            log::debug!("File does not exist on GitHub: {}", normalized_path);
+                        }
+                        Err(e) => {
+                            log::warn!("Error checking file on GitHub: {:?}", e);
+                        }
+                    }
+                }
+
+                // Load the entire directory in shallow mode (create placeholders) and non-recursive mode
+                match self.load_github_directory_impl(true, false).await {
+                    Ok(result) => {
+                        log::debug!(
+                            "Loaded {} files from GitHub directory {}",
+                            result.successful_files,
+                            parent_dir
+                        );
+
+                        // Mark this directory as loaded
+                        let _ = self
+                            .store
+                            .write_to_kv(&dir_cache_key, b"loaded".to_vec().as_slice())
+                            .await;
+
+                        // Check again if our file exists after loading the directory
+                        if self.store.exists_in_metadata_cache(&normalized_path).await {
+                            return Ok(true);
+                        }
+
+                        for loaded_file in result.loaded_files {
+                            if loaded_file.path == normalized_path {
+                                return Ok(true);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to load GitHub directory: {:?}", e);
+                    }
+                }
+            }
         }
 
         log::trace!("Exists check (not found anywhere): {}", normalized_path);

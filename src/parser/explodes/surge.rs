@@ -1,6 +1,6 @@
 use crate::models::{
-    Proxy, HTTP_DEFAULT_GROUP, SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP,
-    SS_DEFAULT_GROUP, TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP,
+    Proxy, HTTP_DEFAULT_GROUP, SNELL_DEFAULT_GROUP, SOCKS_DEFAULT_GROUP, SS_DEFAULT_GROUP,
+    TROJAN_DEFAULT_GROUP, V2RAY_DEFAULT_GROUP,
 };
 
 /// Parse a Surge configuration into a vector of Proxy objects
@@ -625,6 +625,7 @@ fn parse_surge_trojan(config: &str, name: &str, node: &mut Proxy) -> bool {
         password,
         None,
         if host.is_empty() { None } else { Some(host) },
+        None,
         None,
         true,
         udp,

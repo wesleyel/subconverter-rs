@@ -142,21 +142,20 @@ fi
 if [ "$RELEASE_MODE" = false ]; then
   echo "Setting up development environment..."
   
-  # Check if www directory exists and use yarn link
+  # Check if www directory exists and copy files directly
   if [ -d "www" ]; then
-    echo "Linking to www project using yarn..."
-    # First register the package in pkg directory
-    cd pkg
-    yarn link
-    cd ..
+    echo "Copying WASM files to www project..."
     
-    # Then link to the registered package in www
-    cd www
-    yarn link "subconverter-wasm"
-    cd ..
-    echo "Successfully linked pkg to www using yarn"
+    # Create necessary directories
+    mkdir -p www/node_modules/subconverter-wasm
+    
+    # Copy all files from pkg to www/node_modules/subconverter-wasm
+    cp -r pkg/* www/node_modules/subconverter-wasm/
+    
+    echo "Successfully copied WASM files to www/node_modules/subconverter-wasm"
+    echo "Note: You'll need to run this script again after any changes to the WASM code"
   else
-    echo "Warning: www directory not found, skipping link to www project"
+    echo "Warning: www directory not found, skipping copy to www project"
   fi
 fi
 

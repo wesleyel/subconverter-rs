@@ -48,24 +48,13 @@ fn map_vfs_error(e: VfsError) -> io::Error {
 
 /// Read a file into a string (async)
 pub async fn read_file(path: &str) -> Result<String, io::Error> {
-    debug!("read_file called for path: {}", path);
-    debug!("Attempting to get VFS instance...");
     let vfs = get_vfs().await?;
-    debug!("Got VFS instance. Calling vfs.read_file...");
     let bytes_result = vfs.read_file(path).await;
     match bytes_result {
-        Ok(bytes) => {
-            debug!(
-                "Successfully read {} bytes from VFS for path: {}",
-                bytes.len(),
-                path
-            );
-            debug!("Converting bytes to UTF-8 string...");
-            String::from_utf8(bytes).map_err(|e| {
-                error!("Failed to convert bytes to UTF-8 for {}: {}", path, e);
-                io::Error::new(io::ErrorKind::InvalidData, e)
-            })
-        }
+        Ok(bytes) => String::from_utf8(bytes).map_err(|e| {
+            error!("Failed to convert bytes to UTF-8 for {}: {}", path, e);
+            io::Error::new(io::ErrorKind::InvalidData, e)
+        }),
         Err(e) => {
             warn!("VFS read_file failed for {}: {:?}", path, e);
             Err(map_vfs_error(e))
@@ -83,16 +72,11 @@ pub async fn read_file(path: &str) -> Result<String, io::Error> {
 /// * `Ok(String)` - The file contents
 /// * `Err(io::Error)` - If the file can't be read
 pub async fn read_file_async(path: &str) -> Result<String, io::Error> {
-    debug!(
-        "read_file_async called for path: {}, delegating to read_file",
-        path
-    );
     read_file(path).await // Just delegate
 }
 
 /// Check if a file exists (async)
 pub async fn file_exists(path: &str) -> bool {
-    debug!("file_exists called for path: {}", path);
     match get_vfs().await {
         Ok(vfs) => {
             debug!("Got VFS instance. Calling vfs.exists...");
@@ -123,7 +107,7 @@ pub async fn file_exists(path: &str) -> bool {
 /// # Returns
 /// * `Ok(String)` - The file contents
 /// * `Err(io::Error)` - If the file can't be read
-pub async fn file_get<P: AsRef<Path>>(path: P, _base_path: Option<&str>) -> io::Result<String> {
+async fn file_get<P: AsRef<Path>>(path: P, _base_path: Option<&str>) -> io::Result<String> {
     let path_ref = path.as_ref();
     debug!("file_get called for path: {:?}", path_ref);
     // Convert path to &str
@@ -192,10 +176,6 @@ pub async fn file_get_async<P: AsRef<Path>>(
     base_path: Option<&str>,
 ) -> io::Result<String> {
     let path_ref = path.as_ref();
-    debug!(
-        "file_get_async called for path: {:?}, delegating to file_get",
-        path_ref
-    );
     // Delegate to the updated file_get
     file_get(path_ref, base_path).await
 }

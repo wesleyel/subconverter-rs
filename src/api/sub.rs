@@ -7,6 +7,7 @@ use crate::interfaces::subconverter::{subconverter, SubconverterConfigBuilder};
 use crate::models::ruleset::RulesetConfigs;
 use crate::models::{ProxyGroupConfigs, RegexMatchConfigs, SubconverterTarget};
 use crate::settings::external::ExternalSettings;
+use crate::settings::settings::init_settings;
 use crate::settings::{refresh_configuration, FromIni, FromIniWithDelimiter};
 use crate::utils::reg_valid;
 use crate::{RuleBases, Settings, TemplateArgs};
@@ -153,11 +154,14 @@ pub async fn sub_process(
     req_url: Option<String>,
     query: SubconverterQuery,
 ) -> Result<SubResponse, Box<dyn std::error::Error>> {
-    debug!("Received subconverter request: {:?}", query);
     let mut global = Settings::current();
 
-    // Check if we should reload the config
-    if global.reload_conf_on_request && !global.api_mode && !global.generator_mode {
+    // not initialized, in wasm that's common for cold start.
+    if global.pref_path.is_empty() {
+        debug!("Global config not initialized, reloading");
+        init_settings("").await?;
+        global = Settings::current();
+    } else if global.reload_conf_on_request && !global.api_mode && !global.generator_mode {
         refresh_configuration().await;
         global = Settings::current();
     }

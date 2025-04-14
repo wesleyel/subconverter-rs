@@ -175,7 +175,7 @@ pub async fn admin_load_github_directory_flat(path: String, shallow: bool) -> Re
     info!("admin_load_github_directory_flat called for path: {} (shallow: {})", path, shallow);
     let vfs = get_vfs().await.map_err(vfs_error_to_js)?;
 
-    match vfs.load_github_directory_impl(&path, shallow, false).await {
+    match vfs.load_github_directory_impl(shallow, false).await {
         Ok(result) => {
             // Convert the result to JavaScript
             match serde_wasm_bindgen::to_value(&result) {
