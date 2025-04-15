@@ -1,6 +1,6 @@
 [build]
 base = "www"
-command = "yarn install --force && yarn build"
+command = "yarn install --production=false && yarn build"
 publish = ".next"
 
 [[plugins]]
