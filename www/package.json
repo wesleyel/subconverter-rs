@@ -38,13 +38,5 @@
   },
   "engines": {
     "node": ">=20.0.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp"
-    ],
-    "overrides": {
-      "subconverter-wasm": "link:../pkg"
-    }
   }
 }
