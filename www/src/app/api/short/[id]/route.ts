@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { loadWasmSingleton } from '@/lib/wasm';
 
 // Define correct types for route parameters according to Next.js 15
-type RouteParams = {
-    params: { id: string }
-};
+type RouteParams = any;
 
 /**
  * Handle getting a specific short URL
