@@ -11,13 +11,13 @@ Subconverter WASM Build & Release Script
 Usage Options:
   --release          Build in release mode
   --prepare-release  Prepare a release: Update version, create temporary tag, and trigger GitHub Actions
-  --bump-minor       Bump minor version number, commit change and prepare release (convenient for routine updates)
+  --bump-patch       Bump patch version number, commit change and prepare release (convenient for routine updates)
   --version X.Y.Z    Specify version (used with --release or --prepare-release)
 
 Examples:
   ./build-wasm.sh                      # Build in development mode
   ./build-wasm.sh --release            # Build in release mode
-  ./build-wasm.sh --bump-minor         # Auto-bump minor version and prepare release
+  ./build-wasm.sh --bump-patch         # Auto-bump patch version and prepare release
   ./build-wasm.sh --prepare-release --version 0.3.0  # Prepare specific version release
 EOF
 
@@ -37,7 +37,7 @@ fi
 RELEASE_MODE=false
 VERSION=""
 PREPARE_RELEASE=false
-BUMP_MINOR=false
+BUMP_PATCH=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -50,8 +50,8 @@ while [[ $# -gt 0 ]]; do
       RELEASE_MODE=true
       shift
       ;;
-    --bump-minor)
-      BUMP_MINOR=true
+    --bump-patch)
+      BUMP_PATCH=true
       PREPARE_RELEASE=true
       RELEASE_MODE=true
       shift
@@ -62,7 +62,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--release] [--prepare-release] [--bump-minor] [--version X.Y.Z]"
+      echo "Usage: $0 [--release] [--prepare-release] [--bump-patch] [--version X.Y.Z]"
       exit 1
       ;;
   esac
@@ -72,18 +72,18 @@ done
 CURRENT_VERSION=$(grep -m 1 "version" Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
 echo "Current package version: $CURRENT_VERSION"
 
-# Bump minor version if requested
-if [ "$BUMP_MINOR" = true ]; then
+# Bump patch version if requested
+if [ "$BUMP_PATCH" = true ]; then
   # Extract major, minor and patch numbers
   MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
   MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
   PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3 | cut -d- -f1)
   
-  # Bump minor version and reset patch
-  NEW_MINOR=$((MINOR + 1))
-  VERSION="${MAJOR}.${NEW_MINOR}.0"
+  # Bump patch version
+  NEW_PATCH=$((PATCH + 1))
+  VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
   
-  echo "Bumping minor version from $CURRENT_VERSION to $VERSION"
+  echo "Bumping patch version from $CURRENT_VERSION to $VERSION"
 fi
 
 # If version is provided but we're not in release mode, switch to release mode
