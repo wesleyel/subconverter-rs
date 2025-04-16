@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, FormEvent, useCallback, useEffect } from "react";
-import { convertSubscription, SubResponseData, ErrorData, createShortUrl } from '@/lib/api-client';
+import { convertSubscription, SubResponseData, ErrorData, createShortUrl, ShortUrlData } from '@/lib/api-client';
 
 // Define config presets for easy maintenance
 const CONFIG_PRESETS = [
@@ -43,6 +43,7 @@ export default function Home() {
   const [saveApiUrl, setSaveApiUrl] = useState(true);
   const [shortUrlCreating, setShortUrlCreating] = useState(false);
   const [shortUrlCreated, setShortUrlCreated] = useState(false);
+  const [shortUrlData, setShortUrlData] = useState<ShortUrlData | null>(null);
 
   // Reset shortUrlCreated when form inputs change
   useEffect(() => {
@@ -112,11 +113,12 @@ export default function Home() {
       const apiUrl = generateApiUrl();
       const description = `${targetFormat.toUpperCase()} subscription for ${subscriptionUrl.substring(0, 30)}${subscriptionUrl.length > 30 ? '...' : ''}`;
 
-      await createShortUrl({
+      const shortUrl = await createShortUrl({
         target_url: apiUrl,
         description: description
       });
 
+      setShortUrlData(shortUrl);
       setShortUrlCreated(true);
     } catch (err) {
       console.error("Error creating short URL:", err);
@@ -143,7 +145,7 @@ export default function Home() {
 
   // The supported target formats from the convert page
   const SUPPORTED_TARGETS = [
-    'auto', 'clash', 'clashr', 'surge', 'quan', 'quanx',
+    'clash', 'clashr', 'surge', 'quan', 'quanx',
     'mellow', 'surfboard', 'loon', 'ss', 'ssr', 'sssub',
     'v2ray', 'trojan', 'trojan-go', 'hysteria', 'hysteria2',
     'ssd', 'mixed', 'singbox'
@@ -256,18 +258,19 @@ export default function Home() {
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="font-medium">Subscription URL</h4>
                   <button
-                    onClick={() => navigator.clipboard.writeText(generateApiUrl())}
+                    onClick={() => navigator.clipboard.writeText(shortUrlData && shortUrlCreated ? shortUrlData.short_url : generateApiUrl())}
                     className="text-xs px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded"
                   >
                     Copy
                   </button>
                 </div>
                 <p className="text-xs break-all font-mono bg-gray-800 p-2 rounded text-white">
-                  {generateApiUrl()}
+                  {shortUrlData && shortUrlCreated ? shortUrlData.short_url : generateApiUrl()}
                 </p>
                 <p className="text-xs mt-1">
                   You can use this URL directly as a subscription link.
-                  {saveApiUrl && " This URL will be saved for later use."}
+                  {saveApiUrl && !shortUrlCreated && " This URL will be saved for later use."}
+                  {shortUrlCreated && " This is your saved short URL that points to the full conversion URL."}
                 </p>
               </div>
 
