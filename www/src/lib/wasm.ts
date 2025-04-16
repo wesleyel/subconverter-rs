@@ -86,7 +86,7 @@ export async function initWasm(): Promise<typeof subconverterWasm> {
 
         if (typeof subconverterWasm.init_wasm_logging === 'function') {
             console.log('Initializing WASM logging...');
-            subconverterWasm.init_wasm_logging('debug');
+            subconverterWasm.init_wasm_logging(process.env.NODE_ENV === 'development' ? 'debug' : null);
         }
 
         if (typeof subconverterWasm.admin_init_kv_bindings_js === 'function') {
