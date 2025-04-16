@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadWasmSingleton } from '@/lib/wasm';
 
+type RouteParams = any;
+
 /**
  * Handle short URL redirect requests
  */
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: RouteParams
 ) {
     // Get the short URL ID from the route parameter
-    const id = params.id;
+    const id = context.params.id;
 
     if (!id) {
         return NextResponse.json(
@@ -55,10 +57,10 @@ export async function GET(
  */
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: RouteParams
 ) {
     // Get the short URL ID from the route parameter
-    const id = params.id;
+    const id = context.params.id;
 
     if (!id) {
         return NextResponse.json(
@@ -96,10 +98,10 @@ export async function DELETE(
  */
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: RouteParams
 ) {
     // Get the short URL ID from the route parameter
-    const id = params.id;
+    const id = context.params.id;
 
     if (!id) {
         return NextResponse.json(
