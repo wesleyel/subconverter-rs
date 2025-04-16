@@ -194,7 +194,7 @@ jq '.files += ["snippets/"]' pkg/package.json | \
 
 # Install dependencies in pkg
 cd pkg
-yarn install
+pnpm install
 cd ..
 
 # Setup development environment if in dev mode
@@ -222,7 +222,7 @@ fi
 if [ -d "vercel-api-test" ]; then
   echo "Installing dependencies in vercel-api-test..."
   cd vercel-api-test
-  yarn install
+  pnpm install
   cd ..
 fi
 

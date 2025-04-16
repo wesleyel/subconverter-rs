@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "rebuild:wasm:dev": "cd .. && ./build-wasm.sh && cd www && yarn dev",
+    "rebuild:wasm:dev": "cd .. && ./build-wasm.sh && cd www && pnpm dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -42,5 +42,11 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp"
+    ]
   }
 }

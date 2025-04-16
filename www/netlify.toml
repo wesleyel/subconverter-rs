@@ -1,6 +1,6 @@
 [build]
 base = "www"
-command = "yarn install --production=false && yarn build"
+command = "pnpm install --production=false && pnpm build"
 publish = ".next"
 
 [[plugins]]
