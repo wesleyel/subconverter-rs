@@ -425,13 +425,41 @@ export async function deleteShortUrl(id: string): Promise<void> {
 /**
  * Update a short URL
  */
-export async function updateShortUrl(id: string, updates: { target_url?: string; description?: string | null }): Promise<ShortUrlData> {
+export async function updateShortUrl(id: string, updates: { target_url?: string; description?: string | null; custom_id?: string }): Promise<ShortUrlData> {
     const response = await fetch(`/api/s/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.json() as Promise<ShortUrlData>;
+}
+
+/**
+ * Move a short URL to a new ID/alias
+ */
+export async function moveShortUrl(id: string, newId: string): Promise<ShortUrlData> {
+    const response = await fetch(`/api/s/${encodeURIComponent(id)}/move`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ new_id: newId }),
     });
 
     if (!response.ok) {

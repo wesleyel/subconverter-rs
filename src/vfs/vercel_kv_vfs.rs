@@ -85,7 +85,14 @@ impl VirtualFileSystem for VercelKvVfs {
         &self,
         path: &str,
     ) -> impl std::future::Future<Output = Result<Vec<DirectoryEntry>, VfsError>> {
-        async move { self.list_directory_impl(path).await }
+        async move { self.list_directory_impl(path, false).await }
+    }
+
+    fn list_directory_skip_github(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<DirectoryEntry>, VfsError>> {
+        async move { self.list_directory_impl(path, true).await }
     }
 
     fn create_directory(

@@ -142,6 +142,7 @@ impl VercelKvVfs {
     pub(crate) async fn list_directory_impl(
         &self,
         path: &str,
+        skip_github_load: bool,
     ) -> Result<Vec<DirectoryEntry>, VfsError> {
         log_debug!("Listing directory: '{}'", path);
         let path = normalize_path(path);
@@ -179,7 +180,7 @@ impl VercelKvVfs {
                     prefix
                 );
 
-                if keys.is_empty() {
+                if keys.is_empty() && !skip_github_load {
                     log_debug!("No keys found for prefix '{}', checking GitHub...", prefix);
                     // Try to load from GitHub if no keys are found
                     match self.load_github_directory_impl(true, false).await {
@@ -386,7 +387,7 @@ impl VercelKvVfs {
         }
 
         // Check if we need to load from GitHub when we have KV entries but might be missing subdirectories
-        if files.is_empty() || (files.len() < 10 && path.is_empty()) {
+        if !skip_github_load && (files.is_empty() || (files.len() < 10 && path.is_empty())) {
             log_debug!(
                 "Attempting to load from GitHub to supplement directory listing for '{}'",
                 path

@@ -81,6 +81,9 @@ if [ "$RELEASE_MODE" = true ]; then
   fi
 fi
 
+# Variable to track if version was updated
+VERSION_UPDATED=false
+
 # Build the wasm package
 if [ "$RELEASE_MODE" = true ]; then
   echo "Building wasm package in release mode..."
@@ -89,6 +92,23 @@ if [ "$RELEASE_MODE" = true ]; then
   if [ -n "$VERSION" ] && [ "$VERSION" != "$CURRENT_VERSION" ]; then
     echo "Updating version to $VERSION in Cargo.toml"
     sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
+    VERSION_UPDATED=true
+  fi
+  
+  # Create git tag and push if version was updated
+  if [ "$VERSION_UPDATED" = true ]; then
+    echo "Creating git commit for version $VERSION..."
+    git add Cargo.toml
+    git commit -m "Bump version to $VERSION"
+    
+    echo "Creating git tag v$VERSION..."
+    git tag -a "v$VERSION" -m "Version $VERSION"
+    
+    echo "Pushing changes and tags to remote repository..."
+    git push origin main
+    git push origin "v$VERSION"
+    
+    echo "Git operations completed successfully!"
   fi
   
   wasm-pack build --release --target nodejs

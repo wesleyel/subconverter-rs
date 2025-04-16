@@ -174,6 +174,10 @@ pub trait VirtualFileSystem {
         &self,
         path: &str,
     ) -> impl std::future::Future<Output = Result<Vec<DirectoryEntry>, VfsError>>;
+    fn list_directory_skip_github(
+        &self,
+        path: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<DirectoryEntry>, VfsError>>;
     fn create_directory(
         &self,
         path: &str,

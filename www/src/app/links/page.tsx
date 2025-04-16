@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ShortUrlData, listShortUrls, deleteShortUrl, createShortUrl, updateShortUrl } from "@/lib/api-client";
+import { ShortUrlData, listShortUrls, deleteShortUrl, createShortUrl, updateShortUrl, moveShortUrl } from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
 export default function SavedLinks() {
@@ -12,6 +12,7 @@ export default function SavedLinks() {
     const [showNewLinkForm, setShowNewLinkForm] = useState(false);
     const [newLink, setNewLink] = useState({ target_url: "", custom_id: "", description: "" });
     const [editingLink, setEditingLink] = useState<ShortUrlData | null>(null);
+    const [editCustomId, setEditCustomId] = useState<string>('');
     const router = useRouter();
 
     // Load links on component mount
@@ -76,15 +77,36 @@ export default function SavedLinks() {
         if (!editingLink) return;
 
         try {
-            const updatedLink = await updateShortUrl(editingLink.id, {
-                target_url: editingLink.target_url,
-                description: editingLink.description
-            });
+            let updatedLink;
 
-            setLinks(links.map(link =>
-                link.id === updatedLink.id ? updatedLink : link
-            ));
+            // If custom ID is provided, move the short URL to a new ID
+            if (editCustomId) {
+                updatedLink = await moveShortUrl(editingLink.id, editCustomId);
+            } else {
+                // Otherwise, just update the existing short URL
+                updatedLink = await updateShortUrl(editingLink.id, {
+                    target_url: editingLink.target_url,
+                    description: editingLink.description
+                });
+            }
+
+            setLinks(prevLinks => {
+                // If we moved to a new ID, we need to filter out the old link and add the new one
+                if (editCustomId) {
+                    return [
+                        updatedLink,
+                        ...prevLinks.filter(link => link.id !== editingLink.id)
+                    ];
+                }
+                // Otherwise, replace the existing link
+                else {
+                    return prevLinks.map(link =>
+                        link.id === updatedLink.id ? updatedLink : link
+                    );
+                }
+            });
             setEditingLink(null);
+            setEditCustomId('');
             setError(null);
         } catch (err: any) {
             setError(err.error || "Failed to update short URL");
@@ -95,6 +117,14 @@ export default function SavedLinks() {
     // Format timestamp to human-readable date
     const formatDate = (timestamp: number) => {
         return new Date(timestamp * 1000).toLocaleString();
+    };
+
+    // When setting the editing link, get the existing custom ID
+    const startEditing = (link: ShortUrlData) => {
+        setEditingLink(link);
+        // We need to load the actual custom ID value
+        // This would typically come from the API but we'll use the link ID as a fallback
+        setEditCustomId('');
     };
 
     return (
@@ -184,6 +214,21 @@ export default function SavedLinks() {
                                 />
                             </div>
                             <div className="mb-4">
+                                <label className="block mb-2">Custom ID (alias)</label>
+                                <input
+                                    type="text"
+                                    className="w-full p-2 bg-black/30 border border-gray-700 rounded"
+                                    value={editCustomId}
+                                    onChange={(e) => setEditCustomId(e.target.value)}
+                                    placeholder="my-custom-id"
+                                />
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Enter a new custom ID to move this URL to a different alias.
+                                    This will create a new short URL with the same target URL but a different path.
+                                    Leave blank to keep the current ID.
+                                </p>
+                            </div>
+                            <div className="mb-4">
                                 <label className="block mb-2">Description</label>
                                 <input
                                     type="text"
@@ -223,36 +268,87 @@ export default function SavedLinks() {
                                     key={link.id}
                                     className="border border-gray-700 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between"
                                 >
-                                    <div className="mb-4 md:mb-0">
-                                        <h3 className="text-xl font-semibold">
-                                            {link.description || link.id}
-                                        </h3>
-                                        <p className="text-sm text-gray-400 mt-2">
-                                            Target: {link.target_url}
-                                        </p>
-                                        <p className="text-sm text-gray-400">
-                                            Created: {formatDate(link.created_at)} •
-                                            Used: {link.use_count} times
-                                            {link.last_used ? ` • Last used: ${formatDate(link.last_used)}` : ''}
-                                        </p>
+                                    <div className="mb-4 md:mb-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-xl font-semibold">
+                                                {link.description || link.id}
+                                            </h3>
+                                            {link.custom_id && (
+                                                <span className="bg-purple-500/30 text-purple-300 text-xs px-2 py-1 rounded-full">
+                                                    Custom ID
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-3 flex flex-col gap-1">
+                                            <div className="flex items-center">
+                                                <span className="text-sm font-medium text-gray-400 w-20">Short URL:</span>
+                                                <a
+                                                    href={link.short_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm text-blue-400 hover:text-blue-300 underline"
+                                                >
+                                                    {link.short_url.replace(/^https?:\/\/[^/]+/, '')}
+                                                </a>
+                                            </div>
+
+                                            <div className="flex items-center">
+                                                <span className="text-sm font-medium text-gray-400 w-20">Target:</span>
+                                                <a
+                                                    href={link.target_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm text-gray-300 hover:text-gray-100 truncate max-w-lg"
+                                                >
+                                                    {link.target_url}
+                                                </a>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                                            <span className="bg-gray-700/50 px-2 py-1 rounded-md">
+                                                Created: {formatDate(link.created_at)}
+                                            </span>
+                                            <span className="bg-gray-700/50 px-2 py-1 rounded-md">
+                                                Clicks: {link.use_count}
+                                            </span>
+                                            {link.last_used && (
+                                                <span className="bg-gray-700/50 px-2 py-1 rounded-md">
+                                                    Last used: {formatDate(link.last_used)}
+                                                </span>
+                                            )}
+                                            <span className="bg-gray-700/50 px-2 py-1 rounded-md">
+                                                ID: {link.id}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="flex flex-col md:flex-row gap-2">
                                         <button
-                                            onClick={() => navigator.clipboard.writeText(link.short_url.startsWith('http') ? link.short_url : `${window.location.origin}${link.short_url}`)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                                            onClick={() => navigator.clipboard.writeText(link.short_url)}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center"
                                         >
-                                            Copy Link
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
+                                            Copy
                                         </button>
                                         <button
-                                            onClick={() => setEditingLink(link)}
-                                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
+                                            onClick={() => startEditing(link)}
+                                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center"
                                         >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
                                             Edit
                                         </button>
                                         <button
                                             onClick={() => handleDelete(link.id)}
-                                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+                                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center"
                                         >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
                                             Delete
                                         </button>
                                     </div>

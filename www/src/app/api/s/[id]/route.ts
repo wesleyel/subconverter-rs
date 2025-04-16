@@ -11,7 +11,7 @@ export async function GET(
     context: RouteParams
 ) {
     // Get the short URL ID from the route parameter
-    const id = context.params.id;
+    const { id } = await context.params;
 
     if (!id) {
         return NextResponse.json(
@@ -60,7 +60,7 @@ export async function DELETE(
     context: RouteParams
 ) {
     // Get the short URL ID from the route parameter
-    const id = context.params.id;
+    const { id } = await context.params;
 
     if (!id) {
         return NextResponse.json(
@@ -101,7 +101,7 @@ export async function PUT(
     context: RouteParams
 ) {
     // Get the short URL ID from the route parameter
-    const id = context.params.id;
+    const { id } = await context.params;
 
     if (!id) {
         return NextResponse.json(

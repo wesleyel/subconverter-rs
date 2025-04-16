@@ -316,6 +316,11 @@ pub async fn short_url_delete(id: String) -> Result<JsValue, JsValue> {
     Ok(JsValue::from_str("{\"success\":true}"))
 }
 
+/// List all short URLs in the system.
+///
+/// This function uses list_directory_skip_github to avoid loading repository data from GitHub,
+/// as short URLs are exclusively stored in the KV store and never in the GitHub repository.
+/// This improves performance by skipping unnecessary GitHub API calls.
 #[wasm_bindgen]
 pub async fn short_url_list() -> Result<JsValue, JsValue> {
     info!("short_url_list called");
@@ -337,8 +342,8 @@ pub async fn short_url_list() -> Result<JsValue, JsValue> {
         )));
     }
 
-    // List all files in the short URL directory
-    let entries = match vfs.list_directory(SHORT_URL_DIR).await {
+    // List all files in the short URL directory (skip GitHub loading)
+    let entries = match vfs.list_directory_skip_github(SHORT_URL_DIR).await {
         Ok(entries) => entries,
         Err(e) => {
             error!("Error listing short URLs: {}", e);
@@ -499,6 +504,125 @@ pub async fn short_url_update(id: String, request_json: String) -> Result<JsValu
         "use_count": short_url_data.use_count,
         "custom_id": short_url_data.custom_id,
         "description": short_url_data.description
+    });
+
+    Ok(JsValue::from_str(&response.to_string()))
+}
+
+#[wasm_bindgen]
+pub async fn short_url_move(
+    id: String,
+    new_id: String,
+    request_url: String,
+) -> Result<JsValue, JsValue> {
+    info!("short_url_move called for ID: {} -> {}", id, new_id);
+
+    // Validate IDs
+    if id.is_empty() || new_id.is_empty() {
+        return Err(JsValue::from_str(
+            "Both source and destination IDs are required",
+        ));
+    }
+
+    // Ensure IDs are different
+    if id == new_id {
+        return Err(JsValue::from_str(
+            "Source and destination IDs must be different",
+        ));
+    }
+
+    let vfs = match get_vfs().await {
+        Ok(vfs) => vfs,
+        Err(e) => {
+            error!("Error getting VFS: {}", e);
+            return Err(JsValue::from_str(&format!("VFS error: {}", e)));
+        }
+    };
+
+    // Ensure short URL directory exists
+    if let Err(e) = ensure_short_dir_exists(&vfs).await {
+        error!("Error ensuring short URL directory exists: {}", e);
+        return Err(JsValue::from_str(&format!(
+            "Error with short URL directory: {}",
+            e
+        )));
+    }
+
+    // Check if source exists
+    let source_path = get_short_url_path(&id);
+    if !vfs.exists(&source_path).await.unwrap_or(false) {
+        return Err(JsValue::from_str("Source short URL not found"));
+    }
+
+    // Check if destination already exists
+    let dest_path = get_short_url_path(&new_id);
+    if vfs.exists(&dest_path).await.unwrap_or(false) {
+        return Err(JsValue::from_str("Destination ID already exists"));
+    }
+
+    // Read the source file content
+    let content = match vfs.read_file(&source_path).await {
+        Ok(content) => content,
+        Err(e) => {
+            error!("Error reading source short URL: {}", e);
+            return Err(JsValue::from_str(&format!(
+                "Error reading source short URL: {}",
+                e
+            )));
+        }
+    };
+
+    // Parse short URL data
+    let mut short_url_data: ShortUrlData = match serde_json::from_slice(&content) {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Error parsing short URL data: {}", e);
+            return Err(JsValue::from_str(&format!("Invalid short URL data: {}", e)));
+        }
+    };
+
+    // Update the custom_id flag based on whether new_id is a custom ID or not
+    short_url_data.custom_id = true; // Since we're explicitly moving it, it's a custom ID now
+
+    // Serialize updated data
+    let updated_json = match serde_json::to_string(&short_url_data) {
+        Ok(json) => json,
+        Err(e) => {
+            error!("Error serializing updated short URL data: {}", e);
+            return Err(JsValue::from_str(&format!("Serialization error: {}", e)));
+        }
+    };
+
+    // Write to destination
+    if let Err(e) = vfs.write_file(&dest_path, updated_json.into_bytes()).await {
+        error!("Error writing to destination path: {}", e);
+        return Err(JsValue::from_str(&format!(
+            "Error creating new short URL: {}",
+            e
+        )));
+    }
+
+    // Delete the source file
+    if let Err(e) = vfs.delete_file(&source_path).await {
+        error!("Error deleting source short URL: {}", e);
+        return Err(JsValue::from_str(&format!(
+            "Warning: Created new short URL but failed to delete old one: {}",
+            e
+        )));
+    }
+
+    // Return updated data
+    let short_url = get_full_short_url(&request_url, &new_id);
+    let response = json!({
+        "id": new_id,
+        "target_url": short_url_data.target_url,
+        "short_url": short_url,
+        "created_at": short_url_data.created_at,
+        "last_used": short_url_data.last_used,
+        "use_count": short_url_data.use_count,
+        "custom_id": short_url_data.custom_id,
+        "description": short_url_data.description,
+        "old_id": id
     });
 
     Ok(JsValue::from_str(&response.to_string()))

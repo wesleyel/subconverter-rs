@@ -3114,10 +3114,10 @@ styled-jsx@5.1.6:
   dependencies:
     client-only "0.0.1"
 
-subconverter-wasm@0.1.0-pre.20250414.68268cd:
-  version "0.1.0-pre.20250414.68268cd"
-  resolved "https://registry.yarnpkg.com/subconverter-wasm/-/subconverter-wasm-0.1.0-pre.20250414.68268cd.tgz#af9bbe7cef0f841f4029013ab1304f07ad778b0d"
-  integrity sha512-rlEc2tqqtrWS3qEdAKHR+K/4u7jeDx9P6Pj0yfqAgxqn/ylcTvFtrWjy461kVTBFUmaVce+aUXJaEqlgPYYzIQ==
+subconverter-wasm@0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/subconverter-wasm/-/subconverter-wasm-0.2.0.tgz#6e7496217f112cddb56f61f4ea2a34c9016fbc97"
+  integrity sha512-9DkZj4LgFd+mhzW7DiGkr1PCb58JQNWkhh9v76DEMj7K7a1LRyL3xo6T27oJfCjFzqypSlEN+LtiwhJSQxyrvA==
   dependencies:
     "@netlify/blobs" "^8.1.2"
     "@vercel/kv" "^3.0.0"

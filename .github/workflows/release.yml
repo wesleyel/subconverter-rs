@@ -59,7 +59,7 @@ jobs:
       run: cargo install cross
       
     - name: Build with cross
-      run: cross build --release --target ${{ matrix.target }}
+      run: cross build --release --features=web-api --target ${{ matrix.target }}
       env:
         RUSTFLAGS: "-C target-feature=+crt-static"
         
@@ -117,7 +117,7 @@ jobs:
         sed -i -e "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
         
     - name: Build
-      run: cargo build --release --target ${{ matrix.target }}
+      run: cargo build --release --features=web-api --target ${{ matrix.target }}
       
     - name: Prepare artifact
       run: |
@@ -172,7 +172,7 @@ jobs:
         sed -i "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
         
     - name: Build
-      run: cargo build --release --target ${{ matrix.target }}
+      run: cargo build --release --features=web-api --target ${{ matrix.target }}
       
     - name: Prepare artifact
       shell: bash
