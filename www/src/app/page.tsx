@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, FormEvent, useCallback, useEffect } from "react";
-import { convertSubscription, SubResponseData, ErrorData, createShortUrl, ShortUrlData } from '@/lib/api-client';
+import { convertSubscription, SubResponseData, ErrorData, createShortUrl, ShortUrlData, getAvailableDownloads, detectUserOS, AppDownloadInfo } from '@/lib/api-client';
 
 // Define config presets for easy maintenance
 const CONFIG_PRESETS = [
@@ -44,6 +44,31 @@ export default function Home() {
   const [shortUrlCreating, setShortUrlCreating] = useState(false);
   const [shortUrlCreated, setShortUrlCreated] = useState(false);
   const [shortUrlData, setShortUrlData] = useState<ShortUrlData | null>(null);
+  const [userOs, setUserOs] = useState<string>("");
+  const [downloads, setDownloads] = useState<AppDownloadInfo[]>([]);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+
+  // Detect user OS
+  useEffect(() => {
+    setUserOs(detectUserOS());
+  }, []);
+
+  // Fetch available downloads
+  useEffect(() => {
+    async function fetchDownloads() {
+      try {
+        setDownloadLoading(true);
+        const downloadList = await getAvailableDownloads();
+        setDownloads(downloadList);
+      } catch (err) {
+        console.error("Error fetching downloads:", err);
+      } finally {
+        setDownloadLoading(false);
+      }
+    }
+
+    fetchDownloads();
+  }, []);
 
   // Reset shortUrlCreated when form inputs change
   useEffect(() => {
@@ -314,7 +339,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white/5 p-6 rounded-lg shadow-md">
-            <h2 className="text-2xl font-semibold mb-4">Advanced Configuration</h2>
+            <h2 className="text-2xl font-semibold mb-4">Advanced Convert</h2>
             <p className="mb-4">
               Need more options? Create a custom configuration with advanced settings.
             </p>
@@ -368,39 +393,38 @@ export default function Home() {
 
           <div className="bg-white/5 p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-semibold mb-4">App Downloads</h2>
-            <div className="flex items-center mb-4">
-              <svg className="w-6 h-6 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-              </svg>
-              <p>Download client apps for various platforms through our reverse proxy</p>
+            <p className="mb-4">
+              Download the recommended client app for your system.
+            </p>
+            <div className="flex gap-3">
+              {userOs !== "unknown" && (
+                downloadLoading ? (
+                  <div className="flex-1 py-3 text-center">Loading downloads...</div>
+                ) : (
+                  downloads.find(d => d.platform === userOs) ? (
+                    <a
+                      href={downloads.find(d => d.platform === userOs)?.download_url}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded text-center flex items-center justify-center"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                      </svg>
+                      Download for {userOs.charAt(0).toUpperCase() + userOs.slice(1)}
+                    </a>
+                  ) : (
+                    <div className="flex-1 py-3 text-center">No download available for {userOs}</div>
+                  )
+                )
+              )}
+              <Link
+                href="/downloads"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded text-center"
+              >
+                All Downloads
+              </Link>
             </div>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <button className="flex flex-col items-center justify-center p-3 bg-white/10 rounded hover:bg-white/20 transition-colors">
-                <svg className="w-8 h-8 mb-1" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M21.928 11.607c-.202-.488-.635-.605-.928-.633v-1.898c0-.362-.183-.474-.333-.535-.149-.061-.395-.079-.667.039l-1.273.561c-.393.188-.857.349-1.344.349h-6.7c-.33 0-.595-.437-.781-.86-.781-1.647-1.145-5.007-1.396-6.157-.25-1.15-.908-1.15-1.434-1.15-.511 0-1.07.02-1.07 1.243 0 1.3.993 9.75 4.738 9.75h5.27c.874 0 1.245 1.697.254 1.697h-5.523c-2.689 0-3.387 2.016-3.387 2.016s5.077 3.695 5.077 4.806v1.903c0 .29.34.333.676.333h1.126c.337 0 .676-.043.676-.333v-.862c0-.292.406-.454.676-.454h1.126c.271 0 .677.162.677.454v.862c0 .29.339.333.675.333h1.126c.336 0 .676-.043.676-.333v-.862c0-.292.405-.454.676-.454h1.126c.27 0 .676.162.676.454v.862c0 .29.34.333.676.333h1.126c.337 0 .676-.043.676-.333v-4.85c0-1.263-1.375-3.115-2.071-3.668z" />
-                </svg>
-                <span className="text-xs">macOS</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-3 bg-white/10 rounded hover:bg-white/20 transition-colors">
-                <svg className="w-8 h-8 mb-1" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M0 0h24v24H0V0z" fill="none" />
-                  <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
-                </svg>
-                <span className="text-xs">Windows</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-3 bg-white/10 rounded hover:bg-white/20 transition-colors">
-                <svg className="w-8 h-8 mb-1" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M21 18v3H3V3h18v3H10v12h11zm-9-2V8H3v8h9z" />
-                </svg>
-                <span className="text-xs">Linux</span>
-              </button>
-            </div>
-            <Link
-              href="/downloads"
-              className="block bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-center"
-            >
-              View All Downloads
-            </Link>
           </div>
         </div>
       </div>

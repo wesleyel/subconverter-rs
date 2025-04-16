@@ -142,6 +142,9 @@ if [ "$PREPARE_RELEASE" = true ]; then
   git commit -m "Prepare release $VERSION (attempt $ATTEMPT_COUNT)"
   git tag -a "${TEMP_TAG}" -m "Preparing release $VERSION (attempt $ATTEMPT_COUNT)"
   
+  echo "Pulling latest changes from remote repository..."
+  git pull --rebase origin main
+  
   echo "Pushing changes and temporary tag to remote repository..."
   git push origin main
   git push origin "${TEMP_TAG}"

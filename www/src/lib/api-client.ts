@@ -492,6 +492,24 @@ export interface AppDownloadInfo {
 }
 
 /**
+ * Interface for platform configuration
+ */
+export interface PlatformConfig {
+    repo: string;
+    asset_pattern: string;
+    fallback_url: string;
+}
+
+/**
+ * Interface for app download configuration
+ */
+export interface AppDownloadConfig {
+    name: string;
+    description: string;
+    platforms: Record<string, PlatformConfig>;
+}
+
+/**
  * Get available application downloads
  */
 export async function getAvailableDownloads(): Promise<AppDownloadInfo[]> {
@@ -519,6 +537,81 @@ export async function getAvailableDownloads(): Promise<AppDownloadInfo[]> {
  */
 export function getDownloadUrl(appId: string, platform: string): string {
     return `/api/downloads/${encodeURIComponent(appId)}/${encodeURIComponent(platform)}`;
+}
+
+/**
+ * Get the download configs from the admin API
+ * This is only available to admin users
+ */
+export async function getDownloadConfigs(): Promise<AppDownloadConfig[]> {
+    const response = await fetch('/api/admin/downloads');
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    const data = await response.json();
+    return data.downloads || [];
+}
+
+/**
+ * Update the download configs via the admin API
+ * This is only available to admin users
+ */
+export async function updateDownloadConfigs(downloads: AppDownloadConfig[]): Promise<boolean> {
+    const response = await fetch('/api/admin/downloads', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ downloads }),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    const result = await response.json();
+    return result.success === true;
+}
+
+/**
+ * Detect the user's operating system
+ */
+export function detectUserOS(): string {
+    const platform = navigator.platform.toLowerCase();
+
+    if (platform.includes('win')) {
+        return 'windows';
+    } else if (platform.includes('mac')) {
+        return 'macos';
+    } else if (platform.includes('linux')) {
+        return 'linux';
+    } else if (/android/i.test(navigator.userAgent)) {
+        return 'android';
+    } else if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+        return 'ios';
+    }
+
+    return 'unknown';
 }
 
 /**
