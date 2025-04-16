@@ -15,8 +15,9 @@
 A more powerful utility to convert between proxy subscription formats, transformed from the C++ version subconverter! This Rust implementation offers improved performance and reliability while maintaining compatibility with the original.
 
 **⚠️ BETA VERSION AVAILABLE ⚠️** - This project is now in beta. Core features are implemented but may still have some rough edges.
-
-**Coming Soon** - wasm version for one-click deployment.
+🎉 wasm版本白嫖一键部署：
+[![Deploy to
+Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/lonelam/subconverter-rs&base=www)
 
 ## 📋 Table of Contents
 
