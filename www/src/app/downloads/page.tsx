@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { getAvailableDownloads, detectUserOS, AppDownloadInfo } from '@/lib/api-client';
 
 export default function DownloadsPage() {
+    const t = useTranslations('DownloadsPage');
     const [downloads, setDownloads] = useState<AppDownloadInfo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -18,7 +20,7 @@ export default function DownloadsPage() {
                 setDownloads(downloadsList);
             } catch (err) {
                 console.error('Failed to load downloads:', err);
-                setError('Failed to load available downloads. Please try again later.');
+                setError(t('errorMessage'));
             } finally {
                 setIsLoading(false);
             }
@@ -28,7 +30,7 @@ export default function DownloadsPage() {
         setUserOS(detectUserOS());
 
         loadDownloads();
-    }, []);
+    }, [t]);
 
     // Group downloads by application name
     const downloadsByApp = downloads.reduce((acc, download) => {
@@ -43,18 +45,18 @@ export default function DownloadsPage() {
         <main className="flex min-h-screen flex-col items-center p-4 md:p-8 lg:p-24">
             <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
                 <div className="flex flex-col sm:flex-row items-center justify-between mb-6">
-                    <h1 className="text-4xl font-bold mb-4 sm:mb-0">Client Downloads</h1>
+                    <h1 className="text-4xl font-bold mb-4 sm:mb-0">{t('title')}</h1>
                     <Link
                         href="/"
                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
                     >
-                        Back to Home
+                        {t('backToHome')}
                     </Link>
                 </div>
 
                 {isLoading ? (
                     <div className="flex justify-center items-center h-64">
-                        <div className="text-xl">Loading available downloads...</div>
+                        <div className="text-xl">{t('loading')}</div>
                     </div>
                 ) : error ? (
                     <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6">
@@ -64,7 +66,7 @@ export default function DownloadsPage() {
                     <>
                         <div className="mb-8">
                             <p className="mb-4">
-                                Download and install the appropriate client application for your platform. We automatically detect your system as <strong className="font-bold">{userOS.charAt(0).toUpperCase() + userOS.slice(1)}</strong>.
+                                {t('detectedSystem')} <strong className="font-bold">{userOS.charAt(0).toUpperCase() + userOS.slice(1)}</strong>.
                             </p>
                         </div>
 
@@ -87,11 +89,11 @@ export default function DownloadsPage() {
                                                     {download.platform.charAt(0).toUpperCase() + download.platform.slice(1)}
                                                     {userOS === download.platform && (
                                                         <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
-                                                            Recommended
+                                                            {t('recommended')}
                                                         </span>
                                                     )}
                                                 </h3>
-                                                <p className="text-sm mb-4">Version: {download.version}</p>
+                                                <p className="text-sm mb-4">{t('version')}: {download.version}</p>
                                             </div>
                                             <a
                                                 href={download.download_url}
@@ -103,7 +105,7 @@ export default function DownloadsPage() {
                                                     }
                                                 `}
                                             >
-                                                Download
+                                                {t('download')}
                                             </a>
                                         </div>
                                     ))}
@@ -112,17 +114,17 @@ export default function DownloadsPage() {
                         ))}
 
                         <div className="bg-blue-50/10 p-6 rounded-lg shadow-md mb-8 border border-blue-200">
-                            <h2 className="text-xl font-semibold mb-2">Using Subconverter with Client Apps</h2>
+                            <h2 className="text-xl font-semibold mb-2">{t('useWithClients')}</h2>
                             <p className="mb-4">
-                                After downloading and installing the app, use your subscription URL from the home page as the subscription link in the application.
+                                {t('useWithClientsDesc')}
                             </p>
                             <div className="flex flex-col gap-2">
-                                <div className="font-medium">Quick Steps:</div>
+                                <div className="font-medium">{t('quickSteps')}</div>
                                 <ol className="list-decimal pl-5 space-y-1">
-                                    <li>Install the application for your platform</li>
-                                    <li>Open the application and navigate to profiles/subscriptions</li>
-                                    <li>Add a new subscription with your generated URL</li>
-                                    <li>Update the subscription to fetch the latest configuration</li>
+                                    <li>{t('step1')}</li>
+                                    <li>{t('step2')}</li>
+                                    <li>{t('step3')}</li>
+                                    <li>{t('step4')}</li>
                                 </ol>
                             </div>
                         </div>

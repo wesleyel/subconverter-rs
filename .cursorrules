@@ -24,6 +24,68 @@ api_client_usage:
   // const result = await updateRules();"
   note: "Centralize API calls in api-client.ts instead of making direct fetch calls"
 
+# Internationalization (i18n) with next-intl
+i18n_client_import:
+  pattern: "\"use client\"[\\s\\S]*?import"
+  replacement: "\"use client\";
+
+import { useTranslations } from 'next-intl';
+import"
+  note: "Always import useTranslations from next-intl in client components that need translation"
+
+i18n_server_import:
+  pattern: "import type.*\n.*from \"next"
+  replacement: "import type { Metadata } from \"next\";
+import { getTranslations, getLocale } from 'next-intl/server';
+import { NextIntlClientProvider } from 'next-intl';
+import"
+  note: "Import server i18n functions in server components and layouts that need translation"
+
+i18n_page_pattern:
+  pattern: "export default function (\\w+)\\(\\) {\\s*(?!const t = useTranslations)"
+  replacement: "export default function $1() {
+  const t = useTranslations('$1');"
+  note: "Initialize translations at the top of each page component with appropriate namespace"
+
+i18n_layout_setup:
+  pattern: "export default (async )?function (\\w+)Layout\\({\\s*children,\\s*}.*\\) {\\s*return \\(\\s*<html"
+  replacement: "export default async function $2Layout({
+  children,
+}) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
+  return (
+    <html lang={locale}"
+  note: "Setup locale and messages in layout components"
+
+i18n_client_wrapper:
+  pattern: "<body[^>]*>\\s*{children}"
+  replacement: "<body$1>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          {children}
+        </NextIntlClientProvider>"
+  note: "Wrap children with NextIntlClientProvider in layout components"
+
+i18n_static_text:
+  pattern: "<h1[^>]*>[^{].*?<\\/h1>"
+  replacement: "<h1$1>{t('title')}</h1>"
+  note: "Replace static text with i18n translation keys in headings"
+
+i18n_button_text:
+  pattern: "<button[^>]*>\\s*([^{].*?)\\s*<\\/button>"
+  replacement: "<button$1>{t('$2')}</button>"
+  note: "Replace static text with i18n translation keys in buttons"
+
+i18n_language_switcher:
+  pattern: "<div className=\"flex (flex-col sm:flex-row|items-center)[^>]*>"
+  replacement: "<div className=\"flex $1 justify-between mb-6\">
+          <h1 className=\"text-4xl font-bold mb-4 sm:mb-0 text-center\">{t('title')}</h1>
+          <div className=\"flex gap-4 items-center\">
+            <LanguageSwitcher />
+            "
+  note: "Include LanguageSwitcher component in page headers"
+
 # C++ to Rust conversion patterns
 cpp_method_to_rust_trait:
   pattern: "tribool.*is_undef()"
