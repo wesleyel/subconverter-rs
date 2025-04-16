@@ -325,3 +325,127 @@ export function formatFileSize(bytes: number): string {
 export function formatTimestamp(timestamp: number): string {
     return new Date(timestamp * 1000).toLocaleString();
 }
+
+/**
+ * Short URL data structure
+ */
+export interface ShortUrlData {
+    id: string;
+    target_url: string;
+    short_url: string;
+    created_at: number;
+    last_used?: number;
+    use_count: number;
+    custom_id: boolean;
+    description?: string;
+}
+
+/**
+ * Short URL creation request
+ */
+export interface CreateShortUrlRequest {
+    target_url: string;
+    custom_id?: string;
+    description?: string;
+}
+
+/**
+ * Create a new short URL
+ */
+export async function createShortUrl(request: CreateShortUrlRequest): Promise<ShortUrlData> {
+    const response = await fetch('/api/s', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.json() as Promise<ShortUrlData>;
+}
+
+/**
+ * Get list of all short URLs
+ */
+export async function listShortUrls(): Promise<ShortUrlData[]> {
+    const response = await fetch('/api/s');
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    const data = await response.json();
+    return data.urls || [];
+}
+
+/**
+ * Delete a short URL
+ */
+export async function deleteShortUrl(id: string): Promise<void> {
+    const response = await fetch(`/api/s/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+}
+
+/**
+ * Update a short URL
+ */
+export async function updateShortUrl(id: string, updates: { target_url?: string; description?: string | null }): Promise<ShortUrlData> {
+    const response = await fetch(`/api/s/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.json() as Promise<ShortUrlData>;
+}

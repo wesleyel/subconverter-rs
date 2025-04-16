@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, FormEvent, useCallback } from "react";
-import { convertSubscription, SubResponseData, ErrorData } from '@/lib/api-client';
+import { useState, FormEvent, useCallback, useEffect } from "react";
+import { convertSubscription, SubResponseData, ErrorData, createShortUrl } from '@/lib/api-client';
 
 // Define config presets for easy maintenance
 const CONFIG_PRESETS = [
@@ -40,7 +40,14 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SubResponseData | null>(null);
   const [error, setError] = useState<ErrorData | null>(null);
-  const [saveApiUrl, setSaveApiUrl] = useState(false);
+  const [saveApiUrl, setSaveApiUrl] = useState(true);
+  const [shortUrlCreating, setShortUrlCreating] = useState(false);
+  const [shortUrlCreated, setShortUrlCreated] = useState(false);
+
+  // Reset shortUrlCreated when form inputs change
+  useEffect(() => {
+    setShortUrlCreated(false);
+  }, [subscriptionUrl, targetFormat, configUrl]);
 
   // Generate the API URL based on form inputs
   const generateApiUrl = useCallback(() => {
@@ -64,6 +71,7 @@ export default function Home() {
     setIsLoading(true);
     setResult(null);
     setError(null);
+    setShortUrlCreated(false);
 
     try {
       // Call the actual conversion API
@@ -79,6 +87,11 @@ export default function Home() {
 
       const responseData = await convertSubscription(payload);
       setResult(responseData);
+
+      // If saveApiUrl is enabled, create a short URL
+      if (saveApiUrl) {
+        await createShortUrlForConversion();
+      }
     } catch (err) {
       console.error("Conversion API call failed:", err);
       setError(err as ErrorData || {
@@ -87,6 +100,30 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Create a short URL for the current subscription
+  const createShortUrlForConversion = async () => {
+    if (!subscriptionUrl) return;
+
+    try {
+      setShortUrlCreating(true);
+      const apiUrl = generateApiUrl();
+      const description = `${targetFormat.toUpperCase()} subscription for ${subscriptionUrl.substring(0, 30)}${subscriptionUrl.length > 30 ? '...' : ''}`;
+
+      await createShortUrl({
+        target_url: apiUrl,
+        description: description
+      });
+
+      setShortUrlCreated(true);
+    } catch (err) {
+      console.error("Error creating short URL:", err);
+      // We don't show this error to the user to avoid confusion
+      // The main conversion still succeeded
+    } finally {
+      setShortUrlCreating(false);
     }
   };
 
@@ -160,8 +197,8 @@ export default function Home() {
                     type="button"
                     onClick={() => setConfigUrl(preset.url)}
                     className={`px-3 py-1.5 text-xs rounded border transition-colors ${configUrl === preset.url
-                        ? 'bg-blue-500 text-white border-blue-600'
-                        : 'bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-800'
+                      ? 'bg-blue-500 text-white border-blue-600'
+                      : 'bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-800'
                       }`}
                     title={preset.description}
                   >
@@ -273,19 +310,24 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className={`bg-white/5 p-6 rounded-lg shadow-md ${result && saveApiUrl ? 'border-2 border-green-500 bg-white/10' : ''}`}>
+          <div className={`bg-white/5 p-6 rounded-lg shadow-md ${result && (saveApiUrl || shortUrlCreated) ? 'border-2 border-green-500 bg-white/10' : ''}`}>
             <h2 className="text-2xl font-semibold mb-4">My Saved Links</h2>
             <p className="mb-4">
               View and manage your saved subscription conversion links.
-              {result && saveApiUrl && (
+              {shortUrlCreating && (
+                <span className="block mt-2 text-blue-400 text-sm">
+                  Creating short URL for your subscription...
+                </span>
+              )}
+              {shortUrlCreated && (
                 <span className="block mt-2 text-green-400 text-sm">
-                  Your link has been saved! Click below to manage it.
+                  Your subscription has been saved as a short URL!
                 </span>
               )}
             </p>
             <Link
               href="/links"
-              className={`block ${result && saveApiUrl ? 'bg-green-500' : 'bg-green-600'} hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-center ${result && saveApiUrl ? 'animate-pulse' : ''}`}
+              className={`block ${result && (saveApiUrl || shortUrlCreated) ? 'bg-green-500' : 'bg-green-600'} hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-center ${result && (saveApiUrl || shortUrlCreated) ? 'animate-pulse' : ''}`}
             >
               Manage Links
             </Link>
