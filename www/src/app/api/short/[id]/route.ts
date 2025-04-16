@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadWasmSingleton } from '@/lib/wasm';
 
+// Define correct types for route parameters according to Next.js 15
+type RouteParams = {
+    params: { id: string }
+};
+
 /**
  * Handle getting a specific short URL
  */
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: RouteParams
 ) {
     const id = params.id;
 
@@ -56,7 +61,7 @@ export async function GET(
  */
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: RouteParams
 ) {
     const id = params.id;
 
@@ -101,7 +106,7 @@ export async function PUT(
  */
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: RouteParams
 ) {
     const id = params.id;
 
