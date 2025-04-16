@@ -20,15 +20,15 @@ export default function ConvertPage() {
     const [formData, setFormData] = useState<SubconverterFormParams>({
         target: 'clash',
         url: '',
-        filename: 'config.yaml', // Keep filename as a convenience default, but mark as set
     });
 
     // Track which fields have been explicitly set by the user
-    const [setFields, setSetFields] = useState<Set<string>>(new Set(['target', 'url', 'filename']));
+    const [setFields, setSetFields] = useState<Set<string>>(new Set(['target', 'url']));
 
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState<SubResponseData | null>(null);
     const [error, setError] = useState<ErrorData | null>(null);
+    const [saveApiUrl, setSaveApiUrl] = useState(false);
 
     const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -130,7 +130,7 @@ export default function ConvertPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = formData.filename || 'download'; // Use filename from form or default
+        link.download = formData.filename || 'config'; // Use filename from form or default
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -190,6 +190,28 @@ export default function ConvertPage() {
         return `${baseClass} border-gray-300`;
     };
 
+    // Generate API URL from form data
+    const generateApiUrl = useCallback(() => {
+        const baseUrl = window.location.origin + '/api/sub';
+        const params = new URLSearchParams();
+
+        // Add all set fields to the URL params
+        Object.entries(formData).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && setFields.has(key)) {
+                if (typeof value === 'boolean') {
+                    // For boolean values, just include the parameter name if true
+                    if (value) {
+                        params.append(key, '1');
+                    }
+                } else {
+                    params.append(key, String(value));
+                }
+            }
+        });
+
+        return `${baseUrl}?${params.toString()}`;
+    }, [formData, setFields]);
+
     // Replace the placeholder return statement with the actual form UI
     return (
         <div className="container mx-auto p-4 max-w-4xl">
@@ -226,19 +248,6 @@ export default function ConvertPage() {
                                 className={getInputClass("url")}
                             />
                             <p className="mt-1 text-xs text-gray-500">Separate multiple URLs with a pipe (|).</p>
-                        </div>
-                        <div>
-                            <FieldLabel htmlFor="filename" fieldName="filename">Output Filename</FieldLabel>
-                            <input
-                                type="text"
-                                id="filename"
-                                name="filename"
-                                value={formData.filename ?? ''}
-                                onChange={handleInputChange}
-                                placeholder="e.g., config.yaml"
-                                className={getInputClass("filename")}
-                            />
-                            <p className="mt-1 text-xs text-gray-500">Suggested based on target, you can override it.</p>
                         </div>
                     </div>
                 </fieldset>
@@ -717,17 +726,31 @@ export default function ConvertPage() {
                 </fieldset>
 
                 {/* Submission Button */}
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                     <div className="text-sm text-gray-500">
                         Fields marked as <span className="text-green-600">(set)</span> will be included in the request.
                     </div>
-                    <button
-                        type="submit"
-                        disabled={isSubmitDisabled}
-                        className={buttonClass}
-                    >
-                        {isLoading ? 'Generating...' : 'Generate Configuration'}
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center">
+                            <input
+                                id="saveApiUrl"
+                                type="checkbox"
+                                checked={saveApiUrl}
+                                onChange={(e) => setSaveApiUrl(e.target.checked)}
+                                className={checkboxClass}
+                            />
+                            <label htmlFor="saveApiUrl" className="ml-2 text-sm text-gray-700">
+                                Save as subscription
+                            </label>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isSubmitDisabled}
+                            className={buttonClass}
+                        >
+                            {isLoading ? 'Generating...' : 'Generate Configuration'}
+                        </button>
+                    </div>
                 </div>
             </form>
 
@@ -752,6 +775,27 @@ export default function ConvertPage() {
                     <div className="p-4 border border-green-400 bg-green-50 rounded-md">
                         <h3 className="text-lg font-semibold text-green-800">Result</h3>
                         <p className="text-sm text-gray-600 mb-2">Content-Type: {result.content_type}</p>
+
+                        {/* API URL Display */}
+                        <div className="mb-4 p-3 bg-white border border-gray-300 rounded-md">
+                            <div className="flex justify-between items-center mb-2">
+                                <h4 className="font-medium text-gray-800">Subscription URL</h4>
+                                <button
+                                    onClick={() => navigator.clipboard.writeText(generateApiUrl())}
+                                    className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded"
+                                >
+                                    Copy
+                                </button>
+                            </div>
+                            <p className="text-xs break-all font-mono bg-gray-50 p-2 rounded border border-gray-200">
+                                {generateApiUrl()}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                                You can use this URL directly as a subscription link.
+                                {saveApiUrl && " This URL will be saved for later use."}
+                            </p>
+                        </div>
+
                         <textarea
                             readOnly
                             value={result.content}
@@ -764,7 +808,7 @@ export default function ConvertPage() {
                                 onClick={handleDownload}
                                 className={buttonClass}
                             >
-                                Download {formData.filename || 'download'}
+                                Download Config
                             </button>
                         </div>
                     </div>
