@@ -15,6 +15,15 @@ function_size_limits:
   // Consider breaking large functions into smaller ones"
   note: "Keep functions focused and concise for better maintainability"
 
+# API Client Usage
+api_client_usage:
+  pattern: "fetch\\(\\'?\\/api\\/"
+  replacement: "// Use API client functions from @/lib/api-client instead of direct fetch calls
+  // Example: 
+  // import { updateRules } from '@/lib/api-client';
+  // const result = await updateRules();"
+  note: "Centralize API calls in api-client.ts instead of making direct fetch calls"
+
 # C++ to Rust conversion patterns
 cpp_method_to_rust_trait:
   pattern: "tribool.*is_undef()"

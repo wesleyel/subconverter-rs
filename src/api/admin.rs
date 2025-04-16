@@ -7,6 +7,7 @@ use log::{debug, error, info};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use crate::vfs::vercel_kv_types::{VirtualFileSystem, DirectoryEntry, FileAttributes};
+use crate::api::rules::RulesUpdateRequest;
 
 use wasm_bindgen::prelude::*;
 use web_sys::console;
@@ -353,4 +354,26 @@ pub fn admin_debug_test_panic() -> Result<(), JsValue> {
 #[wasm_bindgen]
 pub fn admin_init_kv_bindings_js() -> Result<JsValue, JsValue> {
     dummy().map_err(|_| JsValue::from_str("Failed to initialize KV bindings"))
+}
+
+/// Update rules from GitHub repos based on a configuration file
+#[wasm_bindgen]
+pub async fn admin_update_rules(config_path: Option<String>) -> Result<JsValue, JsValue> {
+    info!("admin_update_rules called with config path: {:?}", config_path);
+    
+    let request = RulesUpdateRequest {
+        config_path,
+    };
+    
+    match crate::api::rules::update_rules(Some(request)).await {
+        Ok(response) => {
+            // Extract the body content from the HttpResponse
+            let body = response.body;
+            Ok(JsValue::from_str(&body))
+        },
+        Err(e) => {
+            error!("Error updating rules: {}", e);
+            Err(JsValue::from_str(&format!("Error updating rules: {}", e)))
+        }
+    }
 }

@@ -1,47 +1,12 @@
 'use client';
 
 import React, { useState, useCallback, ChangeEvent, FormEvent } from 'react';
-
-// Mirror the SubconverterQuery structure (optional fields are nullable)
-interface SubconverterFormParams {
-    target: string;
-    ver?: number;
-    new_name?: boolean;
-    url: string;
-    group?: string;
-    upload_path?: string;
-    include?: string;
-    exclude?: string;
-    groups?: string;
-    ruleset?: string;
-    config?: string;
-    dev_id?: string;
-    insert?: boolean;
-    prepend?: boolean;
-    filename?: string;
-    append_type?: boolean;
-    emoji?: boolean;
-    add_emoji?: boolean;
-    remove_emoji?: boolean;
-    list?: boolean;
-    sort?: boolean;
-    sort_script?: string;
-    fdn?: boolean;
-    rename?: string;
-    tfo?: boolean;
-    udp?: boolean;
-    scv?: boolean;
-    tls13?: boolean;
-    rename_node?: boolean;
-    interval?: number;
-    strict?: boolean;
-    upload?: boolean;
-    token?: string;
-    filter?: string;
-    script?: boolean;
-    classic?: boolean;
-    expand?: boolean;
-}
+import {
+    convertSubscription,
+    SubconverterFormParams,
+    SubResponseData,
+    ErrorData
+} from '@/lib/api-client';
 
 // Define supported targets
 const SUPPORTED_TARGETS = [
@@ -50,18 +15,6 @@ const SUPPORTED_TARGETS = [
     'v2ray', 'trojan', 'trojan-go', 'hysteria', 'hysteria2',
     'ssd', 'mixed', 'singbox'
 ];
-
-interface SubResponseData {
-    content: string;
-    content_type: string;
-    headers: Record<string, string>;
-    status_code: number;
-}
-
-interface ErrorData {
-    error: string;
-    details?: string;
-}
 
 export default function ConvertPage() {
     const [formData, setFormData] = useState<SubconverterFormParams>({
@@ -156,67 +109,14 @@ export default function ConvertPage() {
         setResult(null);
         setError(null);
 
-        // Create payload with only the explicitly set fields
-        const payload: Record<string, any> = {};
-        Object.keys(formData).forEach(key => {
-            if (key in formData) {
-                const value = (formData as any)[key];
-                // Include the field if it exists in formData
-                payload[key] = value;
-            }
-        });
-
-        // Special handling for emoji flags
-        if (payload.emoji === true) {
-            // If combined emoji is true, remove the specific flags
-            delete payload.add_emoji;
-            delete payload.remove_emoji;
-        }
-
-        console.log("Sending conversion request with payload:", payload);
-
         try {
-            const response = await fetch('/api/sub', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            });
-
-            const responseText = await response.text();
-
-            if (!response.ok) {
-                try {
-                    const errorObj = JSON.parse(responseText);
-                    setError(errorObj as ErrorData);
-                } catch {
-                    setError({
-                        error: 'Error from server',
-                        details: responseText
-                    });
-                }
-            } else {
-                const contentType = response.headers.get('Content-Type') || 'text/plain';
-
-                const responseData: SubResponseData = {
-                    content: responseText,
-                    content_type: contentType,
-                    headers: {},
-                    status_code: response.status
-                };
-
-                response.headers.forEach((value, key) => {
-                    responseData.headers[key] = value;
-                });
-
-                setResult(responseData);
-            }
+            const responseData = await convertSubscription(formData);
+            setResult(responseData);
         } catch (err) {
             console.error("Conversion API call failed:", err);
-            setError({
+            setError(err as ErrorData || {
                 error: 'Failed to connect to the conversion API.',
-                details: err instanceof Error ? err.message : String(err)
+                details: String(err)
             });
         } finally {
             setIsLoading(false);
@@ -339,6 +239,80 @@ export default function ConvertPage() {
                                 className={getInputClass("filename")}
                             />
                             <p className="mt-1 text-xs text-gray-500">Suggested based on target, you can override it.</p>
+                        </div>
+                    </div>
+                </fieldset>
+
+                {/* Config Section */}
+                <fieldset className="p-4 border-2 rounded-md border-blue-300 bg-blue-50 shadow-sm">
+                    <legend className={`${fieldsetLegendClass} text-blue-800`}>Configuration Presets</legend>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <FieldLabel htmlFor="config" fieldName="config">External Config</FieldLabel>
+                            <div className="grid grid-cols-1 gap-2">
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({ ...prev, config: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini' }));
+                                            setSetFields(prev => new Set([...prev, 'config']));
+                                        }}
+                                        className="px-3 py-1.5 text-xs rounded bg-blue-100 hover:bg-blue-200 border border-blue-300 transition-colors"
+                                    >
+                                        ACL4SSR Online
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({ ...prev, config: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini' }));
+                                            setSetFields(prev => new Set([...prev, 'config']));
+                                        }}
+                                        className="px-3 py-1.5 text-xs rounded bg-blue-100 hover:bg-blue-200 border border-blue-300 transition-colors"
+                                    >
+                                        ACL4SSR Online Full
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({ ...prev, config: 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini' }));
+                                            setSetFields(prev => new Set([...prev, 'config']));
+                                        }}
+                                        className="px-3 py-1.5 text-xs rounded bg-blue-100 hover:bg-blue-200 border border-blue-300 transition-colors"
+                                    >
+                                        ACL4SSR Online Mini
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({ ...prev, config: 'https://raw.githubusercontent.com/DivineEngine/Profiles/master/Clash/config/China.yaml' }));
+                                            setSetFields(prev => new Set([...prev, 'config']));
+                                        }}
+                                        className="px-3 py-1.5 text-xs rounded bg-blue-100 hover:bg-blue-200 border border-blue-300 transition-colors"
+                                    >
+                                        Divine Engine China
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({ ...prev, config: 'https://gist.githubusercontent.com/tindy2013/1fa08640a9088ac8652dbd40c5d2715b/raw/loon_simple.conf' }));
+                                            setSetFields(prev => new Set([...prev, 'config']));
+                                        }}
+                                        className="px-3 py-1.5 text-xs rounded bg-blue-100 hover:bg-blue-200 border border-blue-300 transition-colors"
+                                    >
+                                        Loon Simple
+                                    </button>
+                                </div>
+                                <input
+                                    type="text"
+                                    id="config"
+                                    name="config"
+                                    value={formData.config ?? ''}
+                                    onChange={handleInputChange}
+                                    className={getInputClass("config")}
+                                    placeholder="Enter a URL or select a preset above"
+                                />
+                                <p className="mt-1 text-xs text-gray-600">URL for ruleset configuration or local path (if server allows)</p>
+                            </div>
                         </div>
                     </div>
                 </fieldset>
@@ -621,18 +595,6 @@ export default function ConvertPage() {
                                 value={formData.group ?? ''}
                                 onChange={handleInputChange}
                                 className={getInputClass("group")}
-                            />
-                        </div>
-                        <div>
-                            <FieldLabel htmlFor="config" fieldName="config">External Config URL/Path</FieldLabel>
-                            <input
-                                type="text"
-                                id="config"
-                                name="config"
-                                value={formData.config ?? ''}
-                                onChange={handleInputChange}
-                                className={getInputClass("config")}
-                                placeholder="URL or local path (if server allows)"
                             />
                         </div>
                         <div>
