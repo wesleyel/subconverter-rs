@@ -20,6 +20,9 @@ A more powerful utility to convert between proxy subscription formats, transform
 [![Deploy to
 Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/lonelam/subconverter-rs&base=www)
 
+Demo部署，测试时请注意隐私风险：
+https://subconverter-rs.netlify.app/
+
 ## 📋 Table of Contents
 
 - [Features](#features)
