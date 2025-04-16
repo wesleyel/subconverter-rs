@@ -145,10 +145,10 @@ export default function Home() {
 
   // The supported target formats from the convert page
   const SUPPORTED_TARGETS = [
-    'clash', 'clashr', 'surge', 'quan', 'quanx',
+    'clash', 'singbox', 'surge', 'quan', 'quanx',
     'mellow', 'surfboard', 'loon', 'ss', 'ssr', 'sssub',
     'v2ray', 'trojan', 'trojan-go', 'hysteria', 'hysteria2',
-    'ssd', 'mixed', 'singbox'
+    'ssd', 'mixed', 'clashr'
   ];
 
   return (
