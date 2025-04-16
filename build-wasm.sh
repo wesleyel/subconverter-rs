@@ -4,6 +4,23 @@ set -e
 # Start stopwatch
 BUILD_START_TIME=$SECONDS
 
+# Script description
+cat << "EOF"
+Subconverter WASM Build & Release Script
+---------------------------------------
+Usage Options:
+  --release          Build in release mode
+  --prepare-release  Prepare a release: Update version, create temporary tag, and trigger GitHub Actions
+  --bump-minor       Bump minor version number, commit change and prepare release (convenient for routine updates)
+  --version X.Y.Z    Specify version (used with --release or --prepare-release)
+
+Examples:
+  ./build-wasm.sh                      # Build in development mode
+  ./build-wasm.sh --release            # Build in release mode
+  ./build-wasm.sh --bump-minor         # Auto-bump minor version and prepare release
+  ./build-wasm.sh --prepare-release --version 0.3.0  # Prepare specific version release
+EOF
+
 # Check if wasm-pack is installed
 if ! command -v wasm-pack &> /dev/null; then
     echo "wasm-pack not found. Installing..."
@@ -18,9 +35,9 @@ fi
 
 # Parse arguments
 RELEASE_MODE=false
-PUBLISH_NPM=false
-PUBLISH_CRATES=false
 VERSION=""
+PREPARE_RELEASE=false
+BUMP_MINOR=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -28,12 +45,15 @@ while [[ $# -gt 0 ]]; do
       RELEASE_MODE=true
       shift
       ;;
-    --publish-npm)
-      PUBLISH_NPM=true
+    --prepare-release)
+      PREPARE_RELEASE=true
+      RELEASE_MODE=true
       shift
       ;;
-    --publish-crates)
-      PUBLISH_CRATES=true
+    --bump-minor)
+      BUMP_MINOR=true
+      PREPARE_RELEASE=true
+      RELEASE_MODE=true
       shift
       ;;
     --version)
@@ -42,7 +62,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--release] [--publish-npm] [--publish-crates] [--version X.Y.Z]"
+      echo "Usage: $0 [--release] [--prepare-release] [--bump-minor] [--version X.Y.Z]"
       exit 1
       ;;
   esac
@@ -51,6 +71,20 @@ done
 # Get current version from Cargo.toml
 CURRENT_VERSION=$(grep -m 1 "version" Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
 echo "Current package version: $CURRENT_VERSION"
+
+# Bump minor version if requested
+if [ "$BUMP_MINOR" = true ]; then
+  # Extract major, minor and patch numbers
+  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+  PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3 | cut -d- -f1)
+  
+  # Bump minor version and reset patch
+  NEW_MINOR=$((MINOR + 1))
+  VERSION="${MAJOR}.${NEW_MINOR}.0"
+  
+  echo "Bumping minor version from $CURRENT_VERSION to $VERSION"
+fi
 
 # If version is provided but we're not in release mode, switch to release mode
 if [ -n "$VERSION" ] && [ "$RELEASE_MODE" = false ]; then
@@ -70,23 +104,17 @@ if [ "$RELEASE_MODE" = true ] && [ -z "$VERSION" ]; then
   echo "Auto-generated pre-release version: $VERSION"
 fi
 
-# Set default values for publish flags in release mode
-if [ "$RELEASE_MODE" = true ]; then
-  # Only set to true if they weren't explicitly set by command line arguments
-  if [[ "$@" != *"--publish-npm"* ]]; then
-    PUBLISH_NPM=true
-  fi
-  if [[ "$@" != *"--publish-crates"* ]]; then
-    PUBLISH_CRATES=true
-  fi
-fi
-
 # Variable to track if version was updated
 VERSION_UPDATED=false
 
-# Build the wasm package
-if [ "$RELEASE_MODE" = true ]; then
-  echo "Building wasm package in release mode..."
+# Prepare release (create temporary tag for CI)
+if [ "$PREPARE_RELEASE" = true ]; then
+  # Check if git work area is clean
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "Error: Git working directory is not clean."
+    echo "Please commit or stash your changes before running version release."
+    exit 1
+  fi
   
   # Update version in Cargo.toml if needed
   if [ -n "$VERSION" ] && [ "$VERSION" != "$CURRENT_VERSION" ]; then
@@ -95,20 +123,46 @@ if [ "$RELEASE_MODE" = true ]; then
     VERSION_UPDATED=true
   fi
   
-  # Create git tag and push if version was updated
-  if [ "$VERSION_UPDATED" = true ]; then
-    echo "Creating git commit for version $VERSION..."
-    git add Cargo.toml
-    git commit -m "Bump version to $VERSION"
+  # Fetch remote tags to check for previous release attempts
+  git fetch --tags
+  
+  # Count previous release attempts for this version
+  BASE_TAG="v${VERSION}"
+  ATTEMPT_COUNT=$(git tag -l "${BASE_TAG}-attempt*" | wc -l)
+  ATTEMPT_COUNT=$((ATTEMPT_COUNT + 1))
+  
+  # Create a temporary tag for this release attempt
+  TEMP_TAG="${BASE_TAG}-attempt${ATTEMPT_COUNT}"
+  
+  echo "Creating temporary tag ${TEMP_TAG} for CI workflow..."
+  git add Cargo.toml
+  git commit -m "Prepare release $VERSION (attempt $ATTEMPT_COUNT)"
+  git tag -a "${TEMP_TAG}" -m "Preparing release $VERSION (attempt $ATTEMPT_COUNT)"
+  
+  echo "Pushing changes and temporary tag to remote repository..."
+  git push origin main
+  git push origin "${TEMP_TAG}"
+  
+  echo "Temporary tag created. CI workflow will handle the rest of the release process."
+  exit 0
+fi
+
+# Build the wasm package
+if [ "$RELEASE_MODE" = true ]; then
+  echo "Building wasm package in release mode..."
+  
+  # Update version in Cargo.toml if needed
+  if [ -n "$VERSION" ] && [ "$VERSION" != "$CURRENT_VERSION" ]; then
+    # Check if git work area is clean
+    if [ -n "$(git status --porcelain)" ]; then
+      echo "Error: Git working directory is not clean."
+      echo "Please commit or stash your changes before running version release."
+      exit 1
+    fi
     
-    echo "Creating git tag v$VERSION..."
-    git tag -a "v$VERSION" -m "Version $VERSION"
-    
-    echo "Pushing changes and tags to remote repository..."
-    git push origin main
-    git push origin "v$VERSION"
-    
-    echo "Git operations completed successfully!"
+    echo "Updating version to $VERSION in Cargo.toml"
+    sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
+    VERSION_UPDATED=true
   fi
   
   wasm-pack build --release --target nodejs
@@ -134,29 +188,6 @@ jq '.files += ["snippets/"]' pkg/package.json | \
 cd pkg
 yarn install
 cd ..
-
-# Publish to crates.io if requested
-if [ "$RELEASE_MODE" = true ] && [ "$PUBLISH_CRATES" = true ]; then
-  echo "Publishing to crates.io..."
-  cargo publish --allow-dirty --registry crates-io
-fi
-
-# Publish to npm if requested
-if [ "$RELEASE_MODE" = true ] && [ "$PUBLISH_NPM" = true ]; then
-  echo "Publishing to npm..."
-  
-  # Update version in www/package.json if it exists
-  if [ -d "www" ] && [ -f "www/package.json" ]; then
-    echo "Updating version in www/package.json to $PKG_VERSION..."
-    cd www
-    jq ".dependencies[\"subconverter-wasm\"] = \"$PKG_VERSION\"" package.json > tmp.json && mv tmp.json package.json
-    cd ..
-  fi
-  
-  cd pkg
-  npm publish --access public
-  cd ..
-fi
 
 # Setup development environment if in dev mode
 if [ "$RELEASE_MODE" = false ]; then

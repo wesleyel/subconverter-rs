@@ -4,7 +4,9 @@ on:
   push:
     branches: [ main, dev ]
     tags:
-      - 'v*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-pre.*'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.*'
   workflow_dispatch:
 
 concurrency: 

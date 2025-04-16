@@ -1,0 +1,136 @@
+name: WASM Release
+
+on:
+  push:
+    tags:
+      - 'v*-attempt*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (without v prefix)'
+        required: true
+        type: string
+
+jobs:
+  wasm_release:
+    name: Release WASM Package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Extract version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: extract-version-from-tag
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          BASE_VERSION=$(echo $TAG_NAME | sed -E 's/v([0-9]+\.[0-9]+\.[0-9]+)(-[a-zA-Z0-9\.]+)?-attempt[0-9]+/\1\2/')
+          echo "version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted version: $BASE_VERSION from tag $TAG_NAME"
+
+      - name: Set version from input or tag
+        id: set-version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ steps.extract-version-from-tag.outputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Final version for release: $VERSION"
+
+      - name: Update version in Cargo.toml
+        run: |
+          CURRENT_VERSION=$(grep -m 1 "version" Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          VERSION="${{ steps.set-version.outputs.version }}"
+          
+          if [ "$CURRENT_VERSION" != "$VERSION" ]; then
+            echo "Updating version in Cargo.toml from $CURRENT_VERSION to $VERSION"
+            sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
+          else
+            echo "Version in Cargo.toml already matches $VERSION"
+          fi
+
+      - name: Build WASM package
+        run: |
+          wasm-pack build --release --target nodejs
+          echo "WASM build complete!"
+
+      - name: Update package.json in pkg directory
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          jq '.files += ["snippets/"]' pkg/package.json | \
+            jq '.dependencies = {"@vercel/kv": "^3.0.0"}' | \
+            jq '.name = "subconverter-wasm"' | \
+            jq '.dependencies["@vercel/kv"] = "^3.0.0"' | \
+            jq '.dependencies["@netlify/blobs"] = "^8.1.2"' | \
+            jq ".version = \"$VERSION\"" > tmp.json && mv tmp.json pkg/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies in pkg directory
+        run: |
+          cd pkg
+          npm install
+          cd ..
+
+      - name: Publish to npm
+        run: |
+          cd pkg
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        continue-on-error: true
+
+      - name: Update version in www project
+        if: hashFiles('www/package.json') != ''
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          if [ -d "www" ] && [ -f "www/package.json" ]; then
+            echo "Updating version in www/package.json to $VERSION..."
+            cd www
+            jq ".dependencies[\"subconverter-wasm\"] = \"$VERSION\"" package.json > tmp.json && mv tmp.json package.json
+            git config --global user.name "GitHub Actions"
+            git config --global user.email "actions@github.com"
+            git add package.json
+            git commit -m "Update subconverter-wasm dependency to $VERSION"
+            cd ..
+          else
+            echo "www/package.json not found, skipping update"
+          fi
+
+      - name: Publish to crates.io
+        run: |
+          cargo publish --allow-dirty --registry crates-io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        continue-on-error: true
+
+      - name: Create release tag
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git tag -a "v$VERSION" -m "Release version $VERSION"
+          git push origin "v$VERSION"
+          echo "Release tag v$VERSION created. This will trigger the binary build workflow." 
