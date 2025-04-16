@@ -89,4 +89,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withRspack(withNextIntl(nextConfig));
+export default withNextIntl(nextConfig);
