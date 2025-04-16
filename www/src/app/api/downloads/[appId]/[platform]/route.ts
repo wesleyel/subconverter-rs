@@ -117,8 +117,65 @@ export async function GET(
             downloadUrl = downloadInfo.fallback_url;
         }
 
-        // Redirect to the actual download URL
-        return NextResponse.redirect(downloadUrl);
+        // Instead of redirecting, we'll proxy the request
+        const fileResponse = await fetch(downloadUrl, {
+            headers: {
+                'User-Agent': 'Subconverter-RS-ProxyDownloader/1.0',
+            },
+        });
+
+        if (!fileResponse.ok) {
+            return NextResponse.json(
+                { error: `Failed to download file: ${fileResponse.statusText}` },
+                { status: fileResponse.status }
+            );
+        }
+
+        // Get the filename from the download URL
+        const urlParts = downloadUrl.split('/');
+        const filename = urlParts[urlParts.length - 1];
+
+        // Create a friendlier sanitized filename using app name and platform
+        const sanitizedAppName = decodeURIComponent(appId).replace(/[^a-zA-Z0-9-_.]/g, '_');
+        const sanitizedPlatform = decodeURIComponent(platform).replace(/[^a-zA-Z0-9-_.]/g, '_');
+
+        // Extract file extension from original filename
+        const fileExt = filename.includes('.') ? filename.split('.').pop() : '';
+        const friendlyFilename = `${sanitizedAppName}_${sanitizedPlatform}${fileExt ? '.' + fileExt : ''}`;
+
+        // Get content type and length from the response
+        const contentType = fileResponse.headers.get('content-type') || 'application/octet-stream';
+        const contentLength = fileResponse.headers.get('content-length');
+
+        // Create a new response with the streamed body
+        const response = new NextResponse(fileResponse.body, {
+            status: 200,
+            headers: {
+                'Content-Type': contentType,
+                'Content-Disposition': `attachment; filename="${friendlyFilename}"; filename*=UTF-8''${encodeURIComponent(friendlyFilename)}`,
+            }
+        });
+
+        // Add content-length if available
+        if (contentLength) {
+            response.headers.set('Content-Length', contentLength);
+        }
+
+        // Copy any other useful headers
+        const headersToCopy = [
+            'etag',
+            'last-modified',
+            'cache-control'
+        ];
+
+        for (const header of headersToCopy) {
+            const value = fileResponse.headers.get(header);
+            if (value) {
+                response.headers.set(header, value);
+            }
+        }
+
+        return response;
     } catch (error) {
         console.error('Error processing download request:', error);
         return NextResponse.json(

@@ -394,7 +394,7 @@ export default function Home() {
           <div className="bg-white/5 p-6 rounded-lg shadow-md">
             <h2 className="text-2xl font-semibold mb-4">App Downloads</h2>
             <p className="mb-4">
-              Download the recommended client app for your system.
+              Download the client app faster by reverse proxy.
             </p>
             <div className="flex gap-3">
               {userOs !== "unknown" && (
