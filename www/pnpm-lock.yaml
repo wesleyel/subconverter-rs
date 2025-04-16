@@ -12,10 +12,10 @@ importers:
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@netlify/blobs':
-        specifier: ^8.1.2
+        specifier: ^8.2.0
         version: 8.2.0
       '@netlify/functions':
-        specifier: ^3.0.4
+        specifier: ^3.1.2
         version: 3.1.2
       '@types/js-yaml':
         specifier: ^4.0.9
@@ -48,23 +48,23 @@ importers:
         specifier: ^19.1.0
         version: 19.1.0(react@19.1.0)
       subconverter-wasm:
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.2.4
+        version: 0.2.4
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.3.1
         version: 3.3.1
       '@netlify/plugin-nextjs':
-        specifier: ^5.10.5
+        specifier: ^5.10.6
         version: 5.10.6
       '@tailwindcss/postcss':
-        specifier: ^4.1.3
+        specifier: ^4.1.4
         version: 4.1.4
       '@types/node':
         specifier: ^22.14.1
         version: 22.14.1
       '@types/react':
-        specifier: ^19.1.1
+        specifier: ^19.1.2
         version: 19.1.2
       '@types/react-dom':
         specifier: ^19.1.2
@@ -82,7 +82,7 @@ importers:
         specifier: ^15.3.0
         version: 15.3.0(@swc/helpers@0.5.15)
       tailwindcss:
-        specifier: ^4.1.3
+        specifier: ^4.1.4
         version: 4.1.4
       typescript:
         specifier: ^5.8.3
@@ -3097,8 +3097,8 @@ packages:
       babel-plugin-macros:
         optional: true
 
-  subconverter-wasm@0.2.0:
-    resolution: {integrity: sha512-9DkZj4LgFd+mhzW7DiGkr1PCb58JQNWkhh9v76DEMj7K7a1LRyL3xo6T27oJfCjFzqypSlEN+LtiwhJSQxyrvA==}
+  subconverter-wasm@0.2.4:
+    resolution: {integrity: sha512-fuNlAmBJ1Ig+dlH2ZX+0zTq0BY5dqG7mF9E1brfvL22rQp/4ebkLyCyu4DZ7bTlUjGhFMox2DR75VLXGmwyR3A==}
 
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
@@ -6636,7 +6636,7 @@ snapshots:
       client-only: 0.0.1
       react: 19.1.0
 
-  subconverter-wasm@0.2.0:
+  subconverter-wasm@0.2.4:
     dependencies:
       '@netlify/blobs': 8.2.0
       '@vercel/kv': 3.0.0

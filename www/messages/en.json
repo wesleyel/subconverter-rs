@@ -58,6 +58,148 @@
         "step3": "Add a new subscription with your generated URL",
         "step4": "Update the subscription to fetch the latest configuration"
     },
+    "LinksPage": {
+        "title": "Subscription Manager",
+        "backToHome": "Back to Home",
+        "loading": "Loading your saved links...",
+        "createNewButton": "Create New Short URL",
+        "cancel": "Cancel",
+        "deleteConfirm": "Are you sure you want to delete this short URL?",
+        "createFormTitle": "Create New Short URL",
+        "targetUrl": "Target URL",
+        "targetUrlRequired": "Target URL is required",
+        "customId": "Custom ID (optional)",
+        "customIdPlaceholder": "my-custom-id",
+        "description": "Description (optional)",
+        "descriptionPlaceholder": "Description for this URL",
+        "createButton": "Create Short URL",
+        "editButton": "Edit",
+        "deleteButton": "Delete",
+        "saveChanges": "Save Changes",
+        "cancelEdit": "Cancel",
+        "copyLink": "Copy Link",
+        "openLink": "Open",
+        "editFormTitle": "Edit Short URL",
+        "newCustomId": "New Custom ID (optional)",
+        "createdAt": "Created",
+        "lastAccessed": "Last Accessed",
+        "accessCount": "Access Count",
+        "errorLoadLinks": "Failed to load links",
+        "errorDeleteLink": "Failed to delete link",
+        "errorCreateLink": "Failed to create short URL",
+        "errorUpdateLink": "Failed to update short URL",
+        "noLinksFound": "No saved links found. Create your first short URL to get started.",
+        "copySuccess": "Link copied to clipboard!",
+        "linkUpdated": "Link updated successfully!"
+    },
+    "SettingsPage": {
+        "title": "Server Configuration",
+        "loading": "Loading server settings...",
+        "savingSettings": "Saving configuration...",
+        "saveSuccess": "Configuration saved successfully!",
+        "saveButton": "Save Configuration",
+        "loadError": "Failed to load settings: {message}",
+        "saveError": "Failed to save settings: {message}",
+        "backToHome": "Back to Home",
+        "tabs": {
+            "common": "General",
+            "server": "Server",
+            "advanced": "Advanced",
+            "node_pref": "Node Preferences",
+            "emojis": "Emoji Settings"
+        },
+        "common": {
+            "title": "General Settings",
+            "apiMode": "API Mode",
+            "apiAccessToken": "API Access Token",
+            "defaultUrl": "Default Subscription URLs",
+            "defaultUrlHelp": "Enter comma-separated URLs",
+            "enableInsert": "Enable Insert URLs",
+            "insertUrl": "Insert URLs",
+            "insertUrlHelp": "Enter comma-separated URLs to insert",
+            "prependInsertUrl": "Prepend Insert URLs",
+            "excludeRemarks": "Exclude Remarks",
+            "excludeRemarksHelp": "Nodes with these remarks will be excluded",
+            "includeRemarks": "Include Remarks",
+            "includeRemarksHelp": "Only nodes with these remarks will be included",
+            "enableFilter": "Enable Filter Script",
+            "filterScript": "Node Filter Script",
+            "defaultExternalConfig": "Default External Config",
+            "basePath": "Base Path",
+            "ruleBase": {
+                "clash": "Clash Rule Base",
+                "surge": "Surge Rule Base",
+                "surfboard": "Surfboard Rule Base",
+                "mellow": "Mellow Rule Base",
+                "quan": "Quan Rule Base",
+                "quanx": "QuantumultX Rule Base",
+                "loon": "Loon Rule Base",
+                "sssub": "SS Subscription Rule Base",
+                "singbox": "SingBox Rule Base"
+            },
+            "proxy": {
+                "config": "Proxy for Config Downloads",
+                "ruleset": "Proxy for Ruleset Downloads",
+                "subscription": "Proxy for Subscription Downloads"
+            },
+            "appendProxyType": "Append Proxy Type",
+            "reloadConfOnRequest": "Reload Config on Request"
+        },
+        "server": {
+            "title": "Server Settings",
+            "listen": "Listen Address",
+            "port": "Port Number",
+            "serveFileRoot": "Serve Files Directory"
+        },
+        "advanced": {
+            "title": "Advanced Settings",
+            "logLevel": "Log Level",
+            "printDebugInfo": "Print Debug Info",
+            "maxPendingConnections": "Max Pending Connections",
+            "maxConcurrentThreads": "Max Concurrent Threads",
+            "maxAllowedRulesets": "Max Allowed Rulesets",
+            "maxAllowedRules": "Max Allowed Rules",
+            "maxAllowedDownloadSize": "Max Download Size (bytes)",
+            "enableCache": "Enable Cache",
+            "cacheSettings": {
+                "subscription": "Subscription Cache (seconds)",
+                "config": "Config Cache (seconds)",
+                "ruleset": "Ruleset Cache (seconds)"
+            },
+            "scriptCleanContext": "Script Clean Context",
+            "asyncFetchRuleset": "Async Fetch Ruleset",
+            "skipFailedLinks": "Skip Failed Links"
+        },
+        "nodePref": {
+            "title": "Node Preferences",
+            "flags": {
+                "udp": "UDP Support",
+                "tcpFastOpen": "TCP Fast Open",
+                "skipCertVerify": "Skip Certificate Verification",
+                "tls13": "TLS 1.3",
+                "sort": "Sort Nodes",
+                "filterDeprecated": "Filter Deprecated Nodes",
+                "appendSubUserInfo": "Append Subscription User Info"
+            },
+            "sortScript": "Sort Script",
+            "clashSettings": {
+                "useNewFieldName": "Use New Field Names",
+                "proxiesStyle": "Proxies Style",
+                "proxyGroupsStyle": "Proxy Groups Style"
+            },
+            "singboxAddClashModes": "Add Clash Modes to SingBox"
+        },
+        "emojis": {
+            "title": "Emoji Settings",
+            "addEmoji": "Add Emoji to Node Names",
+            "removeOldEmoji": "Remove Old Emoji",
+            "rules": "Emoji Rules",
+            "rulesDescription": "Define rules to add emojis to node names based on matching patterns.",
+            "addRule": "Add Rule",
+            "match": "Match Pattern",
+            "emoji": "Emoji"
+        }
+    },
     "Common": {
         "back": "Back",
         "loading": "Loading...",
@@ -68,6 +210,8 @@
         "delete": "Delete",
         "edit": "Edit",
         "submit": "Submit",
-        "optional": "Optional"
+        "optional": "Optional",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
     }
 }

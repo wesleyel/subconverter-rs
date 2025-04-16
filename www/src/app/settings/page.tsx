@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { readSettingsFile, writeSettingsFile } from '@/lib/api-client';
+import { useTranslations } from 'next-intl';
+import Link from 'next/link';
 import yaml from 'js-yaml';
 
 // Settings interface based on pref.yml structure
@@ -108,6 +110,9 @@ interface SubconverterSettings {
 }
 
 export default function SettingsPage() {
+    const t = useTranslations('SettingsPage');
+    const commonT = useTranslations('Common');
+
     const [settings, setSettings] = useState<SubconverterSettings>({});
     const [originalYaml, setOriginalYaml] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
@@ -130,7 +135,7 @@ export default function SettingsPage() {
             const parsedSettings = yaml.load(yamlContent) as SubconverterSettings;
             setSettings(parsedSettings || {});
         } catch (err) {
-            setError(`Failed to load settings: ${err instanceof Error ? err.message : String(err)}`);
+            setError(t('loadError', { message: err instanceof Error ? err.message : String(err) }));
             console.error("Error loading settings:", err);
         } finally {
             setIsLoading(false);
@@ -157,7 +162,7 @@ export default function SettingsPage() {
             // Hide success message after 3 seconds
             setTimeout(() => setSaveSuccess(false), 3000);
         } catch (err) {
-            setError(`Failed to save settings: ${err instanceof Error ? err.message : String(err)}`);
+            setError(t('saveError', { message: err instanceof Error ? err.message : String(err) }));
             console.error("Error saving settings:", err);
         } finally {
             setIsSaving(false);
@@ -192,19 +197,19 @@ export default function SettingsPage() {
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium mb-1">API Mode</label>
+                        <label className="block text-sm font-medium mb-1">{t('common.apiMode')}</label>
                         <select
                             className="w-full p-2 border border-gray-300 rounded bg-white/10"
                             value={common.api_mode ? "true" : "false"}
                             onChange={(e) => handleInputChange('common', 'api_mode', e.target.value === "true")}
                         >
-                            <option value="true">Enabled</option>
-                            <option value="false">Disabled</option>
+                            <option value="true">{commonT('enabled')}</option>
+                            <option value="false">{commonT('disabled')}</option>
                         </select>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium mb-1">API Access Token</label>
+                        <label className="block text-sm font-medium mb-1">{t('common.apiAccessToken')}</label>
                         <input
                             type="text"
                             className="w-full p-2 border border-gray-300 rounded bg-white/10"
@@ -215,69 +220,51 @@ export default function SettingsPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-1">Default URLs (comma separated)</label>
-                    <textarea
+                    <label className="block text-sm font-medium mb-1">{t('common.defaultUrl')}</label>
+                    <input
+                        type="text"
                         className="w-full p-2 border border-gray-300 rounded bg-white/10"
                         value={(common.default_url || []).join(', ')}
                         onChange={(e) => handleArrayChange('common', 'default_url', e.target.value)}
-                        rows={2}
                     />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium mb-1">Insert URLs (comma separated)</label>
-                    <textarea
-                        className="w-full p-2 border border-gray-300 rounded bg-white/10"
-                        value={(common.insert_url || []).join(', ')}
-                        onChange={(e) => handleArrayChange('common', 'insert_url', e.target.value)}
-                        rows={2}
-                    />
+                    <p className="mt-1 text-xs text-gray-400">{t('common.defaultUrlHelp')}</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium mb-1">Enable Insert</label>
+                        <label className="block text-sm font-medium mb-1">{t('common.enableInsert')}</label>
                         <select
                             className="w-full p-2 border border-gray-300 rounded bg-white/10"
                             value={common.enable_insert ? "true" : "false"}
                             onChange={(e) => handleInputChange('common', 'enable_insert', e.target.value === "true")}
                         >
-                            <option value="true">Enabled</option>
-                            <option value="false">Disabled</option>
+                            <option value="true">{commonT('enabled')}</option>
+                            <option value="false">{commonT('disabled')}</option>
                         </select>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium mb-1">Prepend Insert</label>
+                        <label className="block text-sm font-medium mb-1">{t('common.prependInsertUrl')}</label>
                         <select
                             className="w-full p-2 border border-gray-300 rounded bg-white/10"
                             value={common.prepend_insert_url ? "true" : "false"}
                             onChange={(e) => handleInputChange('common', 'prepend_insert_url', e.target.value === "true")}
                         >
-                            <option value="true">Enabled</option>
-                            <option value="false">Disabled</option>
+                            <option value="true">{commonT('enabled')}</option>
+                            <option value="false">{commonT('disabled')}</option>
                         </select>
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium mb-1">Exclude Remarks (regex patterns, comma separated)</label>
-                    <textarea
+                    <label className="block text-sm font-medium mb-1">{t('common.insertUrl')}</label>
+                    <input
+                        type="text"
                         className="w-full p-2 border border-gray-300 rounded bg-white/10"
-                        value={(common.exclude_remarks || []).join(', ')}
-                        onChange={(e) => handleArrayChange('common', 'exclude_remarks', e.target.value)}
-                        rows={2}
+                        value={(common.insert_url || []).join(', ')}
+                        onChange={(e) => handleArrayChange('common', 'insert_url', e.target.value)}
                     />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium mb-1">Include Remarks (regex patterns, comma separated)</label>
-                    <textarea
-                        className="w-full p-2 border border-gray-300 rounded bg-white/10"
-                        value={(common.include_remarks || []).join(', ')}
-                        onChange={(e) => handleArrayChange('common', 'include_remarks', e.target.value)}
-                        rows={2}
-                    />
+                    <p className="mt-1 text-xs text-gray-400">{t('common.insertUrlHelp')}</p>
                 </div>
             </div>
         );
@@ -722,7 +709,7 @@ export default function SettingsPage() {
     if (isLoading) {
         return (
             <div className="flex min-h-screen flex-col items-center justify-center">
-                <div className="mb-4 text-xl">Loading settings...</div>
+                <div className="mb-4 text-xl">{t('loading')}</div>
             </div>
         );
     }
@@ -731,97 +718,74 @@ export default function SettingsPage() {
         <main className="flex min-h-screen flex-col items-center justify-between p-4 md:p-8 lg:p-24">
             <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
                 <div className="flex flex-col sm:flex-row items-center justify-between mb-6">
-                    <h1 className="text-4xl font-bold mb-4 sm:mb-0 text-center">Server Settings</h1>
-                    <div className="flex space-x-2">
-                        <button
-                            onClick={loadSettings}
-                            disabled={isSaving}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
-                        >
-                            Reload
-                        </button>
-                        <button
-                            onClick={saveSettings}
-                            disabled={isSaving}
-                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-50"
-                        >
-                            {isSaving ? "Saving..." : "Save Changes"}
-                        </button>
-                    </div>
+                    <h1 className="text-4xl font-bold mb-4 sm:mb-0 text-center">{t('title')}</h1>
+                    <Link
+                        href="/"
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                        {t('backToHome')}
+                    </Link>
                 </div>
 
                 {error && (
-                    <div className="mb-4 p-4 border border-red-400 bg-red-50 text-red-700 rounded-md">
-                        {error}
+                    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6">
+                        <p>{error}</p>
                     </div>
                 )}
 
                 {saveSuccess && (
-                    <div className="mb-4 p-4 border border-green-400 bg-green-50 text-green-700 rounded-md">
-                        Settings saved successfully!
+                    <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6">
+                        <p>{t('saveSuccess')}</p>
                     </div>
                 )}
 
-                <div className="bg-white/5 p-6 rounded-lg shadow-md mb-8">
-                    <div className="flex flex-wrap mb-6 border-b border-gray-300 pb-2">
+                <div className="bg-white/5 rounded-lg shadow-md overflow-hidden">
+                    <div className="flex flex-wrap border-b border-gray-300">
                         <button
-                            className={`mr-4 py-2 px-4 ${activeTab === 'common' ? 'border-b-2 border-blue-500 font-bold' : ''}`}
+                            className={`px-4 py-2 ${activeTab === 'common' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
                             onClick={() => setActiveTab('common')}
                         >
-                            Common
+                            {t('tabs.common')}
                         </button>
                         <button
-                            className={`mr-4 py-2 px-4 ${activeTab === 'server' ? 'border-b-2 border-blue-500 font-bold' : ''}`}
+                            className={`px-4 py-2 ${activeTab === 'server' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
                             onClick={() => setActiveTab('server')}
                         >
-                            Server
+                            {t('tabs.server')}
                         </button>
                         <button
-                            className={`mr-4 py-2 px-4 ${activeTab === 'node_pref' ? 'border-b-2 border-blue-500 font-bold' : ''}`}
-                            onClick={() => setActiveTab('node_pref')}
-                        >
-                            Node Preferences
-                        </button>
-                        <button
-                            className={`mr-4 py-2 px-4 ${activeTab === 'emojis' ? 'border-b-2 border-blue-500 font-bold' : ''}`}
-                            onClick={() => setActiveTab('emojis')}
-                        >
-                            Emojis
-                        </button>
-                        <button
-                            className={`mr-4 py-2 px-4 ${activeTab === 'advanced' ? 'border-b-2 border-blue-500 font-bold' : ''}`}
+                            className={`px-4 py-2 ${activeTab === 'advanced' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
                             onClick={() => setActiveTab('advanced')}
                         >
-                            Advanced
+                            {t('tabs.advanced')}
+                        </button>
+                        <button
+                            className={`px-4 py-2 ${activeTab === 'node_pref' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
+                            onClick={() => setActiveTab('node_pref')}
+                        >
+                            {t('tabs.node_pref')}
+                        </button>
+                        <button
+                            className={`px-4 py-2 ${activeTab === 'emojis' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
+                            onClick={() => setActiveTab('emojis')}
+                        >
+                            {t('tabs.emojis')}
                         </button>
                     </div>
 
-                    {renderTab()}
-                </div>
+                    <div className="p-6">
+                        {renderTab()}
 
-                <div className="bg-white/5 p-6 rounded-lg shadow-md mb-8">
-                    <h2 className="text-xl font-semibold mb-4">YAML Editor</h2>
-                    <p className="text-sm mb-4 text-gray-400">
-                        For advanced users: You can edit the YAML directly. This will be applied when you save changes.
-                    </p>
-                    <textarea
-                        className="w-full h-64 p-2 border border-gray-300 rounded bg-white/10 font-mono text-xs"
-                        value={yaml.dump(settings, {
-                            indent: 2,
-                            lineWidth: -1,
-                            noRefs: true,
-                            sortKeys: false
-                        })}
-                        onChange={(e) => {
-                            try {
-                                const parsed = yaml.load(e.target.value) as SubconverterSettings;
-                                setSettings(parsed || {});
-                            } catch (err) {
-                                // Don't update state on invalid YAML, but still allow editing
-                                console.error("Invalid YAML:", err);
-                            }
-                        }}
-                    />
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+                                onClick={saveSettings}
+                                disabled={isSaving}
+                            >
+                                {isSaving ? t('savingSettings') : t('saveButton')}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
