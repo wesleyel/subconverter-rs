@@ -1,0 +1,240 @@
+name: Build and Publish subconverter-wasm
+
+on:
+  workflow_dispatch:  # 允许手动触发
+    inputs:
+      version_increment:
+        description: '版本更新类型 (patch|minor|major)'
+        required: false
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+  release:
+    types: [created]  # 当创建新的release时触发
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'     # 当wasm目录有变更时触发
+      - '.github/workflows/publish-wasm.yml'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      
+      - name: Build WASM package
+        run: ./build-wasm.sh
+      
+      - name: Setup version management
+        run: npm install -g semver
+
+      - name: Determine version
+        id: version
+        run: |
+          cd pkg
+          
+          # 尝试获取当前版本
+          CURRENT_VERSION=$(node -p "try { require('./package.json').version } catch { '0.1.0' }")
+          echo "Current version: $CURRENT_VERSION"
+          
+          # 获取已发布的最新版本（如果有）
+          LATEST_VERSION=$(npm view subconverter-wasm version 2>/dev/null || echo "0.0.0")
+          echo "Latest published version: $LATEST_VERSION"
+          
+          # 比较当前版本和已发布版本，取更大的那个作为基础
+          BASE_VERSION=$(node -e "console.log(require('semver').gt('$CURRENT_VERSION', '$LATEST_VERSION') ? '$CURRENT_VERSION' : '$LATEST_VERSION')")
+          echo "Base version for incrementing: $BASE_VERSION"
+          
+          # 根据触发类型确定版本号
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            # 从release标签提取版本（如果存在并符合语义化版本格式）
+            RELEASE_TAG="${{ github.event.release.tag_name }}"
+            if [[ "$RELEASE_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              # 移除可能的前缀'v'
+              RELEASE_VERSION="${RELEASE_TAG#v}"
+              echo "Using release tag version: $RELEASE_VERSION"
+              NEXT_VERSION="$RELEASE_VERSION"
+            else
+              # 自动增加补丁版本号
+              NEXT_VERSION=$(node -e "console.log(require('semver').inc('$BASE_VERSION', 'patch'))")
+              echo "Incrementing to: $NEXT_VERSION (patch)"
+            fi
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # 根据用户输入增加版本号
+            INCREMENT_TYPE="${{ github.event.inputs.version_increment }}"
+            NEXT_VERSION=$(node -e "console.log(require('semver').inc('$BASE_VERSION', '$INCREMENT_TYPE'))")
+            echo "Incrementing to: $NEXT_VERSION ($INCREMENT_TYPE)"
+          else
+            # push触发 - 使用预发布版本
+            # 先增加预发布基础版本号
+            PRE_VERSION=$(node -e "console.log(require('semver').inc('$BASE_VERSION', 'prerelease', 'beta'))")
+            
+            # 添加时间戳和提交哈希
+            TIMESTAMP=$(date +%Y%m%d%H%M%S)
+            COMMIT_HASH=$(git rev-parse --short HEAD)
+            NEXT_VERSION="${PRE_VERSION}.${TIMESTAMP}.${COMMIT_HASH}"
+            echo "Creating pre-release version: $NEXT_VERSION"
+          fi
+          
+          # 输出到后续步骤
+          echo "NEXT_VERSION=${NEXT_VERSION}" >> $GITHUB_ENV
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Create package.json for npm
+        run: |
+          cd pkg
+          
+          # 使用确定的版本号
+          VERSION="${{ env.NEXT_VERSION }}"
+          echo "Using version: $VERSION"
+          
+          # 读取原始package.json的内容
+          ORIGINAL_PACKAGE=$(cat package.json)
+          
+          # 使用jq工具更新必要的字段，保留原始内容
+          # 先安装jq
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # 更新package.json
+          cat package.json | jq \
+            --arg version "$VERSION" \
+            --arg desc "WebAssembly package for subconverter-rs" \
+            --arg repo "https://github.com/lonelam/subconverter-rs" \
+            --arg homepage "https://github.com/lonelam/subconverter-rs#readme" \
+            --arg author "lonelam" \
+          '.version = $version | 
+           .description = $desc | 
+           .author = $author |
+           .license = "MIT" | 
+           .repository = {"type": "git", "url": $repo} |
+           .homepage = $homepage |
+           .keywords = ["wasm", "webassembly", "subconverter", "proxy"] |
+           .publishConfig = {"access": "public"} |
+           .name = "subconverter-wasm"' > package.json.new
+          
+          # 检查结果，避免出错
+          if [ -s package.json.new ]; then
+            mv package.json.new package.json
+            echo "Updated package.json:"
+            cat package.json
+          else
+            echo "Error: Failed to update package.json"
+            exit 1
+          fi
+      
+      - name: Create README.md for npm package
+        run: |
+          cd pkg
+          
+          cat > README.md << EOF
+          # subconverter-wasm
+
+          WebAssembly build of [subconverter-rs](https://github.com/lonelam/subconverter-rs) for web browsers and Node.js.
+
+          ## Installation
+
+          ```bash
+          npm install subconverter-wasm
+          # or
+          yarn add subconverter-wasm
+          # or
+          pnpm add subconverter-wasm
+          ```
+
+          ## Usage
+
+          ```js
+          import { convert_subscription } from 'subconverter-wasm';
+
+          // 异步调用转换函数
+          async function convertMySubscription() {
+            const result = await convert_subscription('https://example.com/sub', 'clash');
+            console.log(result);
+          }
+          ```
+
+          ## API Reference
+
+          - \`convert_subscription(url: string, target: string): Promise<string>\`: 转换订阅链接到目标格式
+          - \`admin_file_exists(path: string): Promise<boolean>\`: 检查文件是否存在
+          - \`admin_read_file(path: string): Promise<string>\`: 读取文件内容
+          - \`admin_write_file(path: string, content: string): Promise<boolean>\`: 写入文件
+          - \`list_directory(path: string): Promise<DirectoryEntry[]>\`: 列出目录内容
+
+          ## Notes
+
+          此版本号: \`${VERSION}\`，构建于 $(date)
+          EOF
+      
+      - name: Publish to npm
+        if: success()
+        run: |
+          cd pkg
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          
+          # 如果是Release触发或手动触发，则发布正式版本
+          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            npm publish
+            echo "📦 Published version ${{ env.NEXT_VERSION }} to npm"
+          else
+            # 从push触发的是预发布版本，使用beta标签
+            npm publish --tag beta
+            echo "📦 Published beta version ${{ env.NEXT_VERSION }} to npm"
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create git tag for version
+        if: success() && (github.event_name == 'release' || github.event_name == 'workflow_dispatch')
+        run: |
+          # 只为正式版本创建git标签
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          VERSION="${{ env.NEXT_VERSION }}"
+          
+          # 创建标签并推送
+          git tag -a "v${VERSION}" -m "Release v${VERSION}"
+          git push origin "v${VERSION}"
+          
+          echo "🏷️ Created and pushed tag v${VERSION}"
+
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "✅ subconverter-wasm v${{ env.NEXT_VERSION }} has been successfully published to npm!"
+          
+          if [[ "${{ github.event_name }}" == "release" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Published stable version: ${{ env.NEXT_VERSION }}"
+          else
+            echo "Published beta version: ${{ env.NEXT_VERSION }}"
+          fi 

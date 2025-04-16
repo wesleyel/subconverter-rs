@@ -1,14 +1,13 @@
-use log::error;
-use minijinja::{escape_formatter, Environment, Error as JinjaError, ErrorKind, Value};
-use once_cell::sync::Lazy;
+use crate::api::SubconverterQuery;
+use crate::utils::{file_exists, file_get_async};
+use crate::Settings;
+use log::{debug, error};
+use minijinja::{
+    context, escape_formatter, Environment, Error as JinjaError, ErrorKind, UndefinedBehavior,
+    Value,
+};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Mutex;
-
-use crate::utils::file_get;
-use crate::utils::http::parse_proxy;
-use crate::Settings;
 
 /// Template arguments container
 #[derive(Debug, Clone, Default, Serialize)]
@@ -17,7 +16,7 @@ pub struct TemplateArgs {
     pub global_vars: HashMap<String, String>,
 
     /// Request parameters
-    pub request_params: HashMap<String, String>,
+    pub request_params: SubconverterQuery,
 
     /// Local variables
     pub local_vars: HashMap<String, String>,
@@ -62,6 +61,7 @@ pub fn render_template(
 
     // Copy settings from global environment
     env.set_formatter(escape_formatter);
+    env.set_undefined_behavior(UndefinedBehavior::Chainable);
 
     // Add the same filters and functions
     env.add_filter("trim", filter_trim);
@@ -76,7 +76,9 @@ pub fn render_template(
     env.add_function("endsWith", fn_ends_with);
     env.add_function("bool", fn_to_bool);
     env.add_function("string", fn_to_string);
-    env.add_function("fetch", fn_web_get);
+
+    env.add_function("default", fn_default);
+    // env.add_function("fetch", fn_web_get);
 
     // Build context object
     let mut global_vars = HashMap::new();
@@ -84,31 +86,15 @@ pub fn render_template(
         global_vars.insert(key.clone(), value.clone());
     }
 
-    let mut request_vars = HashMap::new();
-    let mut all_args = String::new();
-    for (key, value) in &args.request_params {
-        request_vars.insert(key.clone(), value.clone());
-
-        all_args.push_str(key);
-        if !value.is_empty() {
-            all_args.push_str(&format!("={}", value));
-        }
-        all_args.push('&');
-    }
-
-    // Remove trailing &
-    if !all_args.is_empty() {
-        all_args.pop();
-        request_vars.insert("_args".to_string(), all_args);
-    }
-
     // Create full context with all variables
-    let context = TemplateContext {
-        global: global_vars,
-        request: request_vars,
-        local: args.local_vars.clone(),
-        node_list: args.node_list.clone(),
-    };
+    let context = context!(
+        global => global_vars,
+        request => args.request_params,
+        local => args.local_vars,
+        node_list => args.node_list
+    );
+
+    debug!("Template context: {:?}", context);
 
     // Parse and render the template
     match env.template_from_str(content) {
@@ -138,22 +124,22 @@ pub fn render_template(
 /// # Returns
 /// * `Ok(String)` - The rendered template
 /// * `Err(String)` - Error message if rendering fails
-pub fn render_template_file(
+pub async fn render_template_file(
     path: &str,
     args: &TemplateArgs,
     include_scope: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let content;
-    let file_path = Path::new(path);
-    if file_path.is_file() {
-        content = file_get(
+    if file_exists(path).await {
+        content = file_get_async(
             path,
             if include_scope.is_empty() {
                 None
             } else {
                 Some(include_scope)
             },
-        )?;
+        )
+        .await?;
     } else {
         return Err(format!("Template file not found: {}", path).into());
     }
@@ -262,20 +248,10 @@ fn fn_to_string(n: Value) -> Result<String, JinjaError> {
     Ok(n.to_string())
 }
 
-fn fn_web_get(url: Value) -> Result<String, JinjaError> {
-    let url_str = url.to_string();
-    if url_str.is_empty() {
-        return Ok(String::new());
-    }
-
-    let settings = Settings::current();
-    let proxy = parse_proxy(&settings.proxy_config);
-
-    match crate::utils::web_get(&url_str, &proxy, None) {
-        Ok((content, _)) => Ok(content),
-        Err(e) => Err(JinjaError::new(
-            ErrorKind::InvalidOperation,
-            format!("Failed to fetch URL: {}", e),
-        )),
+fn fn_default(value: Value, default: Value) -> Result<String, JinjaError> {
+    if value.is_undefined() || value.is_none() {
+        Ok(default.to_string())
+    } else {
+        Ok(value.to_string())
     }
 }

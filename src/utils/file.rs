@@ -1,66 +1,44 @@
-use std::fs;
-use std::io::{self, Read};
-use std::path::Path;
+use crate::settings::Settings;
+use crate::utils::http::{parse_proxy, web_get_async};
 
-/// Read a file into a string
-pub fn read_file(path: &str) -> Result<String, io::Error> {
-    let mut file = fs::File::open(path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    Ok(contents)
+// Import platform-specific implementations
+#[cfg(not(target_arch = "wasm32"))]
+mod platform {
+    pub use crate::utils::file_std::*;
 }
 
-/// Check if a file exists
-pub fn file_exists(path: &str) -> bool {
-    Path::new(path).exists()
+#[cfg(target_arch = "wasm32")]
+mod platform {
+    pub use crate::utils::file_wasm::*;
 }
 
-/// Read the contents of a file as a string
+// Re-export platform-specific implementations
+pub use platform::*;
+
+// These functions are re-exported from platform-specific implementations
+
+/// Async version of load_content
 ///
 /// # Arguments
-/// * `path` - Path to the file to read
+/// * `path` - Path to the file or URL to load
 ///
 /// # Returns
-/// * `Ok(String)` - The file contents
-/// * `Err(io::Error)` - If the file can't be read
-pub fn file_get<P: AsRef<Path>>(path: P, base_path: Option<&str>) -> io::Result<String> {
-    if let Some(base_path) = base_path {
-        match path.as_ref().to_str() {
-            Some(path_str) => {
-                if !path_str.starts_with(base_path) {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "File path is not within the base path",
-                    ));
-                }
-            }
-            None => {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "File path is not a valid UTF-8 string",
-                ));
-            }
+/// * `Ok(String)` - The content
+/// * `Err(String)` - Error message if loading failed
+pub async fn load_content_async(path: &str) -> Result<String, String> {
+    if path.starts_with("http://") || path.starts_with("https://") {
+        // It's a URL, use HTTP client
+        match web_get_async(path, &parse_proxy(&Settings::current().proxy_config), None).await {
+            Ok(response) => Ok(response.body),
+            Err(e) => Err(format!("Failed to read file from URL: {}", e)),
         }
+    } else if file_exists(path).await {
+        // It's a file, read it asynchronously
+        match read_file_async(path).await {
+            Ok(data) => Ok(data),
+            Err(e) => Err(format!("Failed to read file: {}", e)),
+        }
+    } else {
+        Err(format!("Path not found: {}", path))
     }
-    fs::read_to_string(path)
-}
-
-/// Copy a file from source to destination
-pub fn copy_file(src: &str, dst: &str) -> io::Result<()> {
-    // Check if source exists
-    if !Path::new(src).exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("Source file {} not found", src),
-        ));
-    }
-
-    // Create parent directories if they don't exist
-    if let Some(parent) = Path::new(dst).parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    // Copy the file
-    fs::copy(src, dst)?;
-    Ok(())
 }

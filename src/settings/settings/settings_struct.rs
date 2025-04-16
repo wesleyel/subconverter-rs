@@ -1,9 +1,15 @@
+#[cfg(target_arch = "wasm32")]
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::LazyLock;
+#[cfg(target_arch = "wasm32")]
+use std::sync::OnceLock;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::RwLock;
 
+use log::debug;
 use log::info;
 use serde_yaml;
 use toml;
@@ -15,9 +21,94 @@ use crate::models::RegexMatchConfig;
 use crate::models::RegexMatchConfigs;
 use crate::models::RulesetConfig;
 use crate::utils::file::copy_file;
-use crate::utils::file_get;
-use crate::utils::http::web_get;
+use crate::utils::file_exists;
+use crate::utils::file_get_async;
 use crate::utils::http::ProxyConfig;
+use crate::utils::web_get_async;
+
+// For wasm32 targets, implement a mock RwLock that works in single-threaded environments
+#[cfg(target_arch = "wasm32")]
+pub struct MockRwLock<T> {
+    inner: UnsafeCell<T>,
+}
+
+#[cfg(target_arch = "wasm32")]
+unsafe impl<T: Send + Sync> Send for MockRwLock<T> {}
+#[cfg(target_arch = "wasm32")]
+unsafe impl<T: Send + Sync> Sync for MockRwLock<T> {}
+
+#[cfg(target_arch = "wasm32")]
+impl<T> MockRwLock<T> {
+    pub fn new(value: T) -> Self {
+        Self {
+            inner: UnsafeCell::new(value),
+        }
+    }
+
+    pub fn read(&self) -> Result<MockReadGuard<T>, ()> {
+        // In Wasm, we're single-threaded, so this is safe
+        Ok(MockReadGuard {
+            data: unsafe { &*self.inner.get() },
+        })
+    }
+
+    pub fn write(&self) -> Result<MockWriteGuard<T>, ()> {
+        // In Wasm, we're single-threaded, so this is safe
+        Ok(MockWriteGuard {
+            data: unsafe { &mut *self.inner.get() },
+        })
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub struct MockReadGuard<'a, T> {
+    data: &'a T,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a, T> std::ops::Deref for MockReadGuard<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.data
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub struct MockWriteGuard<'a, T> {
+    data: &'a mut T,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a, T> std::ops::Deref for MockWriteGuard<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.data
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<'a, T> std::ops::DerefMut for MockWriteGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.data
+    }
+}
+
+// Type aliases for consistent code across targets
+#[cfg(target_arch = "wasm32")]
+type GlobalLock<T> = MockRwLock<T>;
+#[cfg(target_arch = "wasm32")]
+type GlobalLockReadGuard<'a, T> = MockReadGuard<'a, T>;
+#[cfg(target_arch = "wasm32")]
+type GlobalLockWriteGuard<'a, T> = MockWriteGuard<'a, T>;
+
+#[cfg(not(target_arch = "wasm32"))]
+type GlobalLock<T> = RwLock<T>;
+#[cfg(not(target_arch = "wasm32"))]
+type GlobalLockReadGuard<'a, T> = std::sync::RwLockReadGuard<'a, T>;
+#[cfg(not(target_arch = "wasm32"))]
+type GlobalLockWriteGuard<'a, T> = std::sync::RwLockWriteGuard<'a, T>;
 
 /// Settings structure to hold global configuration
 #[derive(Debug, Clone)]
@@ -291,16 +382,30 @@ impl Settings {
     }
 
     /// Get a mutable reference to the current settings
-    pub fn current_mut() -> std::sync::RwLockWriteGuard<'static, Arc<Settings>> {
-        GLOBAL.write().unwrap()
+    pub fn current_mut() -> GlobalLockWriteGuard<'static, Arc<Settings>> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            GLOBAL.write().unwrap()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            get_global().write().unwrap()
+        }
     }
 
     /// Get a read-only reference to the current settings
-    pub fn current() -> std::sync::RwLockReadGuard<'static, Arc<Settings>> {
-        GLOBAL.read().unwrap()
+    pub fn current() -> GlobalLockReadGuard<'static, Arc<Settings>> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            GLOBAL.read().unwrap()
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            get_global().read().unwrap()
+        }
     }
 
-    fn load_from_content(
+    pub async fn load_from_content(
         content: &str,
         file_path: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -308,7 +413,7 @@ impl Settings {
         if content.contains("common:") {
             let mut yaml_settings: crate::settings::settings::yaml_settings::YamlSettings =
                 serde_yaml::from_str(&content)?;
-            yaml_settings.process_imports_and_inis()?;
+            yaml_settings.process_imports_and_inis().await?;
 
             let mut _settings = Settings::from(yaml_settings);
 
@@ -327,7 +432,7 @@ impl Settings {
             let mut toml_settings: crate::settings::settings::toml_settings::TomlSettings =
                 toml::from_str(&content)?;
 
-            toml_settings.process_imports()?;
+            toml_settings.process_imports().await?;
 
             let mut settings = Settings::from(toml_settings);
 
@@ -350,7 +455,7 @@ impl Settings {
         // Default to INI
         let mut ini_settings = crate::settings::settings::ini_settings::IniSettings::new();
         ini_settings.load_from_ini(&content)?;
-        ini_settings.process_imports()?;
+        ini_settings.process_imports().await?;
 
         let mut settings = Settings::from(ini_settings);
 
@@ -362,67 +467,92 @@ impl Settings {
         Ok(settings)
     }
 
-    /// Load settings from file or URL
-    fn load_from_file_sync(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Load settings from file or URL asynchronously
+    pub async fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let mut _content = String::new();
 
         // Try to load the content from file or URL
         if path.starts_with("http://") || path.starts_with("https://") {
-            let (data, _) = web_get(path, &ProxyConfig::default(), None)?;
-            _content = data;
+            let response = web_get_async(path, &ProxyConfig::default(), None).await?;
+            _content = response.body;
         } else {
-            _content = file_get(path, None)?;
+            _content = file_get_async(path, None).await?;
         }
-        let mut settings = Settings::load_from_content(&_content, path)?;
-        settings.pref_path = path.to_owned();
+
+        // Load from content and set the path
+        let mut settings = Settings::load_from_content(&_content, path).await?;
+        settings.pref_path = path.to_string();
         Ok(settings)
     }
 }
 
 // Global settings instance
-pub static GLOBAL: LazyLock<RwLock<Arc<Settings>>> =
-    LazyLock::new(|| RwLock::new(Arc::new(Settings::new())));
+#[cfg(not(target_arch = "wasm32"))]
+static GLOBAL: LazyLock<GlobalLock<Arc<Settings>>> =
+    LazyLock::new(|| GlobalLock::new(Arc::new(Settings::new())));
 
-/// Refresh the configuration
-pub fn refresh_configuration() {
+#[cfg(target_arch = "wasm32")]
+static GLOBAL: OnceLock<GlobalLock<Arc<Settings>>> = OnceLock::new();
+
+#[cfg(target_arch = "wasm32")]
+fn get_global() -> &'static GlobalLock<Arc<Settings>> {
+    GLOBAL.get_or_init(|| GlobalLock::new(Arc::new(Settings::new())))
+}
+
+/// Refresh the configuration asynchronously
+pub async fn refresh_configuration() {
+    #[cfg(not(target_arch = "wasm32"))]
     let settings = GLOBAL.read().unwrap();
+    #[cfg(target_arch = "wasm32")]
+    let settings = get_global().read().unwrap();
+
     let path = settings.pref_path.clone();
     drop(settings); // Release the lock before potential long operation
 
-    std::thread::spawn(move || match Settings::load_from_file_sync(&path) {
+    match Settings::load_from_file(&path).await {
         Ok(new_settings) => {
-            *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                *get_global().write().unwrap() = Arc::new(new_settings);
+            }
         }
         Err(err) => {
             eprintln!("Failed to refresh configuration from '{}': {}", path, err);
         }
-    })
-    .join()
-    .unwrap()
+    }
 }
 
 /// Update settings directly from file path with proper locking
-pub fn update_settings_from_file(
-    path: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn update_settings_from_file(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let path = path.to_owned();
-    std::thread::spawn(move || match Settings::load_from_file_sync(&path) {
+
+    match Settings::load_from_file(&path).await {
         Ok(new_settings) => {
-            *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            debug!("Updating settings from file: {}", path);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                *GLOBAL.write().unwrap() = Arc::new(new_settings);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                *get_global().write().unwrap() = Arc::new(new_settings);
+            }
             Ok(())
         }
         Err(err) => {
             eprintln!("Failed to refresh configuration from '{}': {}", path, err);
             Err(format!("Failed to refresh configuration: {}", err).into())
         }
-    })
-    .join()
-    .unwrap_or(Err("Failed to join thread".into()))
+    }
 }
 
-pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     if !args_path.is_empty() {
-        match update_settings_from_file(args_path) {
+        match update_settings_from_file(args_path).await {
             Ok(_) => return Ok(()),
             Err(e) => {
                 eprintln!("Failed to load settings from {}: {}", args_path, e);
@@ -433,9 +563,9 @@ pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> 
     let default_config_paths = vec!["pref.toml", "pref.yml", "pref.ini"];
     let default_example_paths = vec!["pref.example.toml", "pref.example.yml", "pref.example.ini"];
     for path in default_config_paths {
-        if Path::new(path).exists() {
+        if file_exists(&path).await {
             info!("Loading settings from {}", path);
-            match update_settings_from_file(path) {
+            match update_settings_from_file(path).await {
                 Ok(_) => return Ok(()),
                 Err(e) => {
                     eprintln!("Failed to load settings from {}: {}", path, e);
@@ -445,29 +575,41 @@ pub fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Error>> 
         }
     }
     for path in default_example_paths {
-        if Path::new(path).exists() {
+        if file_exists(&path).await {
             let new_path = path.replace(".example", "");
             info!(
                 "Loading settings from {}, and copy it to {}",
                 path, &new_path
             );
             // copy
-            copy_file(&path, &new_path)?;
+            copy_file(&path, &new_path).await?;
 
-            update_settings_from_file(&new_path).unwrap();
+            update_settings_from_file(&new_path).await?;
             return Ok(());
         }
     }
     Err("No settings file found".into())
 }
 
-pub fn update_settings_from_content(
-    content: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+/// Update settings from content asynchronously
+pub async fn update_settings_from_content(content: &str) -> Result<(), Box<dyn std::error::Error>> {
     let content = content.to_string();
-    let handle = std::thread::spawn(move || {
-        let settings = Settings::load_from_content(&content, "").unwrap();
-        *GLOBAL.write().unwrap() = Arc::new(settings);
-    });
-    handle.join().map_err(|_| "Failed to join thread".into())
+
+    match Settings::load_from_content(&content, "").await {
+        Ok(settings) => {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                *GLOBAL.write().unwrap() = Arc::new(settings);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                *get_global().write().unwrap() = Arc::new(settings);
+            }
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("Failed to load settings from content: {}", err);
+            Err(format!("Failed to load settings from content: {}", err).into())
+        }
+    }
 }

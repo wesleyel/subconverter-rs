@@ -143,7 +143,7 @@ pub fn explode_vless(vless: &str, node: &mut Proxy) -> bool {
             vless_proxy.ws_headers = Some(ws_headers);
 
             if let Some(early_data) = params.get("ed") {
-                if let Ok(med) = early_data.parse::<i32>() {
+                if let Ok(_med) = early_data.parse::<i32>() {
                     if network == "ws" {
                         // Handle max early data
                     } else if network == "httpupgrade" {
@@ -152,7 +152,7 @@ pub fn explode_vless(vless: &str, node: &mut Proxy) -> bool {
                 }
             }
 
-            if let Some(early_data_header) = params.get("eh") {
+            if let Some(_early_data_header) = params.get("eh") {
                 // Handle early data header name
             }
         }

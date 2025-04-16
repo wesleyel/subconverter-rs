@@ -1,33 +1,9 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use crate::models::RegexMatchConfigs;
 use crate::utils::http::{parse_proxy, ProxyConfig};
 use crate::Settings;
-
-/// Case-insensitive string for use as HashMap keys
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CaseInsensitiveString(String);
-
-impl FromStr for CaseInsensitiveString {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(CaseInsensitiveString(s.to_string()))
-    }
-}
-
-impl std::fmt::Display for CaseInsensitiveString {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl PartialEq<str> for CaseInsensitiveString {
-    fn eq(&self, other: &str) -> bool {
-        self.0.eq_ignore_ascii_case(other)
-    }
-}
+use case_insensitive_string::CaseInsensitiveString;
 
 /// Rust equivalent of the parse_settings struct in C++
 /// Used for controlling the behavior of parsing functions

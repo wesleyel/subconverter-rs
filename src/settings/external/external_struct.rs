@@ -1,12 +1,10 @@
 use serde_yaml;
 use std::collections::HashMap;
-use std::path::Path;
 use toml;
 
 use crate::models::{ProxyGroupConfig, RegexMatchConfig, RulesetConfig};
 use crate::settings::Settings;
-use crate::utils::file::read_file;
-use crate::utils::http::{parse_proxy, web_get};
+use crate::utils::file::load_content_async;
 // TODO: Implement template rendering module similar to C++ render_template function
 
 use super::ini_external::IniExternalSettings;
@@ -56,40 +54,39 @@ impl ExternalSettings {
     }
 
     /// Load external configuration from file or URL
-    pub fn load_from_file_sync(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut _content = String::new();
+    // pub fn load_from_file_sync(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    //     // Load content from file or URL
+    //     let _content = load_content(path)?;
 
-        // Try to load content from file or URL
-        if path.starts_with("http://") || path.starts_with("https://") {
-            match web_get(path, &parse_proxy(&Settings::current().proxy_config), None) {
-                Ok((data, _)) => _content = data,
-                Err(e) => return Err(format!("Failed to fetch external config: {}", e).into()),
-            }
-        } else if Path::new(path).exists() {
-            match read_file(path) {
-                Ok(data) => _content = data,
-                Err(e) => return Err(format!("Failed to read external config file: {}", e).into()),
-            }
-        } else {
-            return Err(format!("External config path not found: {}", path).into());
-        }
+    //     Self::parse_content(&_content)
+    // }
 
+    /// Load external configuration from file or URL asynchronously
+    pub async fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        // Load content from file or URL asynchronously
+        let _content = load_content_async(path).await?;
+
+        Self::parse_content(&_content).await
+    }
+
+    /// Parse the content and return an ExternalSettings object
+    async fn parse_content(content: &str) -> Result<Self, Box<dyn std::error::Error>> {
         // TODO: Implement template rendering here
         // In C++: if(render_template(config, *ext.tpl_args, base_content, global.templatePath) != 0)
         //           base_content = config;
 
         // Try YAML format first
-        if _content.contains("custom:") {
-            let mut yaml_settings: YamlExternalSettings = serde_yaml::from_str(&_content)?;
-            yaml_settings.process_imports()?;
+        if content.contains("custom:") {
+            let mut yaml_settings: YamlExternalSettings = serde_yaml::from_str(content)?;
+            yaml_settings.process_imports().await?;
             // Convert to ExternalSettings
             let config = Self::from(yaml_settings);
             return Ok(config);
         }
 
-        if toml::from_str::<toml::Value>(&_content).is_ok() {
-            let mut toml_settings: TomlExternalSettings = toml::from_str(&_content)?;
-            toml_settings.process_imports()?;
+        if toml::from_str::<toml::Value>(content).is_ok() {
+            let mut toml_settings: TomlExternalSettings = toml::from_str(content)?;
+            toml_settings.process_imports().await?;
             // Convert to ExternalSettings
             let config = Self::from(toml_settings);
             return Ok(config);
@@ -97,10 +94,10 @@ impl ExternalSettings {
 
         // Fall back to INI format
         let mut ini_settings = IniExternalSettings::new();
-        match ini_settings.load_from_ini(&_content) {
+        match ini_settings.load_from_ini(content) {
             Ok(_) => {
                 // Process any imports
-                ini_settings.process_imports()?;
+                ini_settings.process_imports().await?;
                 // Convert to ExternalSettings
                 let config = Self::from(ini_settings);
                 return Ok(config);

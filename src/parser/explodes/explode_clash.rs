@@ -545,7 +545,7 @@ fn parse_clash_trojan(
         .unwrap_or("");
 
     // Get SNI and network settings
-    // let sni = proxy.get("sni").and_then(|v| v.as_str()).unwrap_or("");
+    let sni = proxy.get("sni").and_then(|v| v.as_str()).unwrap_or("");
     let network = proxy.get("network").and_then(|v| v.as_str()).unwrap_or("");
 
     // Get path and host, if any
@@ -585,6 +585,7 @@ fn parse_clash_trojan(
         Some(network.to_string()),
         Some(host),
         Some(path),
+        Some(sni.to_owned()),
         true, // tls_secure, Trojan always uses TLS
         udp,
         tfo,

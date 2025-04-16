@@ -1,5 +1,29 @@
 # Cursor Rules for subconverter-rs
 
+# Code Quality & Maintainability
+file_size_limits:
+  pattern: ".*(\\.(rs|js|ts|tsx))$"
+  replacement: "// Max file size: 
+  // - Rust: 1000 lines 
+  // - TS/JS: 500 lines
+  // Split files that exceed these limits into modules"
+  note: "Maintain manageable file sizes to improve readability and maintainability"
+
+function_size_limits:
+  pattern: "fn .*\\{[\\s\\S]{200,}\\}"
+  replacement: "// Functions should be under 50 lines
+  // Consider breaking large functions into smaller ones"
+  note: "Keep functions focused and concise for better maintainability"
+
+# API Client Usage
+api_client_usage:
+  pattern: "fetch\\(\\'?\\/api\\/"
+  replacement: "// Use API client functions from @/lib/api-client instead of direct fetch calls
+  // Example: 
+  // import { updateRules } from '@/lib/api-client';
+  // const result = await updateRules();"
+  note: "Centralize API calls in api-client.ts instead of making direct fetch calls"
+
 # C++ to Rust conversion patterns
 cpp_method_to_rust_trait:
   pattern: "tribool.*is_undef()"
@@ -72,3 +96,33 @@ module_organization:
   pattern: "mod (.*)"
   replacement: "pub mod $1"
   note: "Organize code into modules with proper visibility"
+
+# JavaScript/TypeScript project configuration
+js_ts_project_setup:
+  pattern: "(package\\.json|next\\.config\\.js|webpack\\.config\\.js)"
+  replacement: |
+    // Use yarn for package management
+    // - Add "packageManager": "yarn@4.x" to package.json
+    // - Create .npmrc with "engine-strict=true"
+    // - Use rspack instead of webpack where possible
+    
+    // For Next.js projects:
+    // next.config.js
+    const { withExperimental } = require('@rspack/next-plugin');
+    module.exports = withExperimental({
+      // Additional config here
+    });
+    
+    // For standard JS/TS projects:
+    // rspack.config.js
+    const rspack = require('@rspack/core');
+    module.exports = {
+      entry: './src/index.ts',
+      // Other rspack configuration
+    };
+  note: "All JS/TS subprojects should use yarn as package manager and rspack for bundling"
+
+build_script_pattern:
+  pattern: "\"scripts\": \\{([^}]*)\\}"
+  replacement: "\"scripts\": {\n    \"dev\": \"rspack serve\",\n    \"build\": \"rspack build\",\n$1\n  }"
+  note: "Use rspack in build scripts instead of webpack"

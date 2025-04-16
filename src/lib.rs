@@ -1,3 +1,4 @@
+pub mod api;
 pub mod constants;
 pub mod generator;
 pub mod interfaces;
@@ -7,6 +8,9 @@ pub mod rulesets;
 pub mod settings;
 pub mod template;
 pub mod utils;
+#[cfg(target_arch = "wasm32")]
+pub mod vfs;
+#[cfg(feature = "web-api")]
 pub mod web_handlers;
 
 // Re-export the main proxy types for easier access

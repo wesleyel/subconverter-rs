@@ -316,7 +316,9 @@ pub struct YamlSettings {
 }
 
 impl YamlSettings {
-    pub fn process_imports_and_inis(self: &mut Self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn process_imports_and_inis(
+        self: &mut Self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let proxy_config = &parse_proxy(&self.common.proxy_config);
         // read renames
         let mut rename_nodes = self
@@ -331,7 +333,8 @@ impl YamlSettings {
             false,
             proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&rename_nodes, "@");
 
         // read streamrule
@@ -347,7 +350,8 @@ impl YamlSettings {
             false,
             proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_stream_rule = RegexMatchConfigs::from_ini_with_delimiter(&stream_rules, "|");
 
         // read time rule
@@ -357,7 +361,7 @@ impl YamlSettings {
             .iter()
             .map(|rule| rule.to_ini_with_delimiter("|"))
             .collect::<Vec<String>>();
-        import_items(&mut time_rules, false, proxy_config, &self.common.base_path)?;
+        import_items(&mut time_rules, false, proxy_config, &self.common.base_path).await?;
         self.parsed_time_rule = RegexMatchConfigs::from_ini_with_delimiter(&time_rules, "|");
 
         // read emojis
@@ -372,7 +376,8 @@ impl YamlSettings {
             false,
             proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_emoji_rules = RegexMatchConfigs::from_ini_with_delimiter(&emoji_rules, ",");
 
         // read rulesets
@@ -382,7 +387,7 @@ impl YamlSettings {
             .iter()
             .map(|rule| rule.to_ini())
             .collect::<Vec<String>>();
-        import_items(&mut rulesets, false, proxy_config, &self.common.base_path)?;
+        import_items(&mut rulesets, false, proxy_config, &self.common.base_path).await?;
         self.parsed_ruleset = RulesetConfigs::from_ini(&rulesets);
 
         // read proxy groups
@@ -398,7 +403,8 @@ impl YamlSettings {
             false,
             proxy_config,
             &self.common.base_path,
-        )?;
+        )
+        .await?;
 
         self.parsed_proxy_group = ProxyGroupConfigs::from_ini(&proxy_groups);
 
@@ -407,7 +413,7 @@ impl YamlSettings {
             .iter()
             .map(|task| task.to_ini())
             .collect::<Vec<String>>();
-        import_items(&mut tasks, false, proxy_config, &self.common.base_path)?;
+        import_items(&mut tasks, false, proxy_config, &self.common.base_path).await?;
         self.parsed_tasks = CronTaskConfigs::from_ini(&tasks);
         Ok(())
     }

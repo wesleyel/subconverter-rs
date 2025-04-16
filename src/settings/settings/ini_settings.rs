@@ -253,54 +253,56 @@ impl IniSettings {
     }
 
     /// Process imports in configuration
-    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let proxy_config = parse_proxy(&self.proxy_config);
-        // Process rename nodes
-        import_items(&mut self.rename_node, false, &proxy_config, &self.base_path)?;
+
+        // Process rule rename_node
+        import_items(&mut self.rename_node, false, &proxy_config, &self.base_path).await?;
         self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&self.rename_node, "@");
 
         // Process stream rules
-        import_items(&mut self.stream_rule, false, &proxy_config, &self.base_path)?;
+        import_items(&mut self.stream_rule, false, &proxy_config, &self.base_path).await?;
         self.parsed_stream_rule =
             RegexMatchConfigs::from_ini_with_delimiter(&self.stream_rule, "|");
 
         // Process time rules
-        import_items(&mut self.time_rule, false, &proxy_config, &self.base_path)?;
+        import_items(&mut self.time_rule, false, &proxy_config, &self.base_path).await?;
         self.parsed_time_rule = RegexMatchConfigs::from_ini_with_delimiter(&self.time_rule, "|");
 
         // Process emoji rules
-        import_items(&mut self.emoji_rules, false, &proxy_config, &self.base_path)?;
+        import_items(&mut self.emoji_rules, false, &proxy_config, &self.base_path).await?;
         self.parsed_emoji_rules =
             RegexMatchConfigs::from_ini_with_delimiter(&self.emoji_rules, ",");
 
-        // Process rulesets
-        import_items(&mut self.rulesets, false, &proxy_config, &self.base_path)?;
-        self.parsed_ruleset = RulesetConfigs::from_ini(&self.rulesets);
-
-        // Process proxy groups
+        // Process custom_proxy_group
         import_items(
             &mut self.custom_proxy_group,
             false,
             &proxy_config,
             &self.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_proxy_group = ProxyGroupConfigs::from_ini(&self.custom_proxy_group);
 
-        // Process tasks
-        import_items(&mut self.cron_tasks, false, &proxy_config, &self.base_path)?;
+        // Process rulesets
+        import_items(&mut self.rulesets, false, &proxy_config, &self.base_path).await?;
+        self.parsed_ruleset = RulesetConfigs::from_ini(&self.rulesets);
+
+        // Process cron tasks
+        import_items(&mut self.cron_tasks, false, &proxy_config, &self.base_path).await?;
         self.parsed_tasks = CronTaskConfigs::from_ini(&self.cron_tasks);
 
         Ok(())
     }
 
     /// Load settings from file or URL
-    pub fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
         let mut settings = Self::default();
         settings.load_from_ini(&content)?;
 
         // Process any imports in the configuration
-        settings.process_imports()?;
+        settings.process_imports().await?;
 
         // Ensure listen_address is not empty
         if settings.listen_address.is_empty() {

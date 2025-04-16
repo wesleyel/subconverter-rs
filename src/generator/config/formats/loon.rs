@@ -24,7 +24,7 @@ use std::collections::HashMap;
 ///
 /// # Returns
 /// * Converted configuration as a string
-pub fn proxy_to_loon(
+pub async fn proxy_to_loon(
     nodes: &mut Vec<Proxy>,
     base_conf: &str,
     ruleset_content_array: &mut Vec<RulesetContent>,
@@ -403,7 +403,8 @@ pub fn proxy_to_loon(
             ruleset_content_array,
             ext.overwrite_original_rules,
             &ext.managed_config_prefix,
-        );
+        )
+        .await;
     }
 
     ini.to_string()
@@ -443,7 +444,7 @@ fn generate_peer(node: &Proxy, client_id_as_reserved: bool) -> String {
     peer
 }
 
-fn ruleset_to_loon(
+async fn ruleset_to_loon(
     ini: &mut IniReader,
     ruleset_content_array: &mut Vec<RulesetContent>,
     overwrite_original_rules: bool,
@@ -455,5 +456,6 @@ fn ruleset_to_loon(
         -4,
         overwrite_original_rules,
         managed_config_prefix,
-    );
+    )
+    .await;
 }

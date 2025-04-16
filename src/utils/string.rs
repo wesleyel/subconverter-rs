@@ -288,6 +288,70 @@ pub fn md5(input: &str) -> String {
     hex_string
 }
 
+/// Joins two path segments with a proper separator.
+/// Makes sure there's exactly one '/' between segments.
+pub fn join_path(base: &str, segment: &str) -> String {
+    if base.is_empty() {
+        return segment.to_string();
+    }
+
+    let base_has_trailing_slash = base.ends_with('/');
+    let segment_has_leading_slash = segment.starts_with('/');
+
+    match (base_has_trailing_slash, segment_has_leading_slash) {
+        (true, true) => format!("{}{}", base, &segment[1..]),
+        (false, false) => format!("{}/{}", base, segment),
+        (true, false) => format!("{}{}", base, segment),
+        (false, true) => format!("{}{}", base, segment),
+    }
+}
+
+/// Normalize a directory path to ensure it ends with a slash
+pub fn normalize_dir_path(path: &str) -> String {
+    if path.is_empty() {
+        return String::new();
+    }
+
+    if path.ends_with('/') {
+        path.to_string()
+    } else {
+        format!("{}/", path)
+    }
+}
+
+/// Constructs a full path for a directory entry with appropriate separators
+pub fn build_dir_entry_path(base_path: &str, dir_name: &str) -> String {
+    let base = normalize_dir_path(base_path);
+
+    if base.is_empty() {
+        format!("/{}/", dir_name)
+    } else {
+        join_path(&base, &format!("{}/", dir_name))
+    }
+}
+
+/// Constructs a full path for a file entry with appropriate separators
+pub fn build_file_entry_path(base_path: &str, file_name: &str) -> String {
+    if base_path.is_empty() {
+        format!("/{}", file_name)
+    } else {
+        join_path(base_path, file_name)
+    }
+}
+
+/// Normalize a file path to ensure it starts with a slash when needed
+pub fn normalize_file_path(path: &str) -> String {
+    if path.is_empty() {
+        return String::new();
+    }
+
+    if path.starts_with('/') {
+        path.to_string()
+    } else {
+        format!("/{}", path)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,5 +433,56 @@ mod tests {
         assert_eq!(md5(""), "d41d8cd98f00b204e9800998ecf8427e");
         assert_eq!(md5("hello world"), "5eb63bbbe01eeed093cb22bb8f5acdc3");
         assert_eq!(md5("test"), "098f6bcd4621d373cade4e832627b4f6");
+    }
+
+    #[test]
+    fn test_join_path() {
+        assert_eq!(join_path("", "file.txt"), "file.txt");
+        assert_eq!(join_path("/", "file.txt"), "/file.txt");
+        assert_eq!(join_path("dir", "file.txt"), "dir/file.txt");
+        assert_eq!(join_path("dir/", "file.txt"), "dir/file.txt");
+        assert_eq!(join_path("dir", "/file.txt"), "dir/file.txt");
+        assert_eq!(join_path("dir/", "/file.txt"), "dir/file.txt");
+        assert_eq!(join_path("/dir", "subdir/file.txt"), "/dir/subdir/file.txt");
+    }
+
+    #[test]
+    fn test_normalize_dir_path() {
+        assert_eq!(normalize_dir_path(""), "");
+        assert_eq!(normalize_dir_path("/"), "/");
+        assert_eq!(normalize_dir_path("dir"), "dir/");
+        assert_eq!(normalize_dir_path("dir/"), "dir/");
+        assert_eq!(normalize_dir_path("/dir"), "/dir/");
+        assert_eq!(normalize_dir_path("/dir/"), "/dir/");
+    }
+
+    #[test]
+    fn test_build_dir_entry_path() {
+        assert_eq!(build_dir_entry_path("", "dir"), "/dir/");
+        assert_eq!(build_dir_entry_path("/", "dir"), "/dir/");
+        assert_eq!(build_dir_entry_path("base", "dir"), "base/dir/");
+        assert_eq!(build_dir_entry_path("base/", "dir"), "base/dir/");
+        assert_eq!(build_dir_entry_path("/base", "dir"), "/base/dir/");
+        assert_eq!(build_dir_entry_path("/base/", "dir"), "/base/dir/");
+    }
+
+    #[test]
+    fn test_build_file_entry_path() {
+        assert_eq!(build_file_entry_path("", "file.txt"), "/file.txt");
+        assert_eq!(build_file_entry_path("/", "file.txt"), "/file.txt");
+        assert_eq!(build_file_entry_path("dir", "file.txt"), "dir/file.txt");
+        assert_eq!(build_file_entry_path("dir/", "file.txt"), "dir/file.txt");
+        assert_eq!(build_file_entry_path("/dir", "file.txt"), "/dir/file.txt");
+        assert_eq!(build_file_entry_path("/dir/", "file.txt"), "/dir/file.txt");
+    }
+
+    #[test]
+    fn test_normalize_file_path() {
+        assert_eq!(normalize_file_path(""), "");
+        assert_eq!(normalize_file_path("/"), "/");
+        assert_eq!(normalize_file_path("file.txt"), "/file.txt");
+        assert_eq!(normalize_file_path("/file.txt"), "/file.txt");
+        assert_eq!(normalize_file_path("dir/file.txt"), "/dir/file.txt");
+        assert_eq!(normalize_file_path("/dir/file.txt"), "/dir/file.txt");
     }
 }

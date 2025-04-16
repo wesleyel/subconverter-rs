@@ -25,7 +25,7 @@ use log::error;
 ///
 /// # Returns
 /// * Mellow configuration as a string
-pub fn proxy_to_mellow(
+pub async fn proxy_to_mellow(
     nodes: &mut Vec<Proxy>,
     base_conf: &str,
     ruleset_content_array: &mut Vec<RulesetContent>,
@@ -51,7 +51,8 @@ pub fn proxy_to_mellow(
         ruleset_content_array,
         extra_proxy_group,
         ext,
-    );
+    )
+    .await;
 
     // Return the INI as a string
     ini.to_string()
@@ -67,7 +68,7 @@ pub fn proxy_to_mellow(
 /// * `ruleset_content_array` - Array of ruleset contents to apply
 /// * `extra_proxy_group` - Extra proxy group configurations
 /// * `ext` - Extra settings for conversion
-fn proxy_to_mellow_internal(
+async fn proxy_to_mellow_internal(
     nodes: &mut Vec<Proxy>,
     ini: &mut IniReader,
     ruleset_content_array: &mut Vec<RulesetContent>,
@@ -275,6 +276,7 @@ fn proxy_to_mellow_internal(
             0,
             ext.overwrite_original_rules,
             "",
-        );
+        )
+        .await;
     }
 }

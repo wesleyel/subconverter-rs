@@ -146,7 +146,7 @@ impl IniExternalSettings {
         }
     }
 
-    pub fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn process_imports(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let global = Settings::current();
         let proxy_config = parse_proxy(&global.proxy_config);
         // Process rename nodes
@@ -155,11 +155,12 @@ impl IniExternalSettings {
             false,
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_rename = RegexMatchConfigs::from_ini_with_delimiter(&self.rename_nodes, "@");
 
         // Process emoji rules
-        import_items(&mut self.emojis, false, &proxy_config, &global.base_path)?;
+        import_items(&mut self.emojis, false, &proxy_config, &global.base_path).await?;
         self.parsed_emojis = RegexMatchConfigs::from_ini_with_delimiter(&self.emojis, ",");
 
         // Process imports for rulesets
@@ -168,7 +169,8 @@ impl IniExternalSettings {
             global.api_mode,
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_rulesets = RulesetConfigs::from_ini(&self.rulesets);
         // Process imports for proxy groups
         let mut custom_proxy_groups = self.custom_proxy_groups.clone();
@@ -177,7 +179,8 @@ impl IniExternalSettings {
             global.api_mode,
             &proxy_config,
             &global.base_path,
-        )?;
+        )
+        .await?;
         self.parsed_custom_proxy_groups = ProxyGroupConfigs::from_ini(&custom_proxy_groups);
 
         Ok(())
