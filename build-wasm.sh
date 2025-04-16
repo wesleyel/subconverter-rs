@@ -120,8 +120,8 @@ if [ "$PREPARE_RELEASE" = true ]; then
   if [ -n "$VERSION" ] && [ "$VERSION" != "$CURRENT_VERSION" ]; then
     echo "Updating version to $VERSION in Cargo.toml"
     sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
-    echo "Running cargo update to update Cargo.lock"
-    cargo update -p subconverter-rs
+    echo "Running cargo check to update Cargo.lock"
+    cargo check
     VERSION_UPDATED=true
   fi
   
@@ -165,8 +165,8 @@ if [ "$RELEASE_MODE" = true ]; then
     
     echo "Updating version to $VERSION in Cargo.toml"
     sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
-    echo "Running cargo update to update Cargo.lock"
-    cargo update -p subconverter-rs
+    echo "Running cargo check to update Cargo.lock"
+    cargo check
     VERSION_UPDATED=true
   fi
   
