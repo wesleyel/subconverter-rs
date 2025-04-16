@@ -238,7 +238,8 @@ where
                 if key == "template_path" {
                     template_settings.template_path = value.clone();
                 } else {
-                    template_settings.globals.insert(key, value);
+                    // TODO: 暂不支持
+                    // template_settings.globals.insert(key, value);
                 }
             }
             Ok(template_settings)

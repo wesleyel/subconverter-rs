@@ -222,7 +222,8 @@ impl Default for TemplateVariable {
 #[serde(default)]
 pub struct TemplateSettings {
     pub template_path: String,
-    pub globals: HashMap<String, String>,
+    // 暂不支持
+    // pub globals: HashMap<String, String>,
 }
 
 /// Alias configuration

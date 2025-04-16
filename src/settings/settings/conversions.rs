@@ -1,5 +1,7 @@
 // Conversion implementation for Settings struct
 
+use std::collections::HashMap;
+
 use super::ini_settings::IniSettings;
 use super::settings_struct::{default_listen_address, Settings};
 use super::toml_settings::TomlSettings;
@@ -8,7 +10,6 @@ use super::yaml_settings::YamlSettings;
 use crate::constants::log_level::{
     LOG_LEVEL_DEBUG, LOG_LEVEL_ERROR, LOG_LEVEL_INFO, LOG_LEVEL_VERBOSE, LOG_LEVEL_WARNING,
 };
-
 
 // Conversion from YamlSettings to Settings
 impl From<YamlSettings> for Settings {
@@ -106,7 +107,9 @@ impl From<YamlSettings> for Settings {
 
         // Template
         settings.template_path = yaml_settings.template.template_path;
-        settings.template_vars = yaml_settings.template.globals;
+        // TODO: 暂不支持
+        // settings.template_vars = yaml_settings.template.globals;
+        settings.template_vars = HashMap::new();
 
         // Ruleset settings
         settings.enable_rule_gen = yaml_settings.rulesets.enabled;
