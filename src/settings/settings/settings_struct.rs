@@ -560,8 +560,8 @@ pub async fn init_settings(args_path: &str) -> Result<(), Box<dyn std::error::Er
             }
         }
     }
-    let default_config_paths = vec!["pref.toml", "pref.yml", "pref.ini"];
-    let default_example_paths = vec!["pref.example.toml", "pref.example.yml", "pref.example.ini"];
+    let default_config_paths = vec!["pref.yml", "pref.toml", "pref.ini"];
+    let default_example_paths = vec!["pref.example.yml", "pref.example.toml", "pref.example.ini"];
     for path in default_config_paths {
         if file_exists(&path).await {
             info!("Loading settings from {}", path);

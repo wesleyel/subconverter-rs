@@ -120,6 +120,8 @@ if [ "$PREPARE_RELEASE" = true ]; then
   if [ -n "$VERSION" ] && [ "$VERSION" != "$CURRENT_VERSION" ]; then
     echo "Updating version to $VERSION in Cargo.toml"
     sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
+    echo "Running cargo update to update Cargo.lock"
+    cargo update -p subconverter-rs
     VERSION_UPDATED=true
   fi
   
@@ -136,6 +138,7 @@ if [ "$PREPARE_RELEASE" = true ]; then
   
   echo "Creating temporary tag ${TEMP_TAG} for CI workflow..."
   git add Cargo.toml
+  git add Cargo.lock
   git commit -m "Prepare release $VERSION (attempt $ATTEMPT_COUNT)"
   git tag -a "${TEMP_TAG}" -m "Preparing release $VERSION (attempt $ATTEMPT_COUNT)"
   
@@ -162,6 +165,8 @@ if [ "$RELEASE_MODE" = true ]; then
     
     echo "Updating version to $VERSION in Cargo.toml"
     sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
+    echo "Running cargo update to update Cargo.lock"
+    cargo update -p subconverter-rs
     VERSION_UPDATED=true
   fi
   

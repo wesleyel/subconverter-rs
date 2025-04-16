@@ -8,6 +8,8 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+-pre.*'
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.*'
   workflow_dispatch:
+  repository_dispatch:
+    types: [wasm-release-completed]
 
 concurrency: 
   group: ${{ github.ref }}-${{ github.workflow }}

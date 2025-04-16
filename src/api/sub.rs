@@ -546,3 +546,20 @@ pub fn sub_process_wasm(query_json: &str) -> Promise {
     // Convert the future to a JavaScript Promise
     future_to_promise(future)
 }
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn init_settings_wasm(pref_path: &str) -> Promise {
+    let pref_path = pref_path.to_string();
+    let future = async move {
+        match init_settings(&pref_path).await {
+            Ok(_) => Ok(JsValue::from_bool(true)),
+            Err(e) => Err(JsValue::from_str(&format!(
+                "Failed to initialize settings: {}",
+                e
+            ))),
+        }
+    };
+
+    future_to_promise(future)
+}

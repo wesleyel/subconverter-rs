@@ -477,3 +477,267 @@ export async function moveShortUrl(id: string, newId: string): Promise<ShortUrlD
 
     return response.json() as Promise<ShortUrlData>;
 }
+
+/**
+ * Interface for application download information
+ */
+export interface AppDownloadInfo {
+    name: string;
+    version: string;
+    platform: string;
+    size: number;
+    download_url: string;
+    release_date: string;
+    description: string;
+}
+
+/**
+ * Get available application downloads
+ */
+export async function getAvailableDownloads(): Promise<AppDownloadInfo[]> {
+    const response = await fetch('/api/downloads');
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.json() as Promise<AppDownloadInfo[]>;
+}
+
+/**
+ * Download application
+ * Returns a URL to initiate the download
+ */
+export function getDownloadUrl(appId: string, platform: string): string {
+    return `/api/downloads/${encodeURIComponent(appId)}/${encodeURIComponent(platform)}`;
+}
+
+/**
+ * Settings management interfaces and functions
+ */
+export interface ServerSettings {
+    general: {
+        listen_address: string;
+        listen_port: number;
+        api_mode: boolean;
+        max_pending_conns: number;
+        max_concur_threads: number;
+        update_interval: number;
+        max_allowed_download_size: number;
+        log_level: number;
+    };
+    subscription: {
+        default_urls: string[];
+        insert_urls: string[];
+        prepend_insert: boolean;
+        skip_failed_links: boolean;
+        enable_insert: boolean;
+        enable_sort: boolean;
+        filter_script: string;
+        sort_script: string;
+    };
+    rules: {
+        enable_rule_gen: boolean;
+        update_ruleset_on_request: boolean;
+        overwrite_original_rules: boolean;
+        async_fetch_ruleset: boolean;
+        max_allowed_rulesets: number;
+        max_allowed_rules: number;
+    };
+    cache: {
+        cache_subscription: number;
+        cache_config: number;
+        cache_ruleset: number;
+        serve_cache_on_fetch_fail: boolean;
+    };
+    custom: {
+        emojis: Record<string, string>;
+        renames: Record<string, string>;
+        aliases: Record<string, string>;
+    };
+}
+
+/**
+ * Get current server settings
+ */
+export async function getServerSettings(): Promise<ServerSettings> {
+    const response = await fetch('/api/admin/settings');
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.json() as Promise<ServerSettings>;
+}
+
+/**
+ * Update server settings
+ */
+export async function updateServerSettings(settings: Partial<ServerSettings>): Promise<ServerSettings> {
+    const response = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.json() as Promise<ServerSettings>;
+}
+
+/**
+ * Export settings to file
+ */
+export async function exportSettings(format: 'yaml' | 'toml' | 'ini' = 'yaml'): Promise<Blob> {
+    const response = await fetch(`/api/admin/settings/export?format=${format}`);
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.blob();
+}
+
+/**
+ * Import settings from file
+ */
+export async function importSettings(file: File): Promise<ServerSettings> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/admin/settings/import', {
+        method: 'POST',
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        try {
+            const errorData = JSON.parse(text);
+            throw errorData;
+        } catch (err) {
+            throw {
+                error: `API Error (${response.status})`,
+                details: typeof err === 'object' && err !== null ? err : text
+            };
+        }
+    }
+
+    return response.json() as Promise<ServerSettings>;
+}
+
+/**
+ * Settings file operations
+ */
+
+/**
+ * Read the pref.yml file content
+ * If the file doesn't exist, it will create it from the example file
+ */
+export async function readSettingsFile(): Promise<string> {
+    try {
+        try {
+            // Attempt to read pref.yml directly first
+            return await readFile('pref.yml');
+        } catch (err) {
+            // If pref.yml doesn't exist or can't be read, create it from example
+            console.log("pref.yml not found, creating from example...");
+            const exampleContent = await readFile('pref.example.yml');
+            await writeFile('pref.yml', exampleContent);
+            return exampleContent;
+        }
+    } catch (error) {
+        console.error("Error reading settings file:", error);
+        throw error;
+    }
+}
+
+/**
+ * Write content to the pref.yml file
+ */
+export async function writeSettingsFile(content: string): Promise<void> {
+    try {
+        await writeFile('pref.yml', content);
+    } catch (error) {
+        console.error("Error writing settings file:", error);
+        throw error;
+    }
+}
+
+/**
+ * Initialize settings with a specific preference path
+ * Uses the WASM initialization function directly
+ */
+export async function initSettings(prefPath: string = ''): Promise<boolean> {
+    try {
+        const response = await fetch('/api/sub/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ pref_path: prefPath }),
+        });
+
+        if (!response.ok) {
+            const text = await response.text();
+            try {
+                const errorData = JSON.parse(text);
+                throw errorData;
+            } catch (err) {
+                throw {
+                    error: `API Error (${response.status})`,
+                    details: typeof err === 'object' && err !== null ? err : text
+                };
+            }
+        }
+
+        const result = await response.json();
+        return result.success;
+    } catch (error) {
+        console.error("Error initializing settings:", error);
+        throw {
+            error: "Failed to initialize settings",
+            details: error instanceof Error ? error.message : String(error)
+        };
+    }
+}

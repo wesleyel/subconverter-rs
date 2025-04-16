@@ -167,8 +167,10 @@ export async function POST(
         );
     }
 
+    const path = (await params).path;
+
     // Extract path from dynamic route parameter
-    const filePath = params.path.join('/');
+    const filePath = path.join('/');
 
     if (!filePath) {
         return NextResponse.json({ error: 'File path is required' }, { status: 400 });
@@ -236,8 +238,10 @@ export async function DELETE(
         );
     }
 
+    const path = (await params).path;
+
     // Extract path from dynamic route parameter
-    const filePath = params.path.join('/');
+    const filePath = path.join('/');
 
     if (!filePath) {
         return NextResponse.json({ error: 'File path is required' }, { status: 400 });
