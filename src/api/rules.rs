@@ -28,13 +28,6 @@ pub struct RepoUpdateResult {
     status: String,
 }
 
-// Helper to create VFS instance
-async fn get_vfs() -> Result<VercelKvVfs, VfsError> {
-    crate::utils::file_wasm::get_vfs()
-        .await
-        .map_err(|e| VfsError::Other(format!("Failed to get VFS: {}", e)))
-}
-
 /// Update rules from various GitHub repositories based on configuration
 pub async fn update_rules(req: Option<RulesUpdateRequest>) -> Result<HttpResponse, String> {
     log::info!("Handling rules update request");
@@ -49,7 +42,7 @@ pub async fn update_rules(req: Option<RulesUpdateRequest>) -> Result<HttpRespons
     };
 
     // Read the config file
-    let vfs = get_vfs()
+    let vfs = crate::utils::file_wasm::get_vfs()
         .await
         .map_err(|e| format!("Failed to get VFS: {}", e))?;
     let config_content = match vfs.read_file(&config_path).await {
@@ -314,7 +307,9 @@ async fn process_matching_files(
     config: &GitHubConfig,
 ) -> Vec<(String, bool)> {
     let mut results = Vec::new();
-    let vfs = get_vfs().await.expect("Failed to get VFS");
+    let vfs = crate::utils::file_wasm::get_vfs()
+        .await
+        .expect("Failed to get VFS");
 
     // Create base destination directory
     if let Err(e) = vfs.create_directory(dest_path).await {
