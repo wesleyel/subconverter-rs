@@ -142,7 +142,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v6.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          custom_tag: v${{ steps.set-version.outputs.version }}
+          custom_tag: ${{ steps.set-version.outputs.version }}
           tag_message: "Release version ${{ steps.set-version.outputs.version }}"
 
       - name: Trigger release workflow
