@@ -107,8 +107,7 @@ impl From<YamlSettings> for Settings {
 
         // Template
         settings.template_path = yaml_settings.template.template_path;
-        // TODO: 暂不支持
-        // settings.template_vars = yaml_settings.template.globals;
+        settings.template_vars = yaml_settings.template.globals;
         settings.template_vars = HashMap::new();
 
         // Ruleset settings

@@ -221,6 +221,13 @@ where
 {
     struct TemplateSettingsVisitor;
 
+    #[derive(Debug, Clone, Deserialize, Default)]
+    struct TemplateGlobalsVariable {
+        key: String,
+        #[serde(deserialize_with = "deserialize_as_string")]
+        value: String,
+    }
+
     impl<'de> Visitor<'de> for TemplateSettingsVisitor {
         type Value = TemplateSettings;
 
@@ -234,12 +241,14 @@ where
         {
             let mut template_settings = TemplateSettings::default();
             while let Some(key) = map.next_key::<String>()? {
-                let value = map.next_value::<String>()?;
                 if key == "template_path" {
+                    let value = map.next_value::<String>()?;
                     template_settings.template_path = value.clone();
-                } else {
-                    // TODO: 暂不支持
-                    // template_settings.globals.insert(key, value);
+                } else if key == "globals" {
+                    let value = map.next_value::<Vec<TemplateGlobalsVariable>>()?;
+                    for item in value {
+                        template_settings.globals.insert(item.key, item.value);
+                    }
                 }
             }
             Ok(template_settings)
@@ -321,4 +330,77 @@ where
     }
 
     deserializer.deserialize_any(TemplateArgsVisitor)
+}
+
+pub fn deserialize_as_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct StringVisitor;
+
+    impl<'de> Visitor<'de> for StringVisitor {
+        type Value = String;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string, number, or boolean")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value)
+        }
+
+        fn visit_bool<E>(self, value: bool) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(value.to_string())
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(String::new())
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(String::new())
+        }
+    }
+
+    deserializer.deserialize_any(StringVisitor)
 }

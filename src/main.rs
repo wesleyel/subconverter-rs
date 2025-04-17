@@ -51,7 +51,7 @@ async fn main() -> std::io::Result<()> {
     // Initialize settings with config file path if provided
     init_settings(args.config.as_deref().unwrap_or(""))
         .await
-        .unwrap();
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
     // Check if URL is provided for direct processing
     if let Some(url) = args.url {
