@@ -9,28 +9,28 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 // Define config presets for easy maintenance
 const CONFIG_PRESETS = [
   {
-    name: "ACL4SSR Online",
-    url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini",
+    name: "ACL4SSR",
+    url: "/config/ACL4SSR.ini",
     description: "Basic rules"
   },
   {
     name: "ACL4SSR Full",
-    url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini",
+    url: "/config/ACL4SSR_Online_Full.ini",
     description: "Full rules"
   },
   {
     name: "ACL4SSR Mini",
-    url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini",
+    url: "/config/ACL4SSR_Online_Mini.ini",
     description: "Minimal rules"
   },
   {
     name: "Divine China",
-    url: "https://raw.githubusercontent.com/DivineEngine/Profiles/master/Clash/config/China.yaml",
+    url: "/config/China.yaml",
     description: "China rules"
   },
   {
     name: "Loon Simple",
-    url: "https://gist.githubusercontent.com/tindy2013/1fa08640a9088ac8652dbd40c5d2715b/raw/loon_simple.conf",
+    url: "/config/loon_simple.conf",
     description: "Simple Loon config"
   }
 ];
