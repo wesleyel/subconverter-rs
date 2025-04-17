@@ -129,6 +129,7 @@ jobs:
           message: "Update subconverter-wasm dependency to ${{ steps.set-version.outputs.version }}"
           default_author: github_actions
           push: true
+          new_branch: main
 
       - name: Publish to crates.io
         run: |
