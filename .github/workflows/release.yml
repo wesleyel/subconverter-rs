@@ -42,12 +42,33 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Add commit id into version
-      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    - name: Determine Version
+      id: get_version
       run: |
-        SHA=$(git rev-parse --short HEAD)
-        VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-        sed -i "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
+        VERSION=""
+        if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        elif [[ "${{ github.event_name }}" == "repository_dispatch" && "${{ github.event.action }}" == "wasm-release-completed" ]]; then
+          VERSION=${{ github.event.client_payload.version }}
+        elif [[ "${{ github.event_name }}" == "push" && "${{ !startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+          SHA=$(git rev-parse --short HEAD)
+          CARGO_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')
+          VERSION="$CARGO_VERSION-$SHA"
+        else
+          # Fallback or handle workflow_dispatch if needed
+          VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')-manual
+        fi
+        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "Determined version: $VERSION"
+
+    - name: Update version in Cargo.toml for branch builds
+      # Only add commit hash for non-tag, non-dispatch builds
+      if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+      run: |
+        CURRENT_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')
+        # Ensure the version in Cargo.toml reflects the branch build version
+        sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"${{ env.RELEASE_VERSION }}\"/" Cargo.toml
+        echo "Updated Cargo.toml version for branch build to ${{ env.RELEASE_VERSION }}"
     
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -76,18 +97,22 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact }}
+        name: ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }} # Append version to artifact name for clarity
         path: subconverter/
         
     - name: Package Release
-      if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') }}
-      run: tar czf ${{ matrix.artifact }}.tar.gz subconverter
+      # Run for tags or wasm-release-completed event
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'repository_dispatch' && github.event.action == 'wasm-release-completed')
+      run: tar czf ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }}.tar.gz subconverter
       
     - name: Draft Release
-      if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') }}
+      # Run for tags or wasm-release-completed event
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'repository_dispatch' && github.event.action == 'wasm-release-completed')
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ matrix.artifact }}.tar.gz
+        files: ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }}.tar.gz
+        # Explicitly set tag_name for dispatch events, otherwise it defaults to github.ref (which is correct for tag pushes)
+        tag_name: ${{ github.event_name == 'repository_dispatch' && format('v{0}', env.RELEASE_VERSION) || '' }}
         draft: true
 
   macos_build:
@@ -108,17 +133,36 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Determine Version
+      id: get_version
+      run: |
+        VERSION=""
+        if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        elif [[ "${{ github.event_name }}" == "repository_dispatch" && "${{ github.event.action }}" == "wasm-release-completed" ]]; then
+          VERSION=${{ github.event.client_payload.version }}
+        elif [[ "${{ github.event_name }}" == "push" && "${{ !startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+          SHA=$(git rev-parse --short HEAD)
+          CARGO_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')
+          VERSION="$CARGO_VERSION-$SHA"
+        else
+          VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')-manual
+        fi
+        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "Determined version: $VERSION"
+        
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.target }}
         
-    - name: Add commit id into version
-      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    - name: Update version in Cargo.toml for branch builds
+      # Only add commit hash for non-tag, non-dispatch builds
+      if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
       run: |
-        SHA=$(git rev-parse --short HEAD)
-        VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-        sed -i -e "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
+        CURRENT_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')
+        sed -i -e "s/^version = \"$CURRENT_VERSION\"/version = \"${{ env.RELEASE_VERSION }}\"/" Cargo.toml
+        echo "Updated Cargo.toml version for branch build to ${{ env.RELEASE_VERSION }}"
         
     - name: Build
       run: cargo build --release --features=web-api --target ${{ matrix.target }}
@@ -132,18 +176,19 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact }}
+        name: ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }} # Append version to artifact name
         path: subconverter/
         
     - name: Package Release
-      if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') }}
-      run: tar czf ${{ matrix.artifact }}.tar.gz subconverter
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'repository_dispatch' && github.event.action == 'wasm-release-completed')
+      run: tar czf ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }}.tar.gz subconverter
       
     - name: Draft Release
-      if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') }}
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'repository_dispatch' && github.event.action == 'wasm-release-completed')
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ matrix.artifact }}.tar.gz
+        files: ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }}.tar.gz
+        tag_name: ${{ github.event_name == 'repository_dispatch' && format('v{0}', env.RELEASE_VERSION) || '' }}
         draft: true
   
   windows_build:
@@ -162,18 +207,38 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Determine Version
+      id: get_version
+      shell: bash
+      run: |
+        VERSION=""
+        if [[ "${{ github.event_name }}" == "push" && "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        elif [[ "${{ github.event_name }}" == "repository_dispatch" && "${{ github.event.action }}" == "wasm-release-completed" ]]; then
+          VERSION=${{ github.event.client_payload.version }}
+        elif [[ "${{ github.event_name }}" == "push" && "${{ !startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+          SHA=$(git rev-parse --short HEAD)
+          CARGO_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')
+          VERSION="$CARGO_VERSION-$SHA"
+        else
+          VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')-manual
+        fi
+        echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "Determined version: $VERSION"
+
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.target }}
         
-    - name: Add commit id into version
-      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    - name: Update version in Cargo.toml for branch builds
+      # Only add commit hash for non-tag, non-dispatch builds
+      if: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
       shell: bash
       run: |
-        SHA=$(git rev-parse --short HEAD)
-        VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-        sed -i "s/version = \"$VERSION\"/version = \"$VERSION-$SHA\"/" Cargo.toml
+        CURRENT_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\\(.*\\)".*/\\1/')
+        sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"${{ env.RELEASE_VERSION }}\"/" Cargo.toml
+        echo "Updated Cargo.toml version for branch build to ${{ env.RELEASE_VERSION }}"
         
     - name: Build
       run: cargo build --release --features=web-api --target ${{ matrix.target }}
@@ -188,16 +253,17 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact }}
+        name: ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }} # Append version to artifact name
         path: subconverter/
         
     - name: Package Release
-      if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') }}
-      run: 7z a ${{ matrix.artifact }}.7z subconverter/
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'repository_dispatch' && github.event.action == 'wasm-release-completed')
+      run: 7z a ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }}.7z subconverter/
       
     - name: Draft Release
-      if: ${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') }}
+      if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'repository_dispatch' && github.event.action == 'wasm-release-completed')
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ matrix.artifact }}.7z
+        files: ${{ matrix.artifact }}-${{ env.RELEASE_VERSION }}.7z
+        tag_name: ${{ github.event_name == 'repository_dispatch' && format('v{0}', env.RELEASE_VERSION) || '' }}
         draft: true 
