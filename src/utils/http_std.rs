@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::time::Duration;
 
-use reqwest::{Client, Proxy, StatusCode};
+use reqwest::{Client, Proxy};
 
 /// Default timeout for HTTP requests in seconds
 const DEFAULT_TIMEOUT: u64 = 15;

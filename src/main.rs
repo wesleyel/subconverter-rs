@@ -7,7 +7,7 @@ use log::{error, info};
 use std::fs;
 
 use subconverter::settings::settings::settings_struct::init_settings;
-use subconverter::{api, web_handlers, Settings};
+use subconverter::{web_handlers, Settings};
 
 /// A more powerful utility to convert between proxy subscription format
 #[derive(Parser, Debug)]
