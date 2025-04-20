@@ -296,9 +296,11 @@ impl VercelKvVfs {
             "Waiting for {} directory creation tasks...",
             directory_futures.len()
         );
-        let dir_start_time = Instant::now(); // Start timer
+        let dir_start_time = safe_system_time(); // Use safe_system_time
         let directory_results = join_all(directory_futures).await;
-        let dir_duration = dir_start_time.elapsed(); // Calculate duration
+        let dir_duration = safe_system_time()
+            .duration_since(dir_start_time)
+            .unwrap_or_default(); // Calculate duration using SystemTime
         log::debug!("Directory creation tasks finished in {:.2?}", dir_duration);
         let dir_failures = directory_results.iter().filter(|r| r.is_err()).count();
         if dir_failures > 0 {

@@ -111,12 +111,22 @@ if [ "$BUMP_BETA" = true ]; then
   # Update version in Cargo.toml
   echo "Updating version to $VERSION in Cargo.toml"
   sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
+
+  # Update version in www/package.json if it exists
+  if [ -f "www/package.json" ]; then
+    echo "Updating version to $VERSION in www/package.json"
+    jq --arg new_version "$VERSION" '.version = $new_version' www/package.json > www/package.json.tmp && mv www/package.json.tmp www/package.json
+  fi
+
   echo "Running cargo check to update Cargo.lock"
   cargo check
 
   # Commit version changes
   echo "Committing beta version update..."
   git add Cargo.toml Cargo.lock
+  if [ -f "www/package.json" ]; then
+    git add www/package.json
+  fi
   git commit -m "Bump version to $VERSION for beta build"
 
   # Clean pkg directory
@@ -160,9 +170,9 @@ if [ "$BUMP_BETA" = true ]; then
     pnpm install
     echo "Running pnpm deploy:netlify..."
     # Assuming 'deploy:netlify' script exists in www/package.json and is configured for previews
-    pnpm deploy:netlify
-    cd ..
-    echo "Netlify preview deployment initiated."
+    # pnpm deploy:netlify
+    # cd ..
+    # echo "Netlify preview deployment initiated."
   else
     echo "Warning: www directory not found, skipping copy and Netlify deploy."
   fi
