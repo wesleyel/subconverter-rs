@@ -34,6 +34,14 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Or specify your desired Node.js version
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
       - name: Run build script to bump patch and prepare release
         id: build_script
         run: ./scripts/build-wasm.sh --bump-patch
