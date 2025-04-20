@@ -329,14 +329,6 @@ if [ "$RELEASE_MODE" = false ]; then
   fi
 fi
 
-# Install dependencies in vercel-api-test
-if [ -d "vercel-api-test" ]; then
-  echo "Installing dependencies in vercel-api-test..."
-  cd vercel-api-test
-  pnpm install
-  cd ..
-fi
-
 echo "Build script completed successfully!"
 
 # Calculate and print build time
