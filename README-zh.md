@@ -1,11 +1,16 @@
 # subconverter-rs 使用指南
 
+<div align="center">
+
+<img src="www/public/logo.svg" alt="subconverter-rs logo" width="150">
+
 > 一个高性能代理订阅转换工具，从 C++ 版本的 subconverter 转换为 Rust 实现
 
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Status](https://img.shields.io/badge/status-beta-blue.svg)](https://github.com/lonelam/subconverter-rs)
 [![GPL-3.0+ License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/subconverter.svg)](https://crates.io/crates/subconverter)
+[![Telegram](https://img.shields.io/badge/Telegram-subconverter_rs-blue.svg)](https://t.me/subconverter_rs)
 
 ---
 
@@ -18,6 +23,40 @@ A more powerful utility to convert between proxy subscription formats, transform
 
 Demo部署，测试时请注意隐私风险：
 https://subconverter-rs.netlify.app/
+
+---
+
+## 📥 安装
+
+### 从 GitHub Releases 获取
+
+直接下载并运行辅助脚本 (需要 `curl` 和 `jq`):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lonelam/subconverter-rs/main/scripts/setup_and_run_subconverter.sh | bash
+```
+此命令会下载最新版本，解压到 `subconverter` 目录，并启动服务。
+
+(或手动从 [Releases](https://github.com/lonelam/subconverter-rs/releases/latest) 下载)。
+
+### Docker
+```bash
+docker pull lonelam/subconverter-rs
+docker run -d -p 25500:25500 lonelam/subconverter-rs
+```
+
+### 从 Crates.io 获取
+```bash
+cargo install subconverter
+```
+
+### 从源码编译
+```bash
+git clone https://github.com/lonelam/subconverter-rs.git
+cd subconverter-rs
+cargo build --release --features=web-api
+```
+二进制文件将位于 `target/release/subconverter-rs`。
 
 ---
 
