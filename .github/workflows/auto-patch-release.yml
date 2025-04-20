@@ -36,7 +36,7 @@ jobs:
 
       - name: Run build script to bump patch and prepare release
         id: build_script
-        run: ./build-wasm.sh --bump-patch
+        run: ./scripts/build-wasm.sh --bump-patch
 
       - name: Trigger WASM Release Workflow
         uses: peter-evans/repository-dispatch@v2
