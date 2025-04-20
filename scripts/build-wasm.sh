@@ -172,13 +172,29 @@ if [ "$BUMP_BETA" = true ]; then
     echo "Deploying www project to Netlify preview..."
     cd www
     # Ensure www dependencies are installed
-    echo "Running pnpm install in www..."
-    pnpm install
+    # Retry pnpm install as registry propagation might take time
+    MAX_RETRIES=5
+    RETRY_DELAY=3 # seconds
+    RETRY_COUNT=0
+
+    echo "Running pnpm install in www (will retry up to $MAX_RETRIES times)..."
+    until pnpm install; do
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+            echo "Error: pnpm install failed after $MAX_RETRIES attempts."
+            cd .. # Go back to root before exiting
+            exit 1
+        fi
+        echo "pnpm install failed. Retrying in $RETRY_DELAY seconds (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+        sleep $RETRY_DELAY
+    done
+    echo "pnpm install successful."
+
     echo "Running pnpm deploy:netlify..."
     # Assuming 'deploy:netlify' script exists in www/package.json and is configured for previews
-    # pnpm deploy:netlify
-    # cd ..
-    # echo "Netlify preview deployment initiated."
+    pnpm deploy:netlify
+    cd ..
+    echo "Netlify preview deployment initiated."
   else
     echo "Warning: www directory not found, skipping copy and Netlify deploy."
   fi
