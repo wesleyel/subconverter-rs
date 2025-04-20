@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     try {
         // Parse request body as JSON
         const paramsJsonStr = await request.text();
-        let params = JSON.parse(paramsJsonStr);
+        const params = JSON.parse(paramsJsonStr);
 
         // Normalize the 'url' parameter if it exists in the body
         if (typeof params.url === 'string') {
