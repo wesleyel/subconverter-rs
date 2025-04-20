@@ -112,10 +112,10 @@ if [ "$BUMP_BETA" = true ]; then
   echo "Updating version to $VERSION in Cargo.toml"
   sed -i "s/^version = \"$CURRENT_VERSION\"/version = \"$VERSION\"/" Cargo.toml
 
-  # Update version in www/package.json if it exists
+  # Update subconverter-wasm dependency version in www/package.json if it exists
   if [ -f "www/package.json" ]; then
-    echo "Updating version to $VERSION in www/package.json"
-    jq --arg new_version "$VERSION" '.version = $new_version' www/package.json > www/package.json.tmp && mv www/package.json.tmp www/package.json
+    echo "Updating subconverter-wasm dependency to $VERSION in www/package.json"
+    jq --arg new_version "$VERSION" '(.dependencies? | ."subconverter-wasm") |= $new_version | (.devDependencies? | ."subconverter-wasm") |= $new_version' www/package.json > www/package.json.tmp && mv www/package.json.tmp www/package.json
   fi
 
   echo "Running cargo check to update Cargo.lock"
