@@ -1,7 +1,8 @@
 {
     "Layout": {
         "title": "Subconverter-RS",
-        "description": "高级代理订阅转换和格式化工具"
+        "description": "高级代理订阅转换和格式化工具",
+        "update_failed": "更新失败"
     },
     "HomePage": {
         "title": "Subconverter-RS 网页界面",
@@ -214,5 +215,14 @@
         "optional": "可选",
         "enabled": "已启用",
         "disabled": "已禁用"
+    },
+    "Startup": {
+        "title": "初始化 Subconverter",
+        "description": "首次设置，请稍候。这可能需要一点时间...",
+        "status_initializing": "正在初始化...",
+        "status_success": "初始化完成！正在重定向...",
+        "status_failed": "初始化失败",
+        "error_unknown": "初始化过程中发生未知错误。",
+        "error_exception": "初始化过程中发生异常。"
     }
 }

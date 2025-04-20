@@ -1,7 +1,8 @@
 {
     "Layout": {
         "title": "Subconverter-RS",
-        "description": "Advanced proxy subscription converter and formatter"
+        "description": "Advanced proxy subscription converter and formatter",
+        "update_failed": "Update failed"
     },
     "HomePage": {
         "title": "Subconverter-RS Web Interface",
@@ -214,5 +215,14 @@
         "optional": "Optional",
         "enabled": "Enabled",
         "disabled": "Disabled"
+    },
+    "Startup": {
+        "title": "Initializing Subconverter",
+        "description": "Please wait while we set things up for the first time. This might take a moment...",
+        "status_initializing": "Initializing...",
+        "status_success": "Initialization Complete! Redirecting...",
+        "status_failed": "Initialization Failed",
+        "error_unknown": "An unknown error occurred during initialization.",
+        "error_exception": "An exception occurred during initialization."
     }
 }

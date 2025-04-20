@@ -6,20 +6,7 @@ import { loadWasmSingleton } from '@/lib/wasm'; // Assuming a similar loader uti
  * This might trigger a one-time load from GitHub on initial deployment.
  */
 export async function GET() {
-    let wasmModule;
-    try {
-        // Assuming 'Init' or similar group contains the init functions
-        wasmModule = await loadWasmSingleton('Init');
-    } catch (error) {
-        console.error("Failed to load WASM module for initialization:", error);
-        return NextResponse.json(
-            {
-                error: 'Failed to load WASM module',
-                details: error instanceof Error ? error.message : String(error),
-            },
-            { status: 500 }
-        );
-    }
+    const wasmModule = await loadWasmSingleton('Init');
 
     console.log('API request: GET /api/init');
 
