@@ -1,8 +1,8 @@
 use crate::api::rules::RulesUpdateRequest;
-use crate::utils::file_wasm;
 use crate::vfs::vercel_kv_helpers::get_directory_marker_key;
 use crate::vfs::vercel_kv_js_bindings::{dummy, kv_exists, kv_list};
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
+use crate::vfs::wasm_helpers::{get_vfs, vfs_error_to_js};
 use crate::vfs::{DirectoryEntry, FileAttributes, VfsError, VirtualFileSystem};
 
 use log::{error, info};
@@ -10,43 +10,6 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use wasm_bindgen::prelude::*;
-
-// --- Helper Functions ---
-
-// Helper to get the VFS instance
-async fn get_vfs() -> Result<VercelKvVfs, VfsError> {
-    file_wasm::get_vfs()
-        .await
-        .map_err(|e| VfsError::Other(format!("Failed to get VFS: {}", e)))
-}
-
-// Helper to convert VfsError to JsValue for the FFI boundary
-fn vfs_error_to_js(err: VfsError) -> JsValue {
-    let error_type = match &err {
-        VfsError::NotFound(_) => "NotFound",
-        VfsError::ConfigError(_) => "ConfigError",
-        VfsError::StorageError(_) => "StorageError",
-        VfsError::NetworkError(_) => "NetworkError",
-        VfsError::IoError(_) => "IoError",
-        VfsError::IsDirectory(_) => "IsDirectory",
-        VfsError::NotDirectory(_) => "NotDirectory",
-        VfsError::InvalidPath(_) => "InvalidPath",
-        VfsError::PermissionDenied(_) => "PermissionDenied",
-        VfsError::AlreadyExists(_) => "AlreadyExists",
-        VfsError::NotSupported(_) => "NotSupported",
-        VfsError::Other(_) => "Other",
-    };
-
-    let error_obj = json!({
-        "type": error_type,
-        "message": format!("{}", err)
-    });
-
-    // Serialize the JSON object to a string and then into JsValue
-    let error_json = error_obj.to_string();
-    JsValue::from_str(&error_json)
-}
-
 // --- Wasm Bindgen Exports ---
 
 #[wasm_bindgen]

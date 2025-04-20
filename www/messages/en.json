@@ -40,7 +40,7 @@
         "shortUrlMessage": " This is your persistent short URL that redirects to the full conversion endpoint.",
         "optionalConfigInfo": "Optional: Select a preset or specify a custom configuration URL",
         "githubStar": "Star on GitHub",
-        "selfHostPrompt": "Star & click deploy on GitHub to self-host!"
+        "selfHostPrompt": "Star & click deploy to self-host for FREE!"
     },
     "DownloadsPage": {
         "title": "Client Applications",

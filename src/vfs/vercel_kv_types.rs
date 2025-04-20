@@ -214,4 +214,9 @@ pub trait VirtualFileSystem {
         directory_path: &str,
         shallow: bool,
     ) -> impl std::future::Future<Output = Result<LoadDirectoryResult, VfsError>>;
+
+    /// Initializes the VFS by attempting to load the root directory from GitHub
+    /// if it hasn't been loaded yet.
+    /// Returns `true` if the GitHub load was actually triggered, `false` otherwise.
+    fn initialize_github_load(&self) -> impl std::future::Future<Output = Result<bool, VfsError>>;
 }

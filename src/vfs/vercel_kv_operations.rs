@@ -217,11 +217,15 @@ impl VercelKvVfs {
 
         // 5. Check GitHub (optional - might be slow)
         // Consider adding a flag to control this check if performance is critical
-        // log::debug!("Checking GitHub for: {}", normalized_path);
-        // if self.load_github_file_info_impl(&normalized_path).await.is_ok() {
-        //     log::debug!("Found on GitHub: {}", normalized_path);
-        //     return Ok(true);
-        // }
+        log::debug!("Checking GitHub for: {}", normalized_path);
+        if self
+            .load_github_file_info_impl(&normalized_path)
+            .await
+            .is_ok()
+        {
+            log::debug!("Found on GitHub: {}", normalized_path);
+            return Ok(true);
+        }
 
         log::debug!("Path not found: {}", normalized_path);
         Ok(false)
