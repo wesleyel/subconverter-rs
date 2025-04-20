@@ -1,18 +1,17 @@
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::utils::file_wasm;
-use crate::vfs::wasm_helpers::{get_vfs, vfs_error_to_js};
-use crate::vfs::{VercelKvVfs, VfsError, VirtualFileSystem};
-use log;
-use serde_json::{json, Value};
-
 // --- Wasm Bindgen Exports ---
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn init_wasm_logging(level: Option<String>) -> Result<(), JsValue> {
+    use crate::utils::file_wasm;
+    use crate::vfs::wasm_helpers::{get_vfs, vfs_error_to_js};
+    use crate::vfs::{VercelKvVfs, VfsError, VirtualFileSystem};
+    use log;
     use log::Level;
+    use serde_json::{json, Value};
     use std::sync::atomic::{AtomicBool, Ordering};
 
     // Static flag to track if logger has been initialized
