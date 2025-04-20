@@ -49,6 +49,18 @@ pub enum VfsError {
     #[error("Is not a directory: {0}")]
     NotDirectory(String),
 
+    #[error("Permission denied: {0}")]
+    PermissionDenied(String),
+
+    #[error("Path already exists: {0}")]
+    AlreadyExists(String),
+
+    #[error("Operation not supported: {0}")]
+    NotSupported(String),
+
     #[error("Other error: {0}")]
     Other(String),
+
+    #[error("Invalid path: {0}")]
+    InvalidPath(String),
 }

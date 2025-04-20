@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         // Use the appropriate function based on debug flag
         if (debug) {
             console.log(`Debug listing directory: ${path}`);
-            const debugInfo = await wasmModule.debug_list_directory(path, shallow);
+            const debugInfo = await wasmModule.debug_list_directory(path);
             return NextResponse.json(debugInfo);
         } else {
             console.log(`Listing directory: ${path}`);

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy:netlify": "NETLIFY=true netlify deploy --build --prod"
+    "deploy:netlify": "NETLIFY=true netlify deploy --build"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

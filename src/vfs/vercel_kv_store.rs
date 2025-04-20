@@ -13,6 +13,7 @@ use wasm_bindgen_futures;
 
 /// Represents the storage layer for Vercel KV VFS
 /// Handles all interactions with KV store and memory caches
+#[derive(Clone)]
 pub struct VercelKvStore {
     memory_cache: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     metadata_cache: Arc<RwLock<HashMap<String, FileAttributes>>>,
@@ -163,87 +164,206 @@ impl VercelKvStore {
     }
 
     //------------------------------------------------------------------------------
-    // KV Store Metadata Operations
+    // KV Store Directory Metadata Operations
     //------------------------------------------------------------------------------
 
-    /// Read file metadata from KV store
-    pub async fn read_metadata_from_kv(
+    /// Reads the entire DirectoryMetadata JSON object for a given directory path.
+    pub async fn read_directory_metadata_from_kv(
         &self,
-        path: &str,
-    ) -> Result<Option<FileAttributes>, VfsError> {
-        let metadata_key = get_metadata_key(path);
-        match kv_get(&metadata_key).await {
+        dir_path: &str,
+    ) -> Result<DirectoryMetadata, VfsError> {
+        let dir_key = get_directory_marker_key(dir_path);
+        match kv_get(&dir_key).await {
             Ok(js_value) => {
                 if js_value.is_null() || js_value.is_undefined() {
-                    Ok(None)
+                    // If the directory marker doesn't exist, return default (empty) metadata
+                    Ok(DirectoryMetadata::default())
                 } else {
-                    // Convert JsValue to FileAttributes
+                    // Convert JsValue to Vec<u8> first
                     let metadata_bytes: Vec<u8> = serde_wasm_bindgen::from_value(js_value)
                         .map_err(|e| {
-                            VfsError::Other(format!("Failed to deserialize metadata bytes: {}", e))
+                            VfsError::Other(format!(
+                                "Failed to deserialize directory metadata bytes for '{}': {}",
+                                dir_path, e
+                            ))
                         })?;
 
-                    let attributes: FileAttributes = serde_json::from_slice(&metadata_bytes)
+                    // Then deserialize from bytes to DirectoryMetadata
+                    let dir_metadata: DirectoryMetadata = serde_json::from_slice(&metadata_bytes)
                         .map_err(|e| {
-                            VfsError::Other(format!("Failed to parse file attributes: {}", e))
-                        })?;
-
-                    Ok(Some(attributes))
+                        VfsError::Other(format!(
+                            "Failed to parse DirectoryMetadata for '{}': {}",
+                            dir_path, e
+                        ))
+                    })?;
+                    Ok(dir_metadata)
                 }
             }
-            Err(e) => Err(js_error_to_vfs(e, "Failed to read metadata from KV")),
+            Err(e) => Err(js_error_to_vfs(
+                e,
+                &format!(
+                    "Failed to read directory metadata from KV for '{}'",
+                    dir_path
+                ),
+            )),
         }
     }
 
-    /// Write file metadata to KV store
-    pub async fn write_metadata_to_kv(
+    /// Writes the entire DirectoryMetadata JSON object for a given directory path.
+    async fn write_directory_metadata_to_kv(
         &self,
-        path: &str,
-        attributes: &FileAttributes,
+        dir_path: &str,
+        dir_metadata: &DirectoryMetadata,
     ) -> Result<(), VfsError> {
-        let metadata_key = get_metadata_key(path);
-        let metadata_json = serde_json::to_vec(attributes)
-            .map_err(|e| VfsError::Other(format!("Failed to serialize file attributes: {}", e)))?;
+        let dir_key = get_directory_marker_key(dir_path);
+        let metadata_json = serde_json::to_vec(dir_metadata).map_err(|e| {
+            VfsError::Other(format!(
+                "Failed to serialize DirectoryMetadata for '{}': {}",
+                dir_path, e
+            ))
+        })?;
 
-        match kv_set(&metadata_key, &metadata_json).await {
+        match kv_set(&dir_key, &metadata_json).await {
             Ok(_) => Ok(()),
-            Err(e) => Err(js_error_to_vfs(e, "Failed to write metadata to KV")),
+            Err(e) => Err(js_error_to_vfs(
+                e,
+                &format!(
+                    "Failed to write directory metadata to KV for '{}'",
+                    dir_path
+                ),
+            )),
         }
     }
 
-    /// Write file metadata to KV store in background (non-blocking)
-    pub fn write_metadata_to_kv_background(&self, path: String, attributes: FileAttributes) {
-        let metadata_key = get_metadata_key(&path);
-        let metadata_json = match serde_json::to_vec(&attributes) {
+    /// Writes DirectoryMetadata to KV in background (non-blocking).
+    pub fn write_directory_metadata_to_kv_background(
+        &self,
+        dir_path: String,
+        dir_metadata: DirectoryMetadata,
+    ) {
+        let dir_key = get_directory_marker_key(&dir_path);
+        let metadata_json = match serde_json::to_vec(&dir_metadata) {
             Ok(json) => json,
             Err(e) => {
-                log::error!("Failed to serialize metadata for {}: {}", path, e);
+                log::error!(
+                    "Failed to serialize DirectoryMetadata for background write '{}': {}",
+                    dir_path,
+                    e
+                );
                 return;
             }
         };
 
         wasm_bindgen_futures::spawn_local(async move {
-            match kv_set(&metadata_key, &metadata_json).await {
+            match kv_set(&dir_key, &metadata_json).await {
                 Ok(_) => {
                     log::debug!(
-                        "Successfully stored metadata for {} in KV background.",
-                        path
+                        "Successfully stored directory metadata for '{}' in KV background.",
+                        dir_path
                     );
                 }
                 Err(e) => {
-                    log::error!("Background KV metadata write error for {}: {:?}", path, e);
+                    log::error!(
+                        "Background KV directory metadata write error for '{}': {:?}",
+                        dir_path,
+                        e
+                    );
                 }
             }
         });
     }
 
-    /// Delete file metadata from KV store
-    pub async fn delete_metadata_from_kv(&self, path: &str) -> Result<(), VfsError> {
-        let metadata_key = get_metadata_key(path);
-        match kv_del(&metadata_key).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(js_error_to_vfs(e, "Failed to delete metadata from KV")),
+    /// Reads attributes for a *specific file* within a directory's metadata JSON.
+    pub async fn read_file_attributes_from_dir_kv(
+        &self,
+        path: &str,
+    ) -> Result<Option<FileAttributes>, VfsError> {
+        let parent_dir = get_parent_directory(path);
+        let filename = get_filename(path);
+        if filename.is_empty() {
+            return Err(VfsError::InvalidPath("Path cannot be empty.".to_string()));
         }
+
+        match self.read_directory_metadata_from_kv(&parent_dir).await {
+            Ok(dir_metadata) => Ok(dir_metadata.files.get(&filename).cloned()),
+            Err(e) => Err(e), // Propagate read error
+        }
+    }
+
+    /// Writes attributes for a *specific file* into its directory's metadata JSON.
+    pub async fn write_file_attributes_to_dir_kv(
+        &self,
+        path: &str,
+        attributes: &FileAttributes,
+    ) -> Result<(), VfsError> {
+        let parent_dir = get_parent_directory(path);
+        let filename = get_filename(path);
+        if filename.is_empty() {
+            return Err(VfsError::InvalidPath(
+                "Path cannot be empty for attribute write.".to_string(),
+            ));
+        }
+
+        // Read-modify-write the directory metadata
+        let mut dir_metadata = self.read_directory_metadata_from_kv(&parent_dir).await?;
+        dir_metadata.files.insert(filename, attributes.clone());
+        self.write_directory_metadata_to_kv(&parent_dir, &dir_metadata)
+            .await
+    }
+
+    /// Writes attributes for a *specific file* into its directory's metadata JSON in the background.
+    pub fn write_file_attributes_to_dir_kv_background(
+        &self,
+        path: String,
+        attributes: FileAttributes,
+    ) {
+        let parent_dir = get_parent_directory(&path);
+        let filename = get_filename(&path);
+        if filename.is_empty() {
+            log::error!("Cannot write attributes for empty filename path: {}", path);
+            return;
+        }
+
+        // Clone the Arc store itself, which is cheap and gives ownership to the async block
+        let store_clone = self.clone();
+
+        wasm_bindgen_futures::spawn_local(async move {
+            match store_clone
+                .read_directory_metadata_from_kv(&parent_dir)
+                .await
+            {
+                Ok(mut dir_metadata) => {
+                    dir_metadata.files.insert(filename, attributes);
+                    // Now write the modified directory metadata back
+                    store_clone.write_directory_metadata_to_kv_background(parent_dir, dir_metadata);
+                }
+                Err(e) => {
+                    log::error!("Failed to read directory metadata for background write of file attributes for path '{}': {:?}", path, e);
+                }
+            }
+        });
+    }
+
+    /// Deletes attributes for a *specific file* from its directory's metadata JSON.
+    pub async fn delete_file_attributes_from_dir_kv(&self, path: &str) -> Result<(), VfsError> {
+        let parent_dir = get_parent_directory(path);
+        let filename = get_filename(path);
+        if filename.is_empty() {
+            return Err(VfsError::InvalidPath(
+                "Path cannot be empty for attribute delete.".to_string(),
+            ));
+        }
+
+        // Read-modify-write the directory metadata
+        let mut dir_metadata = self.read_directory_metadata_from_kv(&parent_dir).await?;
+        let existed = dir_metadata.files.remove(&filename).is_some();
+        if existed {
+            // Only write back if the file was actually removed
+            self.write_directory_metadata_to_kv(&parent_dir, &dir_metadata)
+                .await?;
+        }
+        // If it didn't exist, no error, just do nothing.
+        Ok(())
     }
 
     //------------------------------------------------------------------------------
@@ -252,39 +372,50 @@ impl VercelKvStore {
 
     /// Check if directory exists in KV store
     pub async fn directory_exists_in_kv(&self, path: &str) -> Result<bool, VfsError> {
-        let dir_marker_key = get_directory_marker_key(path);
-        match kv_exists(&dir_marker_key).await {
+        let dir_key = get_directory_marker_key(path);
+        match kv_exists(&dir_key).await {
             Ok(js_value) => {
                 let exists = js_value.as_bool().unwrap_or(false);
                 Ok(exists)
             }
             Err(e) => Err(js_error_to_vfs(
                 e,
-                "Failed to check if directory exists in KV",
+                &format!("Failed to check if directory exists in KV for '{}'", path),
             )),
         }
     }
 
     /// Create directory marker in KV store
     pub async fn create_directory_in_kv(&self, path: &str) -> Result<(), VfsError> {
-        let dir_marker_key = get_directory_marker_key(path);
-        match kv_set(&dir_marker_key, &[]).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(js_error_to_vfs(
-                e,
-                "Failed to create directory marker in KV",
-            )),
+        if path.is_empty() {
+            // Cannot explicitly create the root directory marker this way
+            log::warn!("Attempted to explicitly create root directory marker, skipping.");
+            return Ok(());
         }
+        let dir_key = get_directory_marker_key(path);
+        // Check if it already exists
+        if self.directory_exists_in_kv(path).await? {
+            log::debug!(
+                "Directory marker already exists for '{}', skipping creation.",
+                path
+            );
+            return Ok(()); // Idempotent: already exists is success
+        }
+
+        // Create with default (empty) DirectoryMetadata
+        let initial_metadata = DirectoryMetadata::default();
+        self.write_directory_metadata_to_kv(path, &initial_metadata)
+            .await
     }
 
     /// Delete directory marker from KV store
-    pub async fn delete_directory_from_kv(&self, path: &str) -> Result<(), VfsError> {
-        let dir_marker_key = get_directory_marker_key(path);
-        match kv_del(&dir_marker_key).await {
+    pub async fn delete_directory_marker_from_kv(&self, path: &str) -> Result<(), VfsError> {
+        let dir_key = get_directory_marker_key(path);
+        match kv_del(&dir_key).await {
             Ok(_) => Ok(()),
             Err(e) => Err(js_error_to_vfs(
                 e,
-                "Failed to delete directory marker from KV",
+                &format!("Failed to delete directory marker from KV for '{}'", path),
             )),
         }
     }
@@ -305,45 +436,6 @@ impl VercelKvStore {
     //------------------------------------------------------------------------------
     // Status Operations
     //------------------------------------------------------------------------------
-
-    /// Check if file is a placeholder
-    pub async fn is_placeholder(&self, path: &str) -> Result<bool, VfsError> {
-        let status_key = get_status_key(path);
-        match kv_get(&status_key).await {
-            Ok(js_value) => {
-                if js_value.is_null() || js_value.is_undefined() {
-                    Ok(false)
-                } else {
-                    let status: Vec<u8> = serde_wasm_bindgen::from_value(js_value)
-                        .map_err(|_| VfsError::Other("Failed to deserialize status".to_string()))?;
-                    if let Ok(status_str) = String::from_utf8(status.clone()) {
-                        Ok(status_str == FILE_STATUS_PLACEHOLDER)
-                    } else {
-                        Ok(false)
-                    }
-                }
-            }
-            Err(e) => Err(js_error_to_vfs(e, "Failed to check if file is placeholder")),
-        }
-    }
-
-    /// Set file as placeholder
-    pub async fn set_as_placeholder(&self, path: &str) -> Result<(), VfsError> {
-        let status_key = get_status_key(path);
-        match kv_set(&status_key, FILE_STATUS_PLACEHOLDER.as_bytes()).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(js_error_to_vfs(e, "Failed to set file as placeholder")),
-        }
-    }
-
-    /// Clear placeholder status
-    pub async fn clear_placeholder_status(&self, path: &str) -> Result<(), VfsError> {
-        let status_key = get_status_key(path);
-        match kv_del(&status_key).await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(js_error_to_vfs(e, "Failed to clear placeholder status")),
-        }
-    }
 
     /// Filter internal keys and deduplicate to get unique real paths
     pub async fn get_unique_real_paths(&self, keys: &[String]) -> Vec<String> {
@@ -482,57 +574,60 @@ impl VercelKvStore {
     }
 }
 
-// Helper function to create default FileAttributes for a file
+// Helper function to create FileAttributes for files (moved from Vfs?)
 pub fn create_file_attributes(
     path: &str,
     content_size: usize,
     source_type: &str,
 ) -> FileAttributes {
+    let now = safe_system_time()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     FileAttributes {
+        path: path.to_string(), // Set the path
         size: content_size,
-        created_at: safe_system_time()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs(),
-        modified_at: safe_system_time()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs(),
+        created_at: now, // Consider if created_at should be persisted/updated differently
+        modified_at: now,
         file_type: guess_file_type(path),
         is_directory: false,
         source_type: source_type.to_string(),
     }
 }
 
-// Helper function to create default directory FileAttributes
-pub fn create_directory_attributes(source_type: &str) -> FileAttributes {
+// Helper function to create FileAttributes for directories (moved from Vfs?)
+pub fn create_directory_attributes(path: &str, source_type: &str) -> FileAttributes {
+    let now = safe_system_time()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     FileAttributes {
+        path: path.to_string(), // Set the path
+        size: 0,
+        created_at: now,
+        modified_at: now,
+        file_type: "inode/directory".to_string(), // Set fixed directory type
         is_directory: true,
         source_type: source_type.to_string(),
-        ..Default::default()
     }
 }
 
-/// Helper function to check if a key is an internal key (metadata, status, etc.)
+/// Helper function to check if a key is an internal VFS key (suffix based)
 pub fn is_internal_key(key: &str) -> bool {
-    key.ends_with(FILE_METADATA_SUFFIX)
-        || key.ends_with(FILE_STATUS_SUFFIX)
-        || key.ends_with(FILE_CONTENT_SUFFIX)
+    key.ends_with(FILE_CONTENT_SUFFIX)
         || key.ends_with(DIRECTORY_MARKER_SUFFIX)
+        || key.ends_with(GITHUB_TREE_CACHE_SUFFIX)
 }
 
-/// Helper function to extract the real path from a key by removing internal suffixes
+/// Helper function to extract the real VFS path from a KV key
 pub fn get_real_path_from_key(key: &str) -> Option<String> {
-    if key.ends_with(FILE_METADATA_SUFFIX) {
-        Some(key[..key.len() - FILE_METADATA_SUFFIX.len()].to_string())
-    } else if key.ends_with(FILE_STATUS_SUFFIX) {
-        Some(key[..key.len() - FILE_STATUS_SUFFIX.len()].to_string())
-    } else if key.ends_with(FILE_CONTENT_SUFFIX) {
-        Some(key[..key.len() - FILE_CONTENT_SUFFIX.len()].to_string())
+    if key.ends_with(FILE_CONTENT_SUFFIX) {
+        key.strip_suffix(FILE_CONTENT_SUFFIX).map(|s| s.to_string())
     } else if key.ends_with(DIRECTORY_MARKER_SUFFIX) {
-        Some(key[..key.len() - DIRECTORY_MARKER_SUFFIX.len()].to_string())
+        // For directory markers, return path ending with / for consistency
+        key.strip_suffix(DIRECTORY_MARKER_SUFFIX)
+            .map(|s| format!("{}/", s.trim_end_matches('/')))
     } else {
-        // Not an internal key
-        None
+        None // GitHub cache keys don't represent direct VFS paths
     }
 }
