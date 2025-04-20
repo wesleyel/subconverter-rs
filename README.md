@@ -86,18 +86,21 @@ The following table shows the support status of different proxy protocols in var
 ## 📥 Installation
 
 ### From GitHub Releases
-```bash
-# Download the latest release (replace $subconverter_zip_name with the actual file name for your OS/arch)
-DOWNLOAD_URL=$(curl -s https://api.github.com/repos/lonelam/subconverter-rs/releases/latest | \
-               jq -r '.assets[] | select(.name | contains(\"x86_64-unknown-linux-gnu\")).browser_download_url') # Example: Linux x86_64
-curl -L -O "$DOWNLOAD_URL"
-# Assuming the downloaded file is a tar.gz archive
-tar -zxf $(basename "$DOWNLOAD_URL")
 
-# Navigate to the extracted directory (might vary depending on archive structure)
-# cd subconverter
+Download and run the helper script directly (requires `curl` and `jq`):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lonelam/subconverter-rs/main/scripts/setup_and_run_subconverter.sh | bash
 ```
-*Note: You need to replace the example filter in `jq` with the correct one for your desired release asset.*
+This downloads the latest release, extracts it to a `subconverter` directory, and starts the server.
+
+(Or manually download from [Releases](https://github.com/lonelam/subconverter-rs/releases/latest)).
+
+### Docker
+```bash
+docker pull lonelam/subconverter-rs
+docker run -d -p 25500:25500 lonelam/subconverter-rs
+```
 
 ### From Crates.io
 ```bash
@@ -108,15 +111,9 @@ cargo install subconverter
 ```bash
 git clone https://github.com/lonelam/subconverter-rs.git
 cd subconverter-rs
-cargo build --release
+cargo build --release --features=web-api
 ```
 The binary will be available at `target/release/subconverter-rs`.
-
-### Docker
-```bash
-docker pull lonelam/subconverter-rs
-docker run -d -p 25500:25500 lonelam/subconverter-rs
-```
 
 ---
 

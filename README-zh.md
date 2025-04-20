@@ -21,6 +21,40 @@ https://subconverter-rs.netlify.app/
 
 ---
 
+## 📥 安装
+
+### 从 GitHub Releases 获取
+
+直接下载并运行辅助脚本 (需要 `curl` 和 `jq`):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/lonelam/subconverter-rs/main/scripts/setup_and_run_subconverter.sh | bash
+```
+此命令会下载最新版本，解压到 `subconverter` 目录，并启动服务。
+
+(或手动从 [Releases](https://github.com/lonelam/subconverter-rs/releases/latest) 下载)。
+
+### Docker
+```bash
+docker pull lonelam/subconverter-rs
+docker run -d -p 25500:25500 lonelam/subconverter-rs
+```
+
+### 从 Crates.io 获取
+```bash
+cargo install subconverter
+```
+
+### 从源码编译
+```bash
+git clone https://github.com/lonelam/subconverter-rs.git
+cd subconverter-rs
+cargo build --release --features=web-api
+```
+二进制文件将位于 `target/release/subconverter-rs`。
+
+---
+
 * * *
 
 ## 📋 目录
