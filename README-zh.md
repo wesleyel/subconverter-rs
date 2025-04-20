@@ -1,11 +1,16 @@
 # subconverter-rs 使用指南
 
+<div align="center">
+
+<img src="www/public/logo.svg" alt="subconverter-rs logo" width="150">
+
 > 一个高性能代理订阅转换工具，从 C++ 版本的 subconverter 转换为 Rust 实现
 
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Status](https://img.shields.io/badge/status-beta-blue.svg)](https://github.com/lonelam/subconverter-rs)
 [![GPL-3.0+ License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/subconverter.svg)](https://crates.io/crates/subconverter)
+[![Telegram](https://img.shields.io/badge/Telegram-subconverter_rs-blue.svg)](https://t.me/subconverter_rs)
 
 ---
 

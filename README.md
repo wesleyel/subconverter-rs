@@ -2,12 +2,15 @@
 
 <div align="center">
 
+<img src="www/public/logo.svg" alt="subconverter-rs logo" width="150">
+
 > Transform. Optimize. Simplify. A blazingly fast proxy subscription converter rewritten in Rust.
 
 [![Rust](https://img.shields.io/badge/language-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Status](https://img.shields.io/badge/status-beta-blue.svg)](https://github.com/lonelam/subconverter-rs)
 [![GPL-3.0+ License](https://img.shields.io/badge/license-GPL--3.0%2B-blue.svg)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/subconverter.svg)](https://crates.io/crates/subconverter)
+[![Telegram](https://img.shields.io/badge/Telegram-subconverter_rs-blue.svg)](https://t.me/subconverter_rs)
 [![Netlify Status](https://api.netlify.com/api/v1/badges/35e931d3-b058-466e-88a5-e80247c5efd5/deploy-status)](https://app.netlify.com/sites/subconverter-rs/deploys)
 [![GitHub stars](https://img.shields.io/github/stars/lonelam/subconverter-rs?style=social)](https://github.com/lonelam/subconverter-rs/stargazers)
 

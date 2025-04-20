@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, FormEvent, useCallback, useEffect } from "react";
 import { useTranslations } from 'next-intl';
 import { convertSubscription, SubResponseData, ErrorData, createShortUrl, ShortUrlData, getAvailableDownloads, detectUserOS, AppDownloadInfo } from '@/lib/api-client';
@@ -184,7 +185,10 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-between p-4 md:p-8 lg:p-24">
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm">
         <div className="flex flex-col sm:flex-row items-center justify-between mb-6">
-          <h1 className="text-4xl font-bold mb-4 sm:mb-0 text-center">{t('title')}</h1>
+          <div className="flex items-center gap-4 mb-4 sm:mb-0">
+            <Image src="/logo.svg" alt="Subconverter Logo" width={60} height={60} />
+            <h1 className="text-4xl font-bold text-center">{t('title')}</h1>
+          </div>
           <div className="flex gap-4 items-center">
             <LanguageSwitcher />
             <a
