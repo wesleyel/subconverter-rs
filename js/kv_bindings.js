@@ -10,6 +10,12 @@ let isNetlifyBlobs = false; // Flag to track if we're using Netlify Blobs
 // Environment variable cache to avoid repeated lookups
 let envCache = new Map();
 
+function isNetlifyEnvironment() {
+    return typeof process !== 'undefined' &&
+        process.env.NETLIFY === 'true' ||
+        (process.cwd && process.cwd() === '/var/task');
+}
+
 // Function to read environment variables from various runtimes
 // This is needed because std::env::var doesn't work in WebAssembly
 function getenv(name, defaultValue = "") {
@@ -58,7 +64,7 @@ async function getKv() {
                 console.log("Using Vercel KV for storage");
             }
             // Check for Netlify Blobs environment
-            else if (typeof process !== 'undefined' && process.env.NETLIFY === 'true') {
+            else if (isNetlifyEnvironment()) {
                 try {
                     const { getStore } = require('@netlify/blobs');
                     const store = getStore('subconverter-data');

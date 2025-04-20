@@ -26,6 +26,7 @@ let initPromise: Promise<SubconverterWasm> | null = null;
  * Determines if we're in a specific deployment environment
  */
 export function getDeploymentEnv(): string {
+
     // Check for environment variable set in webpack
     if (deployEnv !== 'unknown') {
         return deployEnv;
@@ -80,7 +81,7 @@ export async function initWasm(): Promise<typeof subconverterWasm> {
 
         // Initialize necessary hooks
         if (typeof subconverterWasm.init_panic_hook === 'function') {
-            console.log('Initializing panic hoFok...');
+            console.log('Initializing panic hook...');
             subconverterWasm.init_panic_hook();
         }
 
@@ -130,6 +131,11 @@ export async function loadWasmSingleton(context: string = 'API'): Promise<Subcon
             });
     }
     return initPromise;
+}
+
+if (process.env.NODE_ENV === 'development') {
+    // environment variables
+    console.log('Environment variables:', JSON.stringify(process.env, null, 2));
 }
 
 // Initialize the module
