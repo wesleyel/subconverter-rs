@@ -222,24 +222,98 @@ async function kv_get(key) {
         if (value instanceof ArrayBuffer) {
             return new Uint8Array(value);
         } else if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+            // Handles Uint8Array from in-memory fallback or Netlify Blobs
+            return value;
+        } else if (typeof value === 'string') {
+            // Vercel KV might return a string for non-binary data
             return value;
         }
 
         return value === null ? undefined : value;
     } catch (error) {
         console.error(`KV get error for ${key}:`, error);
-        return undefined;
+        // Re-throw or return specific error indicator if needed
+        throw new Error(`Failed to get key ${key}: ${error.message}`);
     }
 }
 
-// Both Vercel KV and Netlify Blobs can handle binary data
-// We'll trust the adapter to handle Uint8Array values appropriately
+async function kv_get_text(key) {
+    try {
+        const kvClient = await getKv();
+        // Vercel KV, Netlify Blobs, and fallback stores might return strings or binary data
+        if (kvClient._baseKv && typeof kvClient._baseKv.get === 'function') {
+            // Vercel KV: Use get, it should return string or null
+            const value = await kvClient._baseKv.get(`${VERCEL_KV_PREFIX}/${key}`);
+            // Ensure it's a string or return undefined if null/not string
+            return (typeof value === 'string') ? value : undefined;
+        } else if (isNetlifyBlobs && kvClient._store && typeof kvClient._store.get === 'function') {
+            // Netlify Blobs: Get as text
+            const value = await kvClient._store.get(key, { type: "text" });
+            return value === null ? undefined : value; // Already a string or null
+        } else {
+            // Fallback: Get potentially as bytes and decode
+            const rawValue = await kv_get(key);
+            if (rawValue === undefined || rawValue === null) {
+                return undefined;
+            }
+            let textValue;
+            if (rawValue instanceof Uint8Array) {
+                textValue = new TextDecoder().decode(rawValue);
+            } else if (typeof rawValue === 'string') {
+                textValue = rawValue;
+            } else { // Should not happen with kv_get logic, but handle defensively
+                console.warn(`kv_get_text: KV fallback returned unexpected type for key ${key}:`, typeof rawValue);
+                return undefined;
+            }
+            return textValue;
+        }
+    } catch (error) {
+        // Log errors, especially if it's not a simple 'not found'
+        if (error.message && error.message.includes('not found')) {
+            console.debug(`KV get_text: Key ${key} not found.`);
+            return undefined; // Indicate not found
+        }
+        console.error(`KV get_text error for ${key}:`, error);
+        throw new Error(`Failed to get text for key ${key}: ${error.message}`);
+    }
+}
+
+// Both Vercel KV and Netlify Blobs can handle binary data or JSON directly
+// We'll trust the adapter to handle Uint8Array/JSON values appropriately
 async function kv_set(key, value /* Uint8Array from Rust */) {
     try {
         const kvClient = await getKv();
         await kvClient.set(key, value);
     } catch (error) {
         console.error(`KV set error for ${key}:`, error);
+        throw new Error(`Failed to set key ${key}: ${error.message}`);
+    }
+}
+
+async function kv_set_text(key, value /* String from Rust */) {
+    try {
+        const kvClient = await getKv();
+        // Pass the string value directly to the underlying store
+        if (kvClient._baseKv && typeof kvClient._baseKv.set === 'function') {
+            // Vercel KV: Use prefix and set string directly
+            await kvClient._baseKv.set(`${VERCEL_KV_PREFIX}/${key}`, value);
+        } else if (isNetlifyBlobs && kvClient._store && typeof kvClient._store.set === 'function') {
+            // Netlify Blobs: Use set with string (implicitly handles encoding)
+            await kvClient._store.set(key, value);
+        }
+        else {
+            // Fallback: Use the kvClient.set which handles memory/byte conversion
+            // Determine if the underlying kv.set expects string or Uint8Array
+            if (kvClient.set === localStorageMap.set) { // Check if it's the in-memory fallback
+                await kvClient.set(key, value); // In-memory stores string
+            } else {
+                // Assume other fallbacks might need bytes
+                await kvClient.set(key, new TextEncoder().encode(value));
+            }
+        }
+    } catch (error) {
+        console.error(`KV set_text error for ${key}:`, error);
+        throw new Error(`Failed to set text for key ${key}: ${error.message}`);
     }
 }
 
@@ -448,5 +522,7 @@ module.exports = {
     response_text,
     getenv,
     dummy,
-    migrateStorage // Expose migrate function if needed externally
+    migrateStorage, // Expose migrate function if needed externally
+    kv_get_text,
+    kv_set_text,
 }; 

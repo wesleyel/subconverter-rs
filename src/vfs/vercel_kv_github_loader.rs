@@ -12,7 +12,6 @@ use futures::future::{join_all, BoxFuture, FutureExt};
 use futures::stream::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::time::UNIX_EPOCH;
-use wasm_bindgen_futures::spawn_local;
 
 impl VercelKvVfs {
     /// Load all files from a GitHub repository directory
@@ -213,6 +212,23 @@ impl VercelKvVfs {
                 let current_dir_path = normalize_dir_path(&relative_path);
                 log::trace!("Found directory from GitHub tree: {}", current_dir_path);
                 directories_to_create.insert(current_dir_path.clone());
+
+                // Create attributes for the directory itself and add to parent's map
+                let parent_dir = get_parent_directory(&relative_path);
+                let dirname = get_filename(&relative_path); // Get the directory name itself
+                if !dirname.is_empty() {
+                    // Avoid adding root dir to its own (non-existent) parent map
+                    let attributes = create_directory_attributes(&relative_path, "cloud");
+                    log::trace!(
+                        "Adding directory attributes for '{}' to parent '{}' map",
+                        relative_path,
+                        parent_dir
+                    );
+                    files_by_parent
+                        .entry(parent_dir)
+                        .or_default()
+                        .push(attributes);
+                }
             } else {
                 // It's a file
                 log::trace!("Found file from GitHub tree: {}", relative_path);
@@ -303,63 +319,84 @@ impl VercelKvVfs {
         );
 
         // --- File Processing ---
-        let mut final_loaded_files: Vec<LoadedFile> = Vec::new(); // Initialize vec for final results
+        let mut final_loaded_files: Vec<LoadedFile> = Vec::new();
         let mut successes = 0;
         let mut failures = 0;
 
         if shallow {
-            // --- Shallow Mode: Spawn background tasks for metadata updates ---
-            log::info!(
-                "Processing files in shallow mode using spawn_local for metadata updates..."
-            );
+            // --- Shallow Mode: Synchronous metadata updates per directory ---
+            log::info!("Processing files in shallow mode (synchronous metadata update per dir)...");
             for (parent_dir, files) in files_by_parent {
-                let vfs = self.clone();
+                let vfs = self.clone(); // Clone VFS for this iteration
                 let parent_dir_clone = parent_dir.clone();
-                // Immediately add files to results, assuming spawn_local will succeed
-                for file_attrs in &files {
-                    // Push directly to the final vec
-                    final_loaded_files.push(LoadedFile {
-                        path: file_attrs.path.clone(),
-                        size: file_attrs.size,
-                        is_placeholder: true,
-                        is_directory: false,
-                    });
-                }
-                successes += files.len(); // Count initiated tasks as successful for reporting
+                log::debug!(
+                    "Shallow updating metadata for directory: {}",
+                    parent_dir_clone
+                );
 
-                // Spawn a background task to update the directory metadata
-                spawn_local(async move {
-                    log::debug!(
-                        "Background task: Updating metadata for directory: {}",
-                        parent_dir_clone
-                    );
-                    match vfs
-                        .store
-                        .read_directory_metadata_from_kv(&parent_dir_clone)
-                        .await
-                    {
-                        Ok(mut dir_metadata) => {
-                            for file_attrs in files {
-                                dir_metadata
-                                    .files
-                                    .insert(get_filename(&file_attrs.path), file_attrs.clone());
-                                // Cache individual attributes (already done in main thread? No, let's do it here too for consistency)
-                                vfs.store
-                                    .write_to_metadata_cache(&file_attrs.path, file_attrs.clone())
-                                    .await;
-                            }
-                            // Write the updated metadata back (background)
-                            vfs.store.write_directory_metadata_to_kv_background(
-                                parent_dir_clone.clone(),
-                                dir_metadata,
-                            );
+                let mut current_batch_success = true; // Track success for this specific directory
+
+                // Perform read-modify-write synchronously for this directory
+                match vfs
+                    .store
+                    .read_directory_metadata_from_kv(&parent_dir_clone)
+                    .await
+                {
+                    Ok(mut dir_metadata) => {
+                        let mut files_in_batch = 0;
+                        for file_attrs in files {
+                            files_in_batch += 1;
+                            // Add placeholder to final result list immediately
+                            final_loaded_files.push(LoadedFile {
+                                path: file_attrs.path.clone(),
+                                size: file_attrs.size,
+                                is_placeholder: true,
+                                is_directory: false,
+                            });
+                            // Update the metadata map
+                            dir_metadata
+                                .files
+                                .insert(get_filename(&file_attrs.path), file_attrs.clone());
+                            // Update memory cache (still useful)
+                            vfs.store
+                                .write_to_metadata_cache(&file_attrs.path, file_attrs.clone())
+                                .await;
                         }
-                        Err(e) => {
-                            log::error!("Background task failed: Could not read/update metadata for dir '{}': {:?}", parent_dir_clone, e);
-                            // Note: This failure won't be reflected in the immediate return count
+
+                        // Write the updated metadata back SYNCHRONOUSLY
+                        let write_result = vfs
+                            .store
+                            .write_directory_metadata_to_kv(&parent_dir_clone, &dir_metadata)
+                            .await;
+
+                        if let Err(e) = write_result {
+                            log::error!(
+                                "Failed to write updated metadata for dir '{}': {:?}",
+                                parent_dir_clone,
+                                e
+                            );
+                            current_batch_success = false;
+                            failures += files_in_batch; // Mark all files in this batch as failed
+                        } else {
+                            successes += files_in_batch; // Mark all files as successful for this batch
                         }
                     }
-                });
+                    Err(e) => {
+                        log::error!("Failed to read initial metadata for dir '{}': {:?}. Skipping update for {} files.", parent_dir_clone, e, files.len());
+                        current_batch_success = false;
+                        failures += files.len(); // Count files as failures if initial read failed
+                                                 // Add placeholders to results anyway, even if metadata write fails?
+                                                 // Let's add them, as they exist conceptually.
+                        for file_attrs in files {
+                            final_loaded_files.push(LoadedFile {
+                                path: file_attrs.path.clone(),
+                                size: file_attrs.size,
+                                is_placeholder: true,
+                                is_directory: false,
+                            });
+                        }
+                    }
+                }
             }
         } else {
             // --- Deep Mode: Use buffer_unordered for concurrent reads and collect results ---

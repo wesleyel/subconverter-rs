@@ -3,6 +3,7 @@ use crate::vfs::vercel_kv_helpers::*;
 use crate::vfs::vercel_kv_js_bindings::*;
 use crate::vfs::vercel_kv_types::*;
 use crate::vfs::VfsError;
+use serde_json;
 use serde_wasm_bindgen;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -173,30 +174,41 @@ impl VercelKvStore {
         dir_path: &str,
     ) -> Result<DirectoryMetadata, VfsError> {
         let dir_key = get_directory_marker_key(dir_path);
-        match kv_get(&dir_key).await {
+        log::debug!(
+            "Inside read_directory_metadata_from_kv for key: '{}'",
+            dir_key
+        );
+        match kv_get_text(&dir_key).await {
             Ok(js_value) => {
                 if js_value.is_null() || js_value.is_undefined() {
-                    // If the directory marker doesn't exist, return default (empty) metadata
+                    // If the directory marker doesn't exist or has no JSON content, return default (empty) metadata
+                    log::debug!(
+                        "Metadata text for key '{}' is null or undefined, returning default.",
+                        dir_key
+                    );
                     Ok(DirectoryMetadata::default())
                 } else {
-                    // Convert JsValue to Vec<u8> first
-                    let metadata_bytes: Vec<u8> = serde_wasm_bindgen::from_value(js_value)
-                        .map_err(|e| {
+                    // Expecting a JsString, convert to Rust String and parse
+                    js_value.as_string().map_or_else(|| {
+                        log::error!("kv_get_text returned non-string value for key '{}': {:?}", dir_key, js_value);
+                        Err(VfsError::Other(format!(
+                            "KV store returned non-string type for directory metadata key '{}'", dir_key
+                        )))
+                    }, |json_string| {
+                        log::debug!("Attempting to parse JSON string for key '{}', length: {}", dir_key, json_string.len());
+                        serde_json::from_str::<DirectoryMetadata>(&json_string).map_err(|e| {
+                            log::error!(
+                                "Failed to parse DirectoryMetadata JSON string for '{}': {}, JSON: {}",
+                                dir_path,
+                                e,
+                                json_string // Log the problematic JSON string
+                            );
                             VfsError::Other(format!(
-                                "Failed to deserialize directory metadata bytes for '{}': {}",
+                                "Failed to parse DirectoryMetadata for '{}': {}",
                                 dir_path, e
                             ))
-                        })?;
-
-                    // Then deserialize from bytes to DirectoryMetadata
-                    let dir_metadata: DirectoryMetadata = serde_json::from_slice(&metadata_bytes)
-                        .map_err(|e| {
-                        VfsError::Other(format!(
-                            "Failed to parse DirectoryMetadata for '{}': {}",
-                            dir_path, e
-                        ))
-                    })?;
-                    Ok(dir_metadata)
+                        })
+                    })
                 }
             }
             Err(e) => Err(js_error_to_vfs(
@@ -210,20 +222,27 @@ impl VercelKvStore {
     }
 
     /// Writes the entire DirectoryMetadata JSON object for a given directory path.
-    async fn write_directory_metadata_to_kv(
+    pub async fn write_directory_metadata_to_kv(
         &self,
         dir_path: &str,
         dir_metadata: &DirectoryMetadata,
     ) -> Result<(), VfsError> {
         let dir_key = get_directory_marker_key(dir_path);
-        let metadata_json = serde_json::to_vec(dir_metadata).map_err(|e| {
+        // Serialize DirectoryMetadata to a JSON string
+        let metadata_json_string = serde_json::to_string(dir_metadata).map_err(|e| {
             VfsError::Other(format!(
                 "Failed to serialize DirectoryMetadata for '{}': {}",
                 dir_path, e
             ))
         })?;
 
-        match kv_set(&dir_key, &metadata_json).await {
+        log::debug!(
+            "Writing directory metadata text to KV for '{}', length: {}",
+            dir_path,
+            metadata_json_string.len()
+        );
+
+        match kv_set_text(&dir_key, &metadata_json_string).await {
             Ok(_) => Ok(()),
             Err(e) => Err(js_error_to_vfs(
                 e,
@@ -242,8 +261,9 @@ impl VercelKvStore {
         dir_metadata: DirectoryMetadata,
     ) {
         let dir_key = get_directory_marker_key(&dir_path);
-        let metadata_json = match serde_json::to_vec(&dir_metadata) {
-            Ok(json) => json,
+        // Serialize DirectoryMetadata to JSON string
+        let metadata_json_string = match serde_json::to_string(&dir_metadata) {
+            Ok(s) => s,
             Err(e) => {
                 log::error!(
                     "Failed to serialize DirectoryMetadata for background write '{}': {}",
@@ -254,8 +274,14 @@ impl VercelKvStore {
             }
         };
 
+        log::debug!(
+            "Writing directory metadata text to KV for '{}' (background), length: {}",
+            dir_path,
+            metadata_json_string.len()
+        );
+
         wasm_bindgen_futures::spawn_local(async move {
-            match kv_set(&dir_key, &metadata_json).await {
+            match kv_set_text(&dir_key, &metadata_json_string).await {
                 Ok(_) => {
                     log::debug!(
                         "Successfully stored directory metadata for '{}' in KV background.",
@@ -385,14 +411,15 @@ impl VercelKvStore {
         }
     }
 
-    /// Create directory marker in KV store
+    /// Creates a directory marker key in KV.
+    /// Note: This no longer writes initial metadata, as that will be handled
+    /// by the first process that needs to add file attributes to the directory.
     pub async fn create_directory_in_kv(&self, path: &str) -> Result<(), VfsError> {
         if path.is_empty() {
-            // Cannot explicitly create the root directory marker this way
             log::warn!("Attempted to explicitly create root directory marker, skipping.");
             return Ok(());
         }
-        let dir_key = get_directory_marker_key(path);
+        // let dir_key = get_directory_marker_key(path); // dir_key not strictly needed now
         // Check if it already exists
         if self.directory_exists_in_kv(path).await? {
             log::debug!(
@@ -402,10 +429,12 @@ impl VercelKvStore {
             return Ok(()); // Idempotent: already exists is success
         }
 
-        // Create with default (empty) DirectoryMetadata
-        let initial_metadata = DirectoryMetadata::default();
-        self.write_directory_metadata_to_kv(path, &initial_metadata)
-            .await
+        // Since we are not writing anything if it doesn't exist, we just return Ok.
+        // The existence check ensures we don't signal an error if it's already there.
+        // The *actual* creation of the metadata blob happens when the first file is added.
+        // For now, simply ensuring the conceptual directory can be created (or already exists)
+        // is sufficient for the caller (load_github_directory_impl).
+        Ok(())
     }
 
     /// Delete directory marker from KV store
@@ -431,66 +460,6 @@ impl VercelKvStore {
             }
             Err(e) => Err(js_error_to_vfs(e, "Failed to list keys from KV")),
         }
-    }
-
-    //------------------------------------------------------------------------------
-    // Status Operations
-    //------------------------------------------------------------------------------
-
-    /// Filter internal keys and deduplicate to get unique real paths
-    pub async fn get_unique_real_paths(&self, keys: &[String]) -> Vec<String> {
-        let mut unique_paths = HashSet::new();
-
-        for key in keys {
-            if let Some(real_path) = get_real_path_from_key(key) {
-                unique_paths.insert(real_path);
-            } else if !is_internal_key(key) {
-                // Not an internal key, so it's a real path already
-                unique_paths.insert(key.clone());
-            }
-        }
-
-        unique_paths.into_iter().collect()
-    }
-
-    /// Filter internal keys and deduplicate to get unique real file paths
-    /// This version also filters out internal directory markers and their base paths
-    pub async fn get_unique_real_paths_filtered(&self, keys: &[String]) -> Vec<String> {
-        let mut unique_paths = HashSet::new();
-        let mut exclude_paths = HashSet::new();
-
-        // First pass: identify directory marker paths to exclude their non-directory versions
-        for key in keys {
-            if key.ends_with(DIRECTORY_MARKER_SUFFIX) {
-                if let Some(real_path) = get_real_path_from_key(key) {
-                    // Add the base path (without trailing slash) to exclude list
-                    if real_path.ends_with('/') {
-                        exclude_paths.insert(real_path[..real_path.len() - 1].to_string());
-                    } else {
-                        exclude_paths.insert(real_path);
-                    }
-                }
-            }
-        }
-
-        // Second pass: add all non-excluded paths
-        for key in keys {
-            // Skip internal directory marker keys
-            if key.ends_with(DIRECTORY_MARKER_SUFFIX) {
-                continue;
-            }
-
-            if let Some(real_path) = get_real_path_from_key(key) {
-                if !exclude_paths.iter().any(|p| p == &real_path) {
-                    unique_paths.insert(real_path);
-                }
-            } else if !is_internal_key(key) && !exclude_paths.iter().any(|p| p == key) {
-                // Not an internal key, so it's a real path already
-                unique_paths.insert(key.clone());
-            }
-        }
-
-        unique_paths.into_iter().collect()
     }
 
     //------------------------------------------------------------------------------

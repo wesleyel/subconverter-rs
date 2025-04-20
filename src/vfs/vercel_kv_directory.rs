@@ -193,301 +193,153 @@ impl VercelKvVfs {
         )))
     }
 
-    /// List directory contents
+    /// List directory contents by reading the directory's metadata object.
+    /// Assumes the metadata object contains entries for both files and subdirectories.
+    /// For the root directory, if metadata is initially missing/empty and GitHub load is allowed,
+    /// it will trigger a GitHub load to populate the metadata before reading it.
     pub(crate) async fn list_directory_impl(
         &self,
         path: &str,
-        skip_github_load: bool,
+        _skip_github_load: bool, // Parameter kept for signature consistency
     ) -> Result<Vec<DirectoryEntry>, VfsError> {
-        log_debug!("Listing directory: '{}'", path);
-        let normalized_dir_path = normalize_path(path); // Path for the directory itself
-        log_debug!("Normalized directory path: '{}'", normalized_dir_path);
+        log_debug!("Listing directory using metadata: '{}'", path);
+        let normalized_dir_path = normalize_path(path);
+        let dir_path_for_lookup = normalize_dir_path(&normalized_dir_path);
+        log_debug!(
+            "Normalized directory path for lookup: '{}'",
+            dir_path_for_lookup
+        );
 
-        // --- Check if Directory Exists ---
-        // Root always exists implicitly
-        let dir_exists = if normalized_dir_path.is_empty() {
-            true
-        } else {
-            // Check for the directory marker key
-            self.store
-                .directory_exists_in_kv(&normalized_dir_path)
-                .await?
-        };
-
-        if !dir_exists {
-            log_debug!(
-                "Directory '{}' does not exist (no marker found)",
-                normalized_dir_path
-            );
-            // Before returning empty, quickly check if it's implicitly defined by files inside it via kv_list
-            // This handles cases where directories might not have been explicitly created but contain files.
-            let kv_prefix = if normalized_dir_path.is_empty() {
-                "".to_string()
-            } else {
-                // Use trailing slash for prefix listing
-                format!("{}/", normalized_dir_path.trim_end_matches('/'))
-            };
-            match self.store.list_keys_with_prefix(&kv_prefix).await {
-                Ok(keys) if !keys.is_empty() => {
-                    log::debug!("Directory '{}' marker missing, but found {} keys inside. Proceeding with listing.", normalized_dir_path, keys.len());
-                    // Proceed as if directory exists implicitly
-                }
-                _ => {
-                    log::debug!("Directory '{}' marker missing and no keys found inside. Returning empty list.", normalized_dir_path);
-                    return Ok(Vec::new()); // Truly doesn't exist or is empty
-                }
-            }
-        }
-
-        // --- Get Entries from Directory Metadata ---
-        let mut entries_map: HashMap<String, DirectoryEntry> = HashMap::new();
-        match self
-            .store
-            .read_directory_metadata_from_kv(&normalized_dir_path)
-            .await
-        {
-            Ok(dir_metadata) => {
-                log_debug!(
-                    "Read directory metadata for '{}', found {} file entries.",
-                    normalized_dir_path,
-                    dir_metadata.files.len()
-                );
-                for (filename, attrs) in dir_metadata.files {
-                    let entry_path = build_file_entry_path(&normalized_dir_path, &filename);
-                    entries_map.insert(
-                        filename.clone(),
-                        DirectoryEntry {
-                            name: filename,
-                            path: entry_path,
-                            is_directory: false, // Files stored in metadata are files
-                            attributes: Some(attrs),
-                        },
+        // --- Trigger GitHub Load for Root if Allowed ---
+        // If listing root and GitHub load is enabled, trigger it first.
+        // We expect this load to populate the KV metadata for the root.
+        if dir_path_for_lookup.is_empty() && !_skip_github_load {
+            // Check if root metadata *already* exists and isn't empty before triggering load?
+            // Let's check cache first. If cache exists and has items, maybe skip load.
+            let cached_metadata_exists = self.store.exists_in_metadata_cache("").await; // Check cache for root
+            let mut skip_github_due_to_cache = false;
+            if cached_metadata_exists {
+                if let Some(cached_attrs) = self.store.read_from_metadata_cache("").await {
+                    // If it's cached, assume it's accurate for now, skip GitHub load.
+                    // This check might need refinement depending on cache invalidation strategy.
+                    log::debug!(
+                        "Root directory metadata found in cache, skipping GitHub load trigger."
                     );
+                    skip_github_due_to_cache = true;
                 }
             }
-            Err(e) => {
-                log::warn!(
-                    "Failed to read directory metadata for '{}': {:?}. Listing may be incomplete.",
-                    normalized_dir_path,
-                    e
+            // Also check KV store directly? This might be redundant if cache reflects KV.
+            // Let's stick with the cache check for now. If cache is empty/missing, proceed to check KV before load.
+            if !skip_github_due_to_cache {
+                match self.store.read_directory_metadata_from_kv("").await {
+                    Ok(metadata) if !metadata.files.is_empty() => {
+                        log::debug!("Root directory metadata found in KV and is not empty, skipping GitHub load trigger.");
+                        skip_github_due_to_cache = true; // Treat existing KV data as reason to skip load
+                    }
+                    Ok(_) => {
+                        log::debug!("Root directory metadata in KV is empty or missing.");
+                        // Proceed to load from GitHub
+                    }
+                    Err(e) => {
+                        log::warn!("Error checking root metadata in KV before GitHub load trigger: {:?}. Proceeding with load attempt.", e);
+                        // Proceed to load from GitHub even if check failed
+                    }
+                }
+            }
+
+            if !skip_github_due_to_cache {
+                log::debug!(
+                    "Root directory listing and metadata appears empty/missing, triggering GitHub load..."
                 );
-                // Continue without metadata, rely on kv_list
+                // Use shallow load (true) to only populate metadata placeholders
+                match self.load_github_directory(&dir_path_for_lookup, true).await {
+                    Ok(_) => {
+                        log::info!("GitHub load triggered successfully for root directory.");
+                        // Proceed to read metadata below
+                    }
+                    Err(load_err) => {
+                        log::error!(
+                            "GitHub load trigger failed for root directory: {:?}. Listing might be empty.",
+                            load_err
+                        );
+                        // Proceed to read metadata below, which might still fail or return empty
+                    }
+                }
             }
         }
 
-        // --- Get Entries from KV List (Files and Subdirectories) ---
-        let kv_list_prefix = if normalized_dir_path.is_empty() {
-            "".to_string() // List everything from root
-        } else {
-            format!("{}/", normalized_dir_path.trim_end_matches('/')) // Ensure trailing slash for prefix scan
-        };
-        log_debug!("Using prefix for KV scan: '{}'", kv_list_prefix);
+        // --- Read Final Directory Metadata ---
+        // This read happens *after* any potential GitHub load for the root.
+        log::debug!(
+            "Attempting to read final directory metadata for '{}'",
+            dir_path_for_lookup
+        );
+        let final_read_result = self
+            .store
+            .read_directory_metadata_from_kv(&dir_path_for_lookup)
+            .await;
 
-        let keys = match self.store.list_keys_with_prefix(&kv_list_prefix).await {
-            Ok(keys) => {
-                log_debug!(
-                    "KV list returned {} keys for prefix '{}'",
-                    keys.len(),
-                    kv_list_prefix
+        match final_read_result {
+            Ok(final_metadata) => {
+                log::debug!(
+                    "Successfully read final metadata for '{}', found {} entries.",
+                    dir_path_for_lookup,
+                    final_metadata.files.len()
                 );
-                keys
+                // Process the metadata into DirectoryEntry items
+                let mut final_entries = Vec::with_capacity(final_metadata.files.len());
+                for (name, attrs) in final_metadata.files.iter() {
+                    let entry_path = if attrs.is_directory {
+                        build_dir_entry_path(&dir_path_for_lookup, name)
+                    } else {
+                        build_file_entry_path(&dir_path_for_lookup, name)
+                    };
+                    final_entries.push(DirectoryEntry {
+                        name: name.clone(),
+                        path: entry_path,
+                        is_directory: attrs.is_directory,
+                        attributes: Some(attrs.clone()),
+                    });
+                }
+                log::debug!(
+                    "Final listing for '{}' returning {} entries.",
+                    dir_path_for_lookup,
+                    final_entries.len()
+                );
+                Ok(final_entries)
             }
             Err(e) => {
                 log::error!(
-                    "Error listing keys with prefix '{}': {:?}",
-                    kv_list_prefix,
+                    "Failed to read final directory metadata for '{}': {:?}. Returning error or empty list.",
+                    dir_path_for_lookup,
                     e
                 );
-                // If KV list fails but we have metadata, return metadata entries? Or error out?
-                // For now, return what we have from metadata if any.
-                return Ok(entries_map.values().cloned().collect());
-            }
-        };
-
-        // --- Process KV Keys ---
-        let prefix_len = kv_list_prefix.len();
-        let mut subdirs_found = HashSet::new(); // Track unique subdirectory names found via KV list
-
-        for key in &keys {
-            log::trace!("Processing KV key: '{}'", key);
-
-            // Extract path relative to the directory being listed
-            let relative_path = if key.starts_with(&kv_list_prefix) && key.len() > prefix_len {
-                &key[prefix_len..]
-            } else if kv_list_prefix.is_empty() {
-                // Handle root listing case
-                key
-            } else {
-                log::trace!(
-                    "Key '{}' doesn't match prefix '{}' or is too short, skipping",
-                    key,
-                    kv_list_prefix
-                );
-                continue; // Skip keys not directly under the prefix
-            };
-
-            log::trace!("Relative path: '{}'", relative_path);
-
-            // Check if it's a direct child or nested further
-            if let Some(slash_pos) = relative_path.find('/') {
-                // It's nested. Extract the first component (subdirectory name)
-                let subdir_name = &relative_path[..slash_pos];
-                if !subdir_name.is_empty() && subdirs_found.insert(subdir_name.to_string()) {
-                    log::trace!("Found potential subdirectory: '{}'", subdir_name);
-                    // Add directory entry if not already present from metadata
-                    if !entries_map.contains_key(subdir_name) {
-                        let subdir_full_path =
-                            build_dir_entry_path(&normalized_dir_path, subdir_name);
-                        log::debug!(
-                            "Adding subdirectory entry from KV list: '{}'",
-                            subdir_full_path
-                        );
-                        entries_map.insert(
-                            subdir_name.to_string(),
-                            DirectoryEntry {
-                                name: subdir_name.to_string(),
-                                path: subdir_full_path,
-                                is_directory: true,
-                                // Fetching attributes here could be slow; maybe get later if needed?
-                                // Or rely on the fact that a @@dir key exists.
-                                attributes: None, // Initially None, could fetch if needed by caller
-                            },
-                        );
+                // Handle final read errors
+                match e {
+                    VfsError::NotFound(_) => {
+                        log::debug!("Final metadata read for '{}' resulted in NotFound, returning empty list.", dir_path_for_lookup);
+                        Ok(Vec::new()) // Treat NotFound as empty directory
                     }
-                }
-            } else {
-                // It's a direct child (file or maybe an empty dir marker?)
-                let filename = relative_path;
-                if filename.is_empty() {
-                    continue;
-                } // Should not happen with correct prefix logic
-
-                // We only care about files (`@@content`) here, as metadata blob handles file attributes.
-                // Directory markers (`@@dir`) at this level were handled above.
-                if key.ends_with(FILE_CONTENT_SUFFIX) {
-                    let real_filename = get_filename(key); // Get filename without suffix
-                    if !entries_map.contains_key(&real_filename) {
-                        // File content exists, but wasn't in metadata. Add a basic entry.
-                        log::warn!("File content key '{}' found but no metadata entry in parent dir '{}'. Adding basic entry.", key, normalized_dir_path);
-                        let file_full_path =
-                            build_file_entry_path(&normalized_dir_path, &real_filename);
-                        entries_map.insert(
-                            real_filename.clone(),
-                            DirectoryEntry {
-                                name: real_filename,
-                                path: file_full_path,
-                                is_directory: false,
-                                attributes: None, // Attributes should have been in metadata; mark as missing
-                            },
+                    VfsError::Other(ref msg)
+                        if msg.contains("Failed to parse DirectoryMetadata") =>
+                    {
+                        log::warn!(
+                            "Parsing final metadata failed for '{}', treating as empty.",
+                            dir_path_for_lookup
                         );
+                        Ok(Vec::new())
+                    }
+                    _ => {
+                        log::error!(
+                            "Propagating error during final metadata read for '{}': {:?}",
+                            dir_path_for_lookup,
+                            e
+                        );
+                        Err(e) // Propagate other errors
                     }
                 }
             }
         }
-
-        // --- GitHub Supplement (Optional) ---
-        // Decide if we need to load from GitHub
-        let should_load_github = !skip_github_load && {
-            let kv_found_something = !keys.is_empty();
-            let metadata_found_something = !entries_map.is_empty();
-            // Load if KV/Metadata found nothing, OR if listing root and found less than 10 items (heuristic)
-            (!kv_found_something && !metadata_found_something)
-                || (normalized_dir_path.is_empty() && entries_map.len() < 10)
-        };
-
-        if should_load_github {
-            log_debug!(
-                "Attempting to load from GitHub to supplement listing for '{}'",
-                normalized_dir_path
-            );
-            match self
-                .load_github_directory_flat(&normalized_dir_path, true)
-                .await
-            {
-                // Use flat load, shallow=true
-                Ok(result) => {
-                    log::info!(
-                        "Loaded {} potential entries from GitHub directory {}",
-                        result.loaded_files.len(),
-                        normalized_dir_path
-                    );
-
-                    for github_file in result.loaded_files {
-                        let file_path = github_file.path; // This path is relative to VFS root
-                        let filename = get_filename(&file_path);
-                        if filename.is_empty() {
-                            continue;
-                        }
-
-                        // Ensure it's a direct child of the directory we are listing
-                        let parent_dir = get_parent_directory(&file_path);
-                        // Normalize parent_dir for comparison (e.g. "" vs "/")
-                        let normalized_parent = normalize_dir_path(&parent_dir);
-                        let expected_parent = normalize_dir_path(&normalized_dir_path);
-
-                        if normalized_parent == expected_parent {
-                            // It's a direct child. Add or update entry.
-                            if !entries_map.contains_key(&filename) {
-                                log::debug!(
-                                    "Adding entry from GitHub: '{}' (is_dir: {})",
-                                    file_path,
-                                    github_file.is_directory
-                                );
-                                let attributes = if github_file.is_directory {
-                                    create_directory_attributes(&file_path, "cloud")
-                                    // Pass path
-                                } else {
-                                    create_file_attributes(
-                                        &file_path,
-                                        github_file.size,
-                                        if github_file.is_placeholder {
-                                            "placeholder"
-                                        } else {
-                                            "cloud"
-                                        },
-                                    )
-                                };
-                                entries_map.insert(
-                                    filename.clone(),
-                                    DirectoryEntry {
-                                        name: filename,
-                                        path: if github_file.is_directory {
-                                            normalize_dir_path(&file_path)
-                                        } else {
-                                            normalize_file_path(&file_path)
-                                        },
-                                        is_directory: github_file.is_directory,
-                                        attributes: Some(attributes),
-                                    },
-                                );
-                            } else {
-                                // Entry exists from KV/Metadata. Maybe update attributes if source is different?
-                                // For simplicity now, we prioritize KV/Metadata entries if they exist.
-                                log::trace!("Entry '{}' already exists from KV/Metadata, skipping GitHub version.", filename);
-                            }
-                        } else {
-                            log::trace!("Skipping GitHub entry '{}' as its parent '{}' doesn't match listed dir '{}'", file_path, normalized_parent, expected_parent);
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::warn!(
-                        "GitHub flat load for supplementing '{}' failed: {:?}",
-                        normalized_dir_path,
-                        e
-                    );
-                }
-            }
-        }
-
-        // --- Final Result ---
-        let final_entries: Vec<DirectoryEntry> = entries_map.values().cloned().collect();
-        log_debug!(
-            "Returning {} entries for directory '{}'",
-            final_entries.len(),
-            normalized_dir_path
-        );
-        Ok(final_entries)
     }
 
     /// Create directory
