@@ -7,8 +7,9 @@ use crate::vfs::vercel_kv_types::*;
 use crate::vfs::vercel_kv_vfs::VercelKvVfs;
 use crate::vfs::VfsError;
 use case_insensitive_string::CaseInsensitiveString;
+use futures::future::join_all;
 use std::collections::HashMap;
-use std::time::UNIX_EPOCH;
+use std::time::{Instant, UNIX_EPOCH};
 
 impl VercelKvVfs {
     /// Load all files from a GitHub repository directory
@@ -236,186 +237,256 @@ impl VercelKvVfs {
         // Make sure root directory is in the list of directories to create
         directories.insert("".to_string());
 
-        // First create all necessary directories
-        for dir in &directories {
-            // Skip creating the overall root path itself if it was derived from the argument
-            // if dir == &dir_path {
-            //     continue;
-            // }
-            log::debug!("Creating directory: {}", dir);
-            if let Err(e) = self.create_directory(dir).await {
-                log::warn!("Failed to create directory {}: {:?}", dir, e);
-                // Continue anyway
-            } else {
-                // Set directory attributes
-                let current_dir_path = if dir.ends_with('/') {
-                    dir.clone()
-                } else {
-                    format!("{}/", dir)
-                };
+        // Create directory futures concurrently
+        let directory_futures = directories
+            .iter()
+            .map(|dir| {
+                let vfs = self.clone(); // Clone self for use in the async block
+                let dir_clone = dir.clone();
+                async move {
+                    if dir_clone.is_empty() {
+                        // Skip creating the actual root "" path, it implicitly exists.
+                        // Still need to handle metadata below if required? Consider implications.
+                        // For now, just skip the create call.
+                        return Ok(());
+                    }
 
-                // Create directory attributes
-                let dir_attributes = FileAttributes {
-                    is_directory: true,
-                    created_at: safe_system_time()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    modified_at: safe_system_time()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    source_type: "cloud".to_string(),
-                    ..Default::default()
-                };
+                    log::debug!("Creating directory: {}", dir_clone);
+                    let result = vfs.create_directory(&dir_clone).await;
+                    if let Err(e) = result {
+                        log::warn!("Failed to create directory {}: {:?}", dir_clone, e);
+                        Err(VfsError::Other(format!(
+                            "Failed to create directory {}: {:?}",
+                            dir_clone, e
+                        )))
+                    } else {
+                        // Set directory attributes
+                        let current_dir_path = if dir_clone.ends_with('/') {
+                            dir_clone.clone()
+                        } else {
+                            format!("{}/", dir_clone)
+                        };
 
-                // Update metadata cache
-                self.metadata_cache()
-                    .write()
-                    .await
-                    .insert(current_dir_path.clone(), dir_attributes);
-            }
-        }
+                        let dir_attributes = FileAttributes {
+                            is_directory: true,
+                            created_at: safe_system_time()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                            modified_at: safe_system_time()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                            source_type: "cloud".to_string(),
+                            ..Default::default()
+                        };
 
-        // In WebAssembly, we can't use tokio::spawn for threading
-        // so we'll process the files sequentially
-        let mut successes = 0;
-        let mut failures = 0;
-        let mut loaded_files = Vec::new();
+                        // Update metadata cache
+                        vfs.metadata_cache()
+                            .write()
+                            .await
+                            .insert(current_dir_path.clone(), dir_attributes);
+                        Ok(()) // Indicate success
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
 
         log::info!(
-            "Processing {} files (shallow: {})",
+            "Waiting for {} directory creation tasks...",
+            directory_futures.len()
+        );
+        let dir_start_time = Instant::now(); // Start timer
+        let directory_results = join_all(directory_futures).await;
+        let dir_duration = dir_start_time.elapsed(); // Calculate duration
+        log::debug!("Directory creation tasks finished in {:.2?}", dir_duration);
+        let dir_failures = directory_results.iter().filter(|r| r.is_err()).count();
+        if dir_failures > 0 {
+            log::warn!(
+                "{} directory creation tasks failed (check previous logs).",
+                dir_failures
+            );
+            // Decide if we should return an error or continue
+            // For now, continue as before, but log clearly.
+        }
+
+        log::info!(
+            "Processing {} files concurrently (shallow: {})",
             files_to_process.len(),
             shallow
         );
 
-        for (index, (file_path, item)) in files_to_process.iter().enumerate() {
-            log::debug!(
-                "Processing file {}/{}: {}",
-                index + 1,
-                files_to_process.len(),
-                file_path
-            );
+        let file_futures = files_to_process
+            .iter()
+            .map(|(file_path, item)| {
+                let vfs = self.clone(); // Clone self
+                let file_path_clone = file_path.clone();
+                let item_clone = (*item).clone(); // Clone item data
 
-            if shallow {
-                // In shallow mode, just create placeholders for files without downloading content
-                let normalized_path = normalize_path(file_path);
+                async move {
+                    log::debug!("Processing file: {}", file_path_clone);
+                    if shallow {
+                        // Shallow mode logic (runs concurrently)
+                        let normalized_path = normalize_path(&file_path_clone);
+                        let size_estimate = item_clone.size.unwrap_or(0);
+                        if size_estimate == 0 {
+                            log::warn!("File size estimate is 0 for: {}", normalized_path);
+                        }
 
-                // Get size estimate directly from the item
-                let size_estimate = item.size.unwrap_or(0);
-                if size_estimate == 0 {
-                    log::warn!("File size estimate is 0 for: {}", normalized_path);
-                }
-
-                let attributes = FileAttributes {
-                    size: size_estimate,
-                    created_at: safe_system_time()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    modified_at: safe_system_time()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                    file_type: guess_file_type(&normalized_path),
-                    is_directory: false,
-                    source_type: "placeholder".to_string(),
-                };
-
-                // Store file metadata
-                let metadata_key = get_metadata_key(&normalized_path);
-                let metadata_json = match serde_json::to_vec(&attributes) {
-                    Ok(json) => json,
-                    Err(e) => {
-                        log::warn!("Failed to serialize metadata for {}: {:?}", file_path, e);
-                        continue;
-                    }
-                };
-
-                // Store placeholder status
-                let status_key = get_status_key(&normalized_path);
-                let status_value = FILE_STATUS_PLACEHOLDER.as_bytes().to_vec();
-
-                // Store in KV
-                let metadata_result = kv_set(&metadata_key, &metadata_json).await;
-                let status_result = kv_set(&status_key, &status_value).await;
-
-                if let Err(e) = metadata_result {
-                    log::warn!("Failed to store metadata for {}: {:?}", file_path, e);
-                    failures += 1;
-                } else if let Err(e) = status_result {
-                    log::warn!(
-                        "Failed to store placeholder status for {}: {:?}",
-                        file_path,
-                        e
-                    );
-                    failures += 1;
-                } else {
-                    // Update metadata cache
-                    self.metadata_cache()
-                        .write()
-                        .await
-                        .insert(normalized_path.clone(), attributes);
-
-                    successes += 1;
-                    loaded_files.push(LoadedFile {
-                        path: normalized_path,
-                        size: size_estimate,
-                        is_placeholder: true,
-                        is_directory: false,
-                    });
-                }
-            } else {
-                // In deep mode, actually download file content
-                match self.read_file(file_path).await {
-                    Ok(content) => {
-                        log::debug!(
-                            "Successfully loaded file: {} ({} bytes)",
-                            file_path,
-                            content.len()
-                        );
-                        successes += 1;
-                        loaded_files.push(LoadedFile {
-                            path: file_path.to_string(),
-                            size: content.len(),
-                            is_placeholder: false,
+                        let attributes = FileAttributes {
+                            size: size_estimate,
+                            created_at: safe_system_time()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                            modified_at: safe_system_time()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                            file_type: guess_file_type(&normalized_path),
                             is_directory: false,
-                        });
+                            source_type: "placeholder".to_string(),
+                        };
+
+                        let metadata_key = get_metadata_key(&normalized_path);
+                        let metadata_json = match serde_json::to_vec(&attributes) {
+                            Ok(json) => json,
+                            Err(e) => {
+                                let msg = format!(
+                                    "Failed to serialize metadata for {}: {:?}",
+                                    file_path_clone, e
+                                );
+                                log::warn!("{}", msg);
+                                return Err(msg); // Return error string
+                            }
+                        };
+
+                        let status_key = get_status_key(&normalized_path);
+                        let status_value = FILE_STATUS_PLACEHOLDER.as_bytes().to_vec();
+
+                        // Store in KV
+                        if let Err(e) = kv_set(&metadata_key, &metadata_json).await {
+                            let msg = format!(
+                                "Failed to store metadata for {}: {:?}",
+                                file_path_clone, e
+                            );
+                            log::warn!("{}", msg);
+                            return Err(msg);
+                        }
+                        if let Err(e) = kv_set(&status_key, &status_value).await {
+                            let msg = format!(
+                                "Failed to store placeholder status for {}: {:?}",
+                                file_path_clone, e
+                            );
+                            log::warn!("{}", msg);
+                            return Err(msg);
+                        }
+
+                        // Update metadata cache
+                        vfs.metadata_cache()
+                            .write()
+                            .await
+                            .insert(normalized_path.clone(), attributes.clone());
+
+                        Ok(LoadedFile {
+                            path: normalized_path,
+                            size: size_estimate,
+                            is_placeholder: true,
+                            is_directory: false,
+                        })
+                    } else {
+                        // Deep mode logic (runs concurrently)
+                        match vfs.read_file(&file_path_clone).await {
+                            Ok(content) => {
+                                log::debug!(
+                                    "Successfully loaded file: {} ({} bytes)",
+                                    file_path_clone,
+                                    content.len()
+                                );
+                                Ok(LoadedFile {
+                                    path: file_path_clone.to_string(),
+                                    size: content.len(),
+                                    is_placeholder: false,
+                                    is_directory: false,
+                                })
+                            }
+                            Err(e) => {
+                                log::warn!("Failed to load file {}: {:?}", file_path_clone, e);
+                                Err(format!("Failed deep processing: {:?}", e)) // Return error string
+                            }
+                        }
                     }
-                    Err(e) => {
-                        log::warn!("Failed to load file {}: {:?}", file_path, e);
-                        failures += 1;
-                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let file_results = join_all(file_futures).await;
+
+        // Process results
+        let mut successes = 0;
+        let mut failures = 0;
+        let mut loaded_files = Vec::new();
+
+        for result in file_results {
+            match result {
+                Ok(loaded_file) => {
+                    successes += 1;
+                    loaded_files.push(loaded_file);
+                }
+                Err(error_msg) => {
+                    // Error already logged inside the future
+                    log::trace!("File processing future failed: {}", error_msg); // Trace log redundant?
+                    failures += 1;
                 }
             }
         }
 
         log::info!(
-            "Finished loading: {} successes, {} failures",
+            "Finished loading files: {} successes, {} failures",
             successes,
             failures
         );
 
         // Add created directories to the result
+        // Ensure we only add directories that were successfully created or already existed
         for dir in &directories {
-            // if dir != &dir_path && !dir.is_empty() {
             if !dir.is_empty() {
-                // Simplified condition
-                // Don't include root directory
                 let dir_path_with_slash = if dir.ends_with('/') {
                     dir.clone()
                 } else {
                     format!("{}/", dir)
                 };
 
-                loaded_files.push(LoadedFile {
-                    path: dir_path_with_slash,
-                    size: 0,
-                    is_placeholder: false,
-                    is_directory: true,
-                });
+                // Check if metadata exists (implies successful creation or prior existence)
+                if self
+                    .metadata_cache()
+                    .read()
+                    .await
+                    .contains_key(&dir_path_with_slash)
+                {
+                    loaded_files.push(LoadedFile {
+                        path: dir_path_with_slash,
+                        size: 0,
+                        is_placeholder: false, // Directories aren't placeholders
+                        is_directory: true,
+                    });
+                } else {
+                    log::debug!(
+                        "Skipping directory {} in results as it might have failed creation.",
+                        dir_path_with_slash
+                    );
+                }
             }
         }
+
+        // Add root directory separately if needed (assuming "" path represents root relative to VFS mount)
+        // The root "" directory should always exist implicitly.
+        loaded_files.push(LoadedFile {
+            path: "".to_string(), // Representing the root being loaded/listed
+            size: 0,
+            is_placeholder: false,
+            is_directory: true,
+        });
 
         Ok(LoadDirectoryResult {
             total_files: files_to_process.len(),

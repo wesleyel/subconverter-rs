@@ -13,6 +13,7 @@ let envCache = new Map();
 function isNetlifyEnvironment() {
     return typeof process !== 'undefined' &&
         process.env.NETLIFY === 'true' ||
+        process.env.NETLIFY_BLOBS_CONTEXT != undefined ||
         (process.cwd && process.cwd() === '/var/task');
 }
 
