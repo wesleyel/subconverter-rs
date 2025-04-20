@@ -146,10 +146,16 @@ if [ "$BUMP_BETA" = true ]; then
     jq '.dependencies["@netlify/blobs"] = "^8.1.2"' | \
     jq ".version = \"$VERSION\"" > tmp.json && mv tmp.json pkg/package.json
 
-  # Install dependencies in pkg
-  echo "Installing dependencies in pkg directory..."
+  # Publish beta version to npm
+  echo "Publishing beta version $VERSION to npm..."
   cd pkg
-  pnpm install --ignore-scripts # Avoid running pkg build scripts if any
+  if pnpm publish --tag beta --no-git-checks; then
+      echo "Successfully published $VERSION to npm."
+  else
+      echo "Error: Failed to publish $VERSION to npm."
+      cd .. # Ensure we cd back even on failure
+      exit 1
+  fi
   cd ..
 
   # Copy WASM package to www project
