@@ -121,14 +121,6 @@ if [ "$BUMP_BETA" = true ]; then
   echo "Running cargo check to update Cargo.lock"
   cargo check
 
-  # Commit version changes
-  echo "Committing beta version update..."
-  git add Cargo.toml Cargo.lock
-  if [ -f "www/package.json" ]; then
-    git add www/package.json
-  fi
-  git commit -m "Bump version to $VERSION for beta build"
-
   # Clean pkg directory
   rm -rf pkg
 
@@ -190,11 +182,15 @@ if [ "$BUMP_BETA" = true ]; then
     done
     echo "pnpm install successful."
 
-    echo "Running pnpm deploy:netlify..."
-    # Assuming 'deploy:netlify' script exists in www/package.json and is configured for previews
-    pnpm deploy:netlify
+    # Commit version changes
+    echo "Committing beta version update..."
     cd ..
-    echo "Netlify preview deployment initiated."
+    git add Cargo.toml Cargo.lock
+    if [ -f "www/package.json" ]; then
+      git add www/package.json www/pnpm-lock.yaml
+    fi
+    git commit -m "Bump version to $VERSION for beta build"
+
   else
     echo "Warning: www directory not found, skipping copy and Netlify deploy."
   fi
