@@ -25,7 +25,9 @@ export default function StartupPage() {
                     localStorage.setItem('webappInitialized', 'true');
                     console.log('Initialization successful, redirecting to home...');
                     // Redirect to the home page after a short delay
-                    setTimeout(() => router.push('/'), 1000);
+                    // Adjust delay based on whether GitHub load was triggered
+                    const redirectDelay = result.githubLoadTriggered ? 0 : 1000;
+                    setTimeout(() => router.push('/'), redirectDelay);
                 } else {
                     console.error('Initialization failed:', result.message);
                     setError(result.message || t('error_unknown'));
