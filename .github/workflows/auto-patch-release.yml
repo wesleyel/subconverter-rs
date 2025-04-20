@@ -46,9 +46,9 @@ jobs:
         id: build_script
         run: ./scripts/build-wasm.sh --bump-patch
 
-      - name: Trigger WASM Release Workflow
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
-          event-type: trigger-wasm-release
-          client-payload: '{"version": "${{ steps.build_script.outputs.new_version }}"}' 
+      # - name: Trigger WASM Release Workflow
+      #   uses: peter-evans/repository-dispatch@v2
+      #   with:
+      #     token: ${{ secrets.PAT_TOKEN }}
+      #     event-type: trigger-wasm-release
+      #     client-payload: '{"version": "${{ steps.build_script.outputs.new_version }}"}' 
