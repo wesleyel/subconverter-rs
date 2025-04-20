@@ -3,10 +3,10 @@ FROM alpine:edge AS builder
 WORKDIR /app
 COPY . .
 
-RUN apk add --no-cache cargo==1.86.0-r0 musl-dev perl linux-headers
+RUN apk add --no-cache cargo==~1.86.0 musl-dev perl linux-headers
 RUN cargo build --release --bin subconverter --features web-api
 
-FROM alpine:3.21
+FROM alpine:edge
 LABEL maintainer="@jonnyan404"
 
 WORKDIR /app
