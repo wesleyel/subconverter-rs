@@ -119,6 +119,9 @@ if [ "$BUMP_BETA" = true ]; then
   git add Cargo.toml Cargo.lock
   git commit -m "Bump version to $VERSION for beta build"
 
+  # Clean pkg directory
+  rm -rf pkg
+
   # Build WASM locally (Release mode)
   echo "Building wasm package locally in release mode..."
   wasm-pack build --release --target nodejs
