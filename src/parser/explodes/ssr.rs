@@ -1,5 +1,5 @@
 use crate::models::{Proxy, SSR_DEFAULT_GROUP, SS_CIPHERS};
-use crate::utils::base64::url_safe_base64_decode;
+use crate::utils::base64::{base64_decode, url_safe_base64_decode};
 use serde_json::Value;
 use url::Url;
 
@@ -15,7 +15,7 @@ pub fn explode_ssr(ssr: &str, node: &mut Proxy) -> bool {
     let encoded = &ssr[6..];
 
     // Decode base64
-    let mut decoded = url_safe_base64_decode(encoded);
+    let mut decoded = base64_decode(encoded, true);
     if decoded.is_empty() {
         return false;
     }
